@@ -1,0 +1,8 @@
+{
+    "target"         : "LH2",
+    "SBS_config"     : 9,
+    "replay_pass"    : 0, 
+    "Nruns_to_ana"   : -1,
+    "runsheet_dir"   : "/w/halla-scshelf2102/sbs/pdbforce/gmn-ana/DB",
+    "rootfile_dir"   : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass1/SBS9/LH2/rootfiles"
+}

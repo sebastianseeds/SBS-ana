@@ -1,0 +1,14 @@
+##Git ignore file for HCAL branch
+##Just the usual suspects for now
+
+*~
+*.swp
+## Should probably ignore root files too
+*.root
+## Ignore more of VIM's temporary files
+.*.swo
+## Ignore emacs temporary files
+*#
+.#*
+## Ignore log files
+*.log

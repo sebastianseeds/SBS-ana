@@ -1,0 +1,15 @@
+{
+    "runsheet_dir"            : "/u/home/sseeds/jupyter/data",
+    "rootfile_dir_lh2_sbs4"   : "/work/halla/sbs/sbs-gmn/pass0/SBS4/LH2/rootfiles",
+    "rootfile_dir_lh2_sbs7"   : "/work/halla/sbs/sbs-gmn/pass0/SBS7/LH2/rootfiles",
+    "rootfile_dir_lh2_sbs11"  : "/work/halla/sbs/sbs-gmn/pass1/SBS11/LH2/rootfiles",
+    "rootfile_dir_lh2_sbs14"  : "/work/halla/sbs/sbs-gmn/pass1/SBS14/LH2/rootfiles",
+    "rootfile_dir_lh2_sbs8"   : "/work/halla/sbs/sbs-gmn/pass1/SBS8/LH2/rootfiles",
+    "rootfile_dir_lh2_sbs9"   : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LH2/rootfiles",
+    "rootfile_dir_ld2_sbs4"   : "/work/halla/sbs/sbs-gmn/pass0/SBS4/LD2/rootfiles",
+    "rootfile_dir_ld2_sbs7"   : "/work/halla/sbs/sbs-gmn/pass0/SBS7/LD2/rootfiles",
+    "rootfile_dir_ld2_sbs11"  : "/work/halla/sbs/sbs-gmn/pass1/SBS11/LD2/rootfiles",
+    "rootfile_dir_ld2_sbs14"  : "/work/halla/sbs/sbs-gmn/pass1/SBS14/LD2/rootfiles",
+    "rootfile_dir_ld2_sbs8"   : "/work/halla/sbs/sbs-gmn/pass1/SBS8/LD2/rootfiles",
+    "rootfile_dir_ld2_sbs9"   : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LD2/rootfiles"
+}
