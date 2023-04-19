@@ -2,6 +2,20 @@
 
 namespace util {
 
+  ////Console
+  // returns string with current month day and year (date)
+  string getDate(){
+    time_t now = time(0);
+    tm ltm = *localtime(&now);
+  
+    string yyyy = to_string(1900 + ltm.tm_year);
+    string mm = to_string(1 + ltm.tm_mon);
+    string dd = to_string(ltm.tm_mday);
+    string date = mm + '_' + dd + '_' + yyyy;
+  
+    return date;
+  }
+
   ////HCal
   // returns TH2D for hcal face (row,col), note that row/col start at 1
   TH2D *hhcalrowcol(std::string name) {
@@ -37,10 +51,20 @@ namespace util {
     return h;
   }
 
-  // returns TH2F for hcal dxdy, wide coordinates
+  // returns TH2D for hcal dxdy, wide coordinates
   TH2D *hdxdy(std::string name) {
     TH2D *h = new TH2D(name.c_str(), "; hcaly_{obs} - hcaly_{exp} (m); hcalx_{obs} - hcalx_{exp} (m)",
 		       250, -1.25, 1.25, 250, -3.5, 2);
+    return h;
+  }
+
+  // returns TH1D for hcal waveforms using hcal ADC bin limits
+  TH1D *hhsamps(Int_t row, Int_t col, Int_t bins)
+  {
+    TH1D *h = new TH1D(TString::Format("h%02d%02d",row,col),
+		       TString::Format("%d-%d",row+1,col+1),bins,econst::minsamp,econst::maxsamp);
+    h->SetStats(0);
+    h->SetLineWidth(2);
     return h;
   }
 

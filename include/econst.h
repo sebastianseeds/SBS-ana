@@ -13,6 +13,9 @@ namespace econst {
   static const Int_t maxtrack = 1000;
   static const Int_t maxchan = 1000;
   static const Int_t maxclus = 100;
+  static const Int_t minsamp = 0;
+  static const Int_t maxsamp = 40;     //total number of hcal ADC bins, GMn
+  static const Int_t maxsamps = 73000; //hcal chan * hcal max samp + 1000
 
   //// Detectors
   // HCAL 
@@ -20,10 +23,12 @@ namespace econst {
   static const Int_t hcalchan = 288;
   static const Int_t hcalcol = 12;
   static const Int_t hcalrow = 24;
+  static const Double_t hcaladc_binw = 4.;           //ns, width of each ADC bin
   static const Double_t hcalblk_w = 0.1524;       //m, width of a HCAL block
   static const Double_t hcalblk_h = 0.1524;       //m, height of a HCAL block
   static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist.
   static const Double_t hcalblk_div_v = 0.15875;  //m, vertical center-to-center dist.
+  static const Double_t hcalblk_div_hyp = 0.15875;  //m, division corner-to-cornter dist.
   static const Double_t hcalblk_gap_h = 0.00254;  //m, horiz. gap bet. two blocks
   static const Double_t hcalblk_gap_v = 0.00635;  //m, vert. gap bet. two blocks
   // Positions (mc)
@@ -37,7 +42,7 @@ namespace econst {
   static const Double_t hcalposYi = -0.931545;    //m, distance from beam center to opposite-beam side of HCal
   static const Double_t hcalposYf = 0.931545;     //m, distance from beam center to beam side of HCal
   // Global
-  static const Double_t hcalvoff = -0.2897;      //m, height of the center of hcal above beam (m)
+  static const Double_t hcalvoff = -0.2897;       //m, height of the center of hcal above beam (m)
 
   // BBCAL
   static const Int_t shchan = 189;
@@ -64,8 +69,8 @@ namespace econst {
   static const Double_t ld2uwallthick = 0.0145; //cm, assume same as hydrogen for now
   static const Double_t ld2dwallthick = 0.015;  //cm, assume same as hydrogen for now
   // magnet
-  static const Double_t sbsdipolegap = (48.0*2.54) / 100.;  // ~1.22 m
-  static const Double_t sbsmaxfield = 3.1*atan(0.85 / (11.0-2.25-(sbsdipolegap/2.))) / (0.3*sbsdipolegap*0.7); // ~1.26 T (?)
+  static const Double_t sbsdipolegap = 48.0*2.54/100.;  // ~1.22 m
+  static const Double_t sbsmaxfield = 1.26; //3.1*atan(0.85 / (11.0-2.25-(sbsdipolegap/2.))) / (0.3*sbsdipolegap*0.7); // ~1.26 T (?)
 
   // shielding
   static const Double_t rho_al = 2.7; //g/cc

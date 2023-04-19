@@ -54,8 +54,8 @@ namespace vars {
     }
   }
 
-  //virtual photon q unit vector
-  TVector3 qVect_unit( Double_t Ntheta, Double_t Nphi ) {
+  //virtual photon q unit vector with target momentum reconstructed with e' angles from tracks
+  TVector3 pNhat_track( Double_t Ntheta, Double_t Nphi ) {
     TVector3 pNhat( sin(Ntheta) * cos(Nphi), sin(Ntheta) * sin(Nphi), cos(Ntheta) );
     return pNhat;
   }
@@ -88,7 +88,7 @@ namespace vars {
 
   //calculates inverse momentum transfer Q^2
   Double_t Q2( Double_t ebeam, Double_t eeprime, Double_t etheta ) {
-    return 2.0 * ebeam * eeprime*( 1.0 - cos(etheta) );
+    return 2.0 * ebeam * eeprime * ( 1.0 - cos(etheta) );
   }
 
   //calculates invariant mass squared W^2

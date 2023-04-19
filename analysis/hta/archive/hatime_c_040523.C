@@ -1,6 +1,4 @@
 //sseeds 04.03.23 - Script to extract improved ADC time via application of ToF corrections and waveform corrections
-//04.05.23 Update - Added various fitting alternatives to waveforms and included hodo meantime on tree output
-//04.12.23 Update - Including ToF corrections (where applicable) and best cluster selection
 
 #include <vector>
 #include <iostream>
@@ -15,11 +13,13 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-//Passing kine==-1 will run all kinematics, pass is replay pass, epm is e' momentum calculation method
-void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
+//Passing kine==-1 will run all kinematics
+void hatime_c( Int_t kine=4 )
 { //main
-
-  Double_t adcbinw = econst::hcaladc_binw; //adc sample bin width (4*40=160ns over whole waveform)
+  
+  Int_t epm = 2; //Set e' momentum reconstruction to simplest method
+  Int_t pass = 1; //fix for pass 0/1 for now
+  Double_t adcbinw = 4.; //adc sample bin width (4*40=160ns over whole waveform)
 
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();
@@ -39,7 +39,7 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
-  Int_t nruns = -1; //Always analyze all available runs for this application. If not, need to pass nruns for lh2 and ld2 separately.
+  Int_t nruns = -1; //Always analyze all available runs
   Int_t verb = 0; //Don't print diagnostic info by default
 
   //read the run list to parse run numbers associated to input parameters and set up for loop over runs
@@ -47,14 +47,16 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   vector<crun> crund; 
   util::ReadRunList(runsheet_dir,nruns,kine,"LH2",pass,verb,crunh); //modifies nruns to be very large when -1
   util::ReadRunList(runsheet_dir,nruns,kine,"LD2",pass,verb,crund); //modifies nruns to be very large when -1
+
+  //std::string rootfile_dir = jmgr->GetValueFromKey_str(Form("rootfile_dir_%s_sbs%d",target.c_str(),kine));
   
   //set up output files
   TFile *fout = new TFile( Form("outfiles/ohatime_sbs%d.root",kine), "RECREATE" );
 
   //set up waveform histograms
-  TH1D *landhist[econst::hcalrow][econst::hcalcol]; //For landau fits
-  TH1D *sghist[econst::hcalrow][econst::hcalcol]; //For skewed gaussian fits
-  TH1D *lghist[econst::hcalrow][econst::hcalcol]; //For landau gaussian convolution fits
+  TH1D *landhist[econst::hcalrow][econst::hcalcol];
+  TH1D *sghist[econst::hcalrow][econst::hcalcol];
+  TH1D *lghist[econst::hcalrow][econst::hcalcol];
   for(Int_t r = 0; r < econst::hcalrow; r++) {
     for(Int_t c = 0; c < econst::hcalcol; c++) {
       landhist[r][c] = util::hhsamps(r,c,econst::maxsamp);
@@ -63,6 +65,13 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
     }
   }
 
+  //set up general histograms
+  TH2D *hatimeID = new TH2D("hatimeID","HCal tree ADC time vs ID; channel;ns",0,econst::hcalchan,econst::hcalchan,econst::maxsamp*4.,econst::minsamp,econst::maxsamp*4.);
+  TH2D *hatimeclID = new TH2D("hatimeclID","HCal waveform ADC time (landau) vs ID; channel;ns",0,econst::hcalchan,econst::hcalchan,econst::maxsamp*4.,econst::minsamp,econst::maxsamp*4.);
+  TH2D *hatimecsgID = new TH2D("hatimecsgID","HCal waveform ADC time (skew gaus) vs ID; channel;ns",0,econst::hcalchan,econst::hcalchan,econst::maxsamp*4.,econst::minsamp,econst::maxsamp*4.);
+  TH2D *hatimeclgID = new TH2D("hatimeclgID","HCal waveform ADC time (gaus landau conv) vs ID; channel;ns",0,econst::hcalchan,econst::hcalchan,econst::maxsamp*4.,econst::minsamp,econst::maxsamp*4.);
+  TH2D *hatimecbID = new TH2D("hatimecbID","HCal waveform ADC time (min ch2) vs ID; channel;ns",0,econst::hcalchan,econst::hcalchan,econst::maxsamp*4.,econst::minsamp,econst::maxsamp*4.);
+
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
   
@@ -70,75 +79,44 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   TTree *P = new TTree("P","Analysis Tree"); 
   
   // output tree vars
-  Double_t pblkid_out; //hcal primary cluster, primary block id
-  Double_t latime_out; //hcal primary cluster landau fit adc time
-  Double_t sgatime_out; //hcal primary cluster skewed gaussian fit adc time
-  Double_t batime_out; //hcal primary cluster "best" fit adc time
-  Double_t atime_out; //hcal primary cluster adc time, tree
-
-  Double_t bcatime_dxdy_out; //hcal best cluster adc time, tree
-  Double_t bcatime_atime_out; //hcal best cluster adc time, tree
-  Double_t bcatime_thpq_out; //hcal best cluster adc time, tree
-  Double_t bcpblkid_dxdy_out; //hcal best cluster, primary block id
-  Double_t bcpblkid_atime_out; //hcal best cluster, primary block id
-  Double_t bcpblkid_thpq_out; //hcal best cluster, primary block id
-
-  Double_t dx_out; //hcal primary cluster dx
-  Double_t dy_out; //hcal primary cluster dy 
+  Double_t pblkid_out;
+  Double_t latime_out;
+  Double_t sgatime_out;
+  Double_t batime_out;
+  Double_t atime_out;
+  
+  Double_t dx_out;
+  Double_t dy_out;
   Double_t W2_out;
   Double_t Q2_out;
-  Double_t hcale_out; //hcal primary cluster energy
-  Double_t pse_out; //bbcal preshower primary cluster energy
-  Double_t she_out; //bbcal shower primary cluster energy
-  Double_t ep_out; //track reconstructed e' momentum
-  Double_t hcalatime_out; //hcal primary cluster adc time, tree
-  Double_t hodotmean_out; //hodoscope primary cluster mean tdc time
-  Double_t thetapq_pout; //proton
-  Double_t thetapq_nout; //neutron
-  Int_t pid_out; //-1:neither,0:ambiguous,1:proton,2:neutron
-  Int_t mag_out; //sbs magnetic field strength (percent)
-  Int_t run_out; //run number
-  Int_t tar_out; //target, LH2 or LD2
-  Int_t failedglobal_out; //failed global cut (=1)
-  Int_t failedaccmatch_out; //failed acceptance matching, hcal active area (=1)
-  Int_t failedcoin_out; //failed coincidence time, hcal adc time (=1)
-
-  //cluster tree vars
-  Double_t cpblkid_out[econst::maxclus];
-  Double_t chatime_out[econst::maxclus];
-  Double_t cthetapq_p_out[econst::maxclus];
-  Double_t cthetapq_n_out[econst::maxclus];
-  Double_t cdx_out[econst::maxclus];
-  Double_t cdy_out[econst::maxclus];
-  Int_t cpid_out[econst::maxclus];
+  Double_t hcale_out;
+  Double_t hcalatime_out;
+  Double_t hodotmean_out;
+  Double_t thetapq_pout;
+  Double_t thetapq_nout;
+  Int_t mag_out;
+  Int_t run_out;
+  Int_t tar_out;
+  Int_t failedglobal_out;
+  Int_t failedaccmatch_out;
+  Int_t failedcoin_out;
 
   // set output tree branches
-  P->Branch( "pblkid", &pblkid_out, "pblkid/D" );
-  P->Branch( "latime", &latime_out, "latime/D" );
-  P->Branch( "sgatime", &sgatime_out, "sgatime/D" );
-  P->Branch( "batime", &batime_out, "batime/D" );
-  P->Branch( "atime", &atime_out, "atime/D" );
-
-  P->Branch( "bcatime_dxdy", &bcatime_dxdy_out, "bcatime_dxdy/D" );
-  P->Branch( "bcatime_atime", &bcatime_atime_out, "bcatime_atime/D" );
-  P->Branch( "bcatime_thpq", &bcatime_thpq_out, "bcatime_thpq/D" );
-  P->Branch( "bcpblkid_dxdy", &bcpblkid_dxdy_out, "bcpblkid_dxdy/D" );
-  P->Branch( "bcpblkid_atime", &bcpblkid_atime_out, "bcpblkid_atime/D" );
-  P->Branch( "bcpblkid_thpq", &bcpblkid_thpq_out, "bcpblkid_thpq/D" );
+  P->Branch( "pblkid", &pblkid_out, "dx/D" );
+  P->Branch( "latime", &latime_out, "dx/D" );
+  P->Branch( "sgatime", &sgatime_out, "dx/D" );
+  P->Branch( "batime", &batime_out, "dx/D" );
+  P->Branch( "atime", &atime_out, "dx/D" );
 
   P->Branch( "dx", &dx_out, "dx/D" );
   P->Branch( "dy", &dy_out, "dy/D" );
   P->Branch( "W2", &W2_out, "W2/D" );
   P->Branch( "Q2", &Q2_out, "Q2/D" );
   P->Branch( "hcale", &hcale_out, "hcale/D" );
-  P->Branch( "pse", &pse_out, "pse/D" );
-  P->Branch( "she", &pse_out, "she/D" );
-  P->Branch( "ep", &ep_out, "ep/D" );
   P->Branch( "hcalatime", &hcalatime_out, "hcalatime/D" );
   P->Branch( "hodotmean", &hodotmean_out, "hodotmean/D" );
   P->Branch( "thetapq_p", &thetapq_pout, "thetapq_pout/D" );
   P->Branch( "thetapq_n", &thetapq_nout, "thetapq_nout/D" );
-  P->Branch( "pid", &pid_out, "pid_out/I" );
   P->Branch( "mag", &mag_out, "mag_out/I" );
   P->Branch( "run", &run_out, "run_out/I" );
   P->Branch( "tar", &tar_out, "tar_out/I" );
@@ -146,36 +124,23 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   P->Branch( "failedaccmatch", &failedaccmatch_out, "failedaccmatch/I" );
   P->Branch( "failedcoin", &failedcoin_out, "failedcoin/I" );
 
-  P->Branch( "cpblkid", &cpblkid_out, Form("cpblkid[%d]/D",econst::maxchan) );
-  P->Branch( "chatime", &chatime_out, Form("chatime[%d]/D",econst::maxchan) );
-  P->Branch( "cthetapq_p", &cthetapq_p_out, Form("cthetapq_p[%d]/D",econst::maxchan) );
-  P->Branch( "cthetapq_n", &cthetapq_n_out, Form("cthetapq_n[%d]/D",econst::maxchan) );
-  P->Branch( "cdx", &cdx_out, Form("cdx[%d]/D",econst::maxchan) );
-  P->Branch( "cdy", &cdy_out, Form("cdy[%d]/D",econst::maxchan) );
-  P->Branch( "cpid", &cpid_out, Form("cpid[%d]/I",econst::maxchan) );
-
   // setup reporting indices
   Int_t curmag = -1;
   std::string curtar = "";
+  //bool testover = false;
 
-  for ( Int_t t=0; t<2; t++ ){ //loop over targets
+  for ( Int_t t=0; t<2; t++ ){
+    //for ( Int_t t=0; t<2; t++ ){  //replace for testing
     // t==0, lh2; t==1, ld2
 
-    for (Int_t irun=0; irun<nruns; irun++) { //loop over runs in each target category
+    for (Int_t irun=0; irun<nruns; irun++) {
+      //if( testover==true ) continue;
       // accessing run info
       Int_t runnum;
-      Int_t mag;
-      Int_t ebeam;
-      Int_t conf;
       std::string targ;
-      std::string rfname;
       if( t==0 ){
+	targ = "LH2";
 	runnum = crunh[irun].runnum;
-	mag = crunh[irun].sbsmag / 21; //convert to percent
-	ebeam = crunh[irun].ebeam; //get beam energy per run
-	conf = crunh[irun].sbsconf; //get config of current run
-	targ = crunh[irun].target;
-	rfname = rootfile_dir + Form("/*%d*",crunh[irun].runnum);
 	bool skip = true;
 	for( Int_t el=0; el<lh2r.size(); el++ ){     
 	  if( runnum==lh2r[el] ) skip=false;
@@ -183,12 +148,8 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	if( skip==true ) continue;
       }
       if( t==1 ){
+	targ = "LD2";
 	runnum = crund[irun].runnum;
-	mag = crund[irun].sbsmag / 21;
-	ebeam = crund[irun].ebeam;
-	conf = crund[irun].sbsconf; //get config of current run
-	targ = crund[irun].target;
-	rfname = rootfile_dir + Form("/*%d*",crund[irun].runnum);
 	bool skip = true;
 	for( Int_t el=0; el<ld2r.size(); el++ ){     
 	  if( runnum==ld2r[el] ) skip=false;
@@ -196,26 +157,41 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	if( skip==true ) continue;
       }
 
+      //testover=true;
       std::cout << "Analyzing run " << runnum << ".." << std::endl;
+      
 
-      if( conf!=kine && kine!=-1) continue; //do not proceed if kinematic is constrained
+      std::string rfname = rootfile_dir + Form("/*%d*",crunh[irun].runnum);
+
+      Int_t mag = crunh[irun].sbsmag / 21; //convert to percent
+      Double_t ebeam = crunh[irun].ebeam; //get beam energy per run
+      std::string tar = crunh[irun].target; //get target for current run
+      Int_t conf = crunh[irun].sbsconf; //get config of current run
+
+      if( conf!=kine && kine!=-1) continue;
+
+      if( targ.compare( tar )!=0 ){
+	std::cout << "Error: target from grl and json mismatch. Check json file and resubmit." << std::endl;
+	return;
+      }
 
       //set up configuration and tune objects to load analysis parameters
+      //SBSconfig *config = new SBSconfig(kine,mag);
       SBSconfig config(kine,mag);
 
       //Obtain configuration pars from config file
       Double_t hcaltheta = config.GetHCALtheta_rad();
       Double_t hcaldist = config.GetHCALdist();
       Double_t sbsdist = config.GetSBSdist();
-      Double_t bbthr = config.GetBBtheta_rad(); //in radians
-
+    
+      //SBStune *tune = new SBStune(kine,mag);
       SBStune tune(kine,mag);
     
-      if( targ.compare(curtar)!=0 || mag!=curmag ){
+      if( tar.compare(curtar)!=0 || mag!=curmag ){
 	std::cout << "Settings change.." << endl;
 	cout << config;
 	cout << tune;
-	curtar = targ;
+	curtar = tar;
 	curmag = mag;
       }
 
@@ -245,6 +221,25 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
       std::vector<void*> hcalvarlink = {&hcalid,&hcale,&hcalx,&hcaly,&hcalr,&hcalc,&hcala,&hcalamp,&hcaltdc,&hcalatime};
       rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
 
+      // Double_t nsamps[econst::maxchan], samps[econst::maxsamps], sampsrow[econst::maxchan], sampscol[econst::maxchan], a_p[econst::maxchan], a_amp_p[econst::maxchan], sampsidx[econst::maxchan];
+      // Int_t Nssave;
+      // C->SetBranchStatus("sbs.hcal.a_p",1);
+      // C->SetBranchAddress("sbs.hcal.a_p",a_p);
+      // C->SetBranchStatus("sbs.hcal.a_amp_p",1);
+      // C->SetBranchAddress("sbs.hcal.a_amp_p",a_amp_p);
+      // C->SetBranchStatus("sbs.hcal.nsamps",1);
+      // C->SetBranchAddress("sbs.hcal.nsamps",nsamps);
+      // C->SetBranchStatus("sbs.hcal.samps",1);
+      // C->SetBranchAddress("sbs.hcal.samps",samps);
+      // C->SetBranchStatus("sbs.hcal.samps_idx",1);
+      // C->SetBranchAddress("sbs.hcal.samps_idx",sampsidx);
+      // C->SetBranchStatus("sbs.hcal.adcrow",1);
+      // C->SetBranchAddress("sbs.hcal.adcrow",sampsrow);
+      // C->SetBranchStatus("sbs.hcal.adccol",1);
+      // C->SetBranchAddress("sbs.hcal.adccol",sampscol);
+      // C->SetBranchStatus("Ndata.sbs.hcal.adcrow",1);
+      // C->SetBranchAddress("Ndata.sbs.hcal.adcrow",&Nssave);
+
       //HCal samples
       Double_t nsamps[econst::maxchan], samps[econst::maxsamps], sampsrow[econst::maxchan], sampscol[econst::maxchan], a_p[econst::maxchan], a_amp_p[econst::maxchan], sampsidx[econst::maxchan];
       Int_t Nssave;
@@ -265,12 +260,6 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
       std::vector<std::string> hcalcbvar = {"id","e","row","col","x","y","tdctime","atime","id"};
       std::vector<void*> hcalcbvarlink = {&hcalcbid,&hcalcbe,&hcalcbrow,&hcalcbcol,&hcalcbx,&hcalcby,&hcalcbtdctime,&hcalcbatime,&Nhcalcbid};
       rvars::setbranch(C, "sbs.hcal.clus_blk", hcalcbvar, hcalcbvarlink, 8);
-
-      // bbcal clus var
-      Double_t eSH, xSH, ySH, rblkSH, cblkSH, idblkSH, atimeSH, ePS, rblkPS, cblkPS, idblkPS, atimePS;
-      std::vector<std::string> bbcalclvar = {"sh.e","sh.x","sh.y","sh.rowblk","sh.colblk","sh.idblk","sh.atimeblk","ps.e","ps.rowblk","ps.colblk","ps.idblk","ps.atimeblk"};
-      std::vector<void*> bbcalclvarlink = {&eSH,&xSH,&ySH,&rblkSH,&cblkSH,&idblkSH,&atimeSH,&ePS,&rblkPS,&cblkPS,&idblkPS,&atimePS};
-      rvars::setbranch(C, "bb", bbcalclvar, bbcalclvarlink);
 
       // hodoscope cluster mean time
       Int_t Nhodotmean; 
@@ -315,18 +304,17 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
       TTreeFormula *GlobalCut = new TTreeFormula( "GlobalCut", GCut, C );
 
       // get experimental quantities by run
-      std::cout << "Uncorrected average beam energy on " << targ << " for run: " << ebeam << std::endl;
+      std::cout << "Uncorrected average beam energy on " << tar << " for run: " << ebeam << std::endl;
       //set up hcal coordinate system with hcal angle wrt exit beamline
       vector<TVector3> hcalaxes; vars::sethcalaxes( hcaltheta, hcalaxes );
       TVector3 hcalorigin = hcaldist*hcalaxes[2] + econst::hcalvoff*hcalaxes[0];
       Double_t BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
-      Double_t Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::lh2tarrho * econst::lh2dEdx;
 
       // set nucleon defaults by target
       std::string nucleon;
-      if( targ.compare("LH2")==0 )
+      if( tar.compare("LH2")==0 )
 	nucleon = "p"; 
-      else if( targ.compare("LD2")==0 )      
+      else if( tar.compare("LD2")==0 )      
 	nucleon = "np";
       else{
 	nucleon = "np";
@@ -342,6 +330,8 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
 	cout << nevent << "/" << nevents << " \r";
 	cout.flush();
+
+	//if( nevent>1000 ) break; //testing
 
 	///////
 	//Single-loop globalcut method. Save pass/fail for output tree.
@@ -373,16 +363,11 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	Double_t ebeam_c = vars::ebeam_c( ebeam, vz[0], targ );
 	TVector3 vertex( 0., 0., vz[0] );
 
-	//reconstructed momentum, corrected for mean energy loss exiting the target (later we'll also want to include Al shielding on scattering chamber)
-	Double_t precon = p[0] + Eloss_outgoing;
-
 	//set up four-momenta with some empty for various calculation methods
 	TLorentzVector pbeam( 0., 0., ebeam_c, ebeam_c ); //beam momentum
-	//TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' plvect
-	TLorentzVector pe( precon*px[0]/p[0], precon*py[0]/p[0], precon*pz[0]/p[0], precon ); //e' recon plvect
+	TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' momentum
 	TLorentzVector ptarg; vars::setPN(nucleon,ptarg); //target momentum
 	TLorentzVector q = pbeam - pe; //virtual photon mom. or mom. transferred to scatter nucleon (N')
-	TVector3 qv = q.Vect();
 	TLorentzVector pN; //N' momentum
 	TVector3 pNhat; //Unit N' 3-vector
       
@@ -414,14 +399,14 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  nu = ekinenu;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::pNhat_track( thNexp, phNexp );
+	  pNhat = vars::qVect_unit( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	}else if( epm==3 ){
 	  //v3
 	  nu = pbeam.E() - pcent;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::pNhat_track( thNexp, phNexp );
+	  pNhat = vars::qVect_unit( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
 	  W2 = vars::W2( pbeam.E(), pe.E(), W2, nucleon );
@@ -430,7 +415,7 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  nu = pbeam.E() - pe.E();
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::pNhat_track( thNexp, phNexp );
+	  pNhat = vars::qVect_unit( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
 	  W2 = vars::W2( pbeam.E(), pe.E(), W2, nucleon );
@@ -440,34 +425,21 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  nu = ekinenu;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::pNhat_track( thNexp, phNexp );
+	  pNhat = vars::qVect_unit( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  std::cout << "Warning: epm version incorrect. Defaulting to version 2." << endl;
 	}
 
 	//Calculate h-arm quantities
 	vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
-	TVector3 hcalpos = hcalorigin + hcalcbx[0]*hcalaxes[0] + hcalcby[0]*hcalaxes[1]; //from primary blk
+	TVector3 hcalpos = hcalorigin - hcalcbx[0]*hcalaxes[0] + hcalcby[0]*hcalaxes[1]; //from primary blk
 	Double_t dx = hcalcbx[0] - xyhcalexp[0];
 	Double_t dy = hcalcby[0] - xyhcalexp[1];
-	TVector3 neutdir = ( hcalpos - vertex ).Unit();
+	TVector3 neutdir = (hcalpos - vertex).Unit();
 	Double_t protdeflect = tan( 0.3 * BdL / q.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
 	TVector3 protdir = ( hcalpos + protdeflect * hcalaxes[0] - vertex ).Unit();
-	Double_t thetapq_p = acos( protdir.Dot( qv.Unit() ) );
-	Double_t thetapq_n = acos( neutdir.Dot( qv.Unit() ) );
 
-	//Get PID
-	Int_t pid;
-	bool is_p = abs(dx - dx0_p)<3*dxsig_p && abs(dy - dy0)<3*dysig;
-	bool is_n = abs(dx - dx0_n)<3*dxsig_n && abs(dy - dy0)<3*dysig;
-	if( is_p && !is_n )
-	  pid=1;
-	else if( is_n && !is_p )
-	  pid=2;
-	else if( is_p && is_n )
-	  pid=0;
-	else
-	  pid=-1;
+	//Fill diagnostic histos
 
 	///////
 	//HCal active area cut (acceptance matching). Save pass/fail for output tree.
@@ -483,12 +455,13 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	///////
 
 	///////
-	//extract atime with waveforms from primary cluster primary block
+	//extract atime with waveforms from primary cluster primary block for now
 	Int_t pblkid = hcalcbid[0];
 	Int_t r,c,idx,n,sub;
 	Double_t adc[econst::hcalrow][econst::hcalcol];
 	Double_t amp[econst::hcalrow][econst::hcalcol];
 	Float_t peak[econst::hcalrow][econst::hcalcol];
+	//Double_t adc_p[econst::hcalrow][econst::hcalcol];
 
 	for( r = 0; r < econst::hcalrow; r++ ) {
 	  for( c = 0; c < econst::hcalcol; c++ ) {
@@ -500,10 +473,13 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	    amp[r][c] = 0.0;
 	  }
 	}
+
+	//all identical -> cout << "hcalid: " << hcalid << " hcalcid[0]: " << hcalcid[0] << " hcalcbid[0]:" << hcalcbid[0] << endl;
 	
 	//Primary cluster element
 	Int_t pblkrow = (int)hcalcbid[0]/econst::hcalcol;
 	Int_t pblkcol = (int)hcalcbid[0]%econst::hcalcol;
+	//cout << "EVENT: " << nevent << " pblkrow: " << pblkrow << " pblkcol: " << pblkcol << endl;
 
 	//atime fit parameters
 	Double_t sgmpv = -1000.;
@@ -515,16 +491,14 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	Double_t sgrising_edge_v2 = -1000.;
 	Double_t lgrising_edge = -1000.;
 
-	//bool pblkfill = false;
+	bool pblkfill = false;
 
-	//Loop over hcal samples for primary cluster primary block waveform extraction and analysis
 	for(Int_t m = 0; m < Nssave; m++) {
-
-	  if( !waveform ) continue;
 
 	  gErrorIgnoreLevel = kError; // Ignores all ROOT warnings
 	  //gSystem->RedirectOutput("/dev/null");
 
+	  //cout << "entering samps.." << endl;
 	  r = sampsrow[m];
 	  c = sampscol[m];
 	  Int_t chan = econst::hcalcol*r+c;
@@ -540,22 +514,30 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  }
 	  idx = sampsidx[m];
 
+	  //cout << "chan: " << chan << " idx: " << idx << endl;
+
+	  //if( chan!=hcalcbid[0] ) continue; //continue if samples do not correspond to primary block
+
 	  n = nsamps[m];
 	  
 	  adc[r][c] = a_p[m];
 	  amp[r][c] = a_amp_p[m];
 
-	  bool saturated = amp[r][c]>3500; //in RAU
+	  bool saturated = amp[r][c]>3500;
 	  bool mansat = false;
-	  bool negped = adc[r][c]<-5; //Should be fixed and never occur
+	  bool negped = adc[r][c]<-5;
 	  bool skip = true;
 	  for( int b = 0; b < Nhcalcbid; b++ ){
 	    if( chan==(hcalcbid[0]-1) ){ 
 	      skip=false;
+	      //cout << chan << " " << hcalcbid[0]-1 << " " << hcalcbid[b]-1 << endl;
 	    }
 	  }
 
-	  if( skip==true ) continue; //Only continue if the current channel is the primary blk channel
+	  if( !saturated && !negped && skip==true ) continue;
+      
+	  //cout << "IN mLOOP event: " << nevent << " pblkrow: " << pblkrow << " pblkcol: " << pblkcol << endl;
+	  //cout << "IN mLOOP event: " << nevent << " post cut r: " << r << " c: " << c << endl;
 
 	  bool displayed = false;
 	  for(Int_t s = econst::minsamp; s < econst::maxsamp && s < n; s++) {
@@ -569,7 +551,21 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	      mansat = true;
 	    }
 	  }
-
+	  //landhist[r][c]->SetLineColor(kBlue+1);
+	  // if( saturated==true || negped==true ){
+	  //   cout << "Bad block found at r:" << r+1 << " c:" << c+1;
+	  //   if( saturated==true ) cout << " -saturated";
+	  //   if( negped==true ) cout << " -negative pedestal";
+	  //   cout << endl;
+	  //   //subCanv[2]->cd(errIdx);
+	  //   //subCanv[2]->SetGrid();
+	  //   landhist[r][c]->SetTitle(TString::Format("%d-%d (TDC=%g,TMu=%g)",r+1,c+1,tdc[r][c],tdcmult[r][c]));
+	  //   landhist[r][c]->SetLineColor(kRed+1);
+	  //   landhist[r][c]->Draw();
+	  //   gPad->SetFillColor(18);
+	  //   gPad->Update();
+	  //   errIdx++;
+	  // }
 	  if(!displayed) {
 	    std::cerr << "Skipping empty module: " << m << std::endl;
 	    for(Int_t s = 0;  s < econst::maxsamp; s++) {
@@ -579,33 +575,74 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	    }
 	  }
 	  
-	  //landau fit
+	  /////////////////////////////
+	  //if( pblkrow!=r || pblkcol!=c ) continue;
+	  /////////////////////////////
+
 	  TF1 *lfit;
+	  TF1 *sgfit = new TF1(Form("sg r:%d c:%d",r,c),fits::g_sgfit, econst::minsamp, econst::maxsamp-1, 4);
+	  //TF1 *f = new TF1("f","2.*gaus(x,[0],[1],[2])*ROOT::Math::normal_cdf([3]*x,1,0)",econst::minsamp, econst::maxsamp);
+	  //TF1 *pfit = new TF1(Form("p r:%d c:%d",r,c),fits::g_p3fit, econst::minsamp, econst::maxsamp, 4);
+	  //TH1D *hsclone;
+	  //TH1D *fclone;
+	  //TH1D *pclone;
+
+	  //hsclone = (TH1D*)landhist[r][c]->Clone(Form("hsclone %d-%d",r,c));
+	  //fclone = (TH1D*)landhist[r][c]->Clone(Form("fclone %d-%d",r,c));
+	  //pclone = (TH1D*)landhist[r][c]->Clone(Form("pclone %d-%d",r,c));
+
+	  
+	  //landau fit
 	  landhist[r][c]->Fit("landau", "Q", "", econst::minsamp, econst::maxsamp);
 	  lfit = landhist[r][c]->GetFunction("landau");
 	  lmpv = lfit->GetMaximumX();
 	  Double_t lch2 = lfit->GetChisquare();
 	  Double_t lmean = lfit->GetParameter(1);
 	  Double_t lsig = lfit->GetParameter(2);
-	  lrising_edge = lmean-3*lsig; //Not as effective as brute force
+	  lrising_edge = lmean-3*lsig;
 	  lrising_edge_v2 = lfit->GetX(0.00001,econst::minsamp+1,econst::maxsamp-1);
+	  //landhist[r][c]->SetTitle(Form("landau ev:%ld r:%d c:%d adc:%0.2f amp:%0.2f mpv:%0.2f mean:%0.2f sig:%0.2f chi2:%0.2f",nevent,r,c,adc[r][c],amp[r][c],lmpv,lmean,lsig,lch2));
+	  
+	  
+
+	  //landhist[r][c]->Write();
 
 	  //sgfit
-	  TF1 *sgfit = new TF1(Form("sg r:%d c:%d",r,c),fits::g_sgfit, econst::minsamp, econst::maxsamp-1, 4);
 	  Double_t sgamean = sghist[r][c]->GetMean();
 	  Double_t sgasig = (econst::maxsamp-1)*0.15;
+	  //sgfit->SetParameters(hsclone->GetMaximum(),hsclone->GetMean(),2.,1.);
 	  sgfit->SetParameters(sghist[r][c]->GetMaximum(),sgamean,2.,1.);
-	  sgfit->SetParLimits(0,0.005,2.0);
-	  sgfit->SetParLimits(1,econst::minsamp,econst::maxsamp-1);
-	  sgfit->SetParLimits(2,4.,sgasig);
-	  sgfit->SetParLimits(3,5.,13.);
+	  sgfit->SetParLimits(0,0.005,2.0); //bad limits
+	  sgfit->SetParLimits(1,econst::minsamp,econst::maxsamp-1); //bad limits
+	  // //sgfit->SetParLimits(1,sgamean-sgasig,sgamean+sgasig);
+	  // //sgfit->SetParLimits(2,0.,(econst::maxsamp-1)*0.2);
+	  sgfit->SetParLimits(2,4.,sgasig); //good limits
+	  sgfit->SetParLimits(3,5.,13.); //bad limits
 	  sghist[r][c]->Fit(sgfit,"RQ","",econst::minsamp, econst::maxsamp);
 	  sgmpv = sgfit->GetMaximumX();
 	  Double_t sgsig = sgfit->GetParameter(2);
 	  Double_t sskew = sgfit->GetParameter(3);
-	  sgrising_edge = sgmpv+sgsig*sqrt(2)*TMath::ErfInverse(-sskew); //Not as effective as brute force
+	  sgrising_edge = sgmpv+sgsig*sqrt(2)*TMath::ErfInverse(-sskew); //not very effective
+	  //TF1 *threshold = new TF1("threshold",fits::g_thresh,econst::minsamp,econst::maxsamp,1);
+	  //threshold->SetParameter(0,0.0005);
 	  sgrising_edge_v2 = sgfit->GetX(0.00001,econst::minsamp+1,econst::maxsamp-1);
+	  //cout << endl << sgrising_edge << endl;
 	  Double_t sgch2 = sgfit->GetChisquare();
+	  //Double_t sgmean = sgfit->GetParameter(1);
+	  //Double_t sgsig = sgfit->GetParameter(2);
+	  //Double_t sskew = sgfit->GetParameter(3);
+	  //sghist[r][c]->SetTitle(Form("sgaus ev:%ld r:%d c:%d adc:%0.2f amp:%0.2f mpv:%0.2f mean:%0.2f sig:%0.2f skew:%0.2f chi2:%0.2f",nevent,r,c,adc[r][c],amp[r][c],sgmpv,sgmean,sgsig,sskew,sgch2));
+
+	  //cout << "skewg_mpv: " << sgmpv << " skewg_ch2: " << sgch2 << " land_mpv: " << lmpv << " land_ch2: " << lch2 << endl;
+
+	  //cout << "event: " << nevent << " chan: " << chan << " lmpv*adcbinw: " << lmpv*adcbinw << " sgmpv*adcbinw: " << sgmpv*adcbinw << " hcalcbatime[0]: " << hcalcbatime[0] << endl;
+	  
+	  //cout << endl << lrising_edge_v2 << endl;
+
+	  hatimeclID->Fill(chan,lrising_edge_v2*adcbinw);
+	  hatimecsgID->Fill(chan,sgrising_edge_v2*adcbinw);
+	  //hatimeclgID->Fill(chan,sgmpv*adcbinw);
+	  hatimeID->Fill(chan,hcalcbatime[0]);
 
 	  //Get best rising edge
 	  bool glre = lrising_edge_v2>econst::minsamp && lrising_edge_v2<econst::maxsamp; //good landau fit re
@@ -617,153 +654,122 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  }else{ //if no good fit re, use tree atime
 	    brising_edge = hcalcbatime[0];
 	  }
+	  hatimecbID->Fill(chan,brising_edge);
 
-	  //gaussian landau convolution fit. This takes very long. Will leave commented out.
-	  /*
-	  TF1 *glf;
-	  Double_t land_mean=sgamean, land_sig=sgasig; 
-	  Double_t gaus_amp=lghist[r][c]->GetMaximum(), gaus_mean=sgamean, gaus_sig=sgasig;
-	  Int_t no_FFT_pts=1000;
-
-	  fits::g_conv_gausland( lghist[r][c], glf, land_mean, land_sig, gaus_amp, gaus_mean, gaus_sig, no_FFT_pts );
-	  */
+	  //gaussian landau convolution fit. This takes very long..
+	  // TF1Convolution *f_conv = new TF1Convolution("landau","gaus",econst::minsamp-1,econst::maxsamp,true);
+	  // f_conv->SetRange(econst::minsamp-1,econst::maxsamp);
+	  // f_conv->SetNofPointsFFT(1000);
+	  // TF1 *f = new TF1("f",*f_conv,econst::minsamp,econst::maxsamp-1,f_conv->GetNpar());
+	  // //5 fit parameters, 
+	  // //  p[0]:landau mean, 
+	  // //  p[1]:landau sigma, 
+	  // //  p[2]:gaus amp, 
+	  // //  p[3]:gaus mean,
+	  // //  p[4]:gaus sigma
+	  // f->SetParameters( sgamean, sgasig, lghist[r][c]->GetMaximum(), sgamean, sgasig );
+	  
+	  // lghist[r][c]->Fit("f","RQ","",econst::minsamp, econst::maxsamp-1);
+	  // Double_t lgp1 = f->GetParameter(0);
+	  // Double_t lgp2 = f->GetParameter(1);
+	  // Double_t lgp3 = f->GetParameter(2);
+	  // Double_t lgp4 = f->GetParameter(3);
+	  // Double_t lgp5 = f->GetParameter(4);
+	  // lgrising_edge = f->GetX(0.002,econst::minsamp+1,econst::maxsamp-1);
+	  // Double_t lgch2 = f->GetChisquare();
 
 	  //diagnostic plots
-	  /*
-	  if( pltcntr<20 && nevent%5==0 && pblkfill==false){
+	  // if( pltcntr<20 && nevent%5==0 && pblkfill==false){
 
-	    lghist[r][c]->SetTitle(Form("lgconv ev:%ld r:%d c:%d at0:%f re:%0.2f p1:%0.2f p2:%0.2f p3:%0.2f p4:%0.2f p5:%0.2f chi2:%0.2f",nevent,r,c,hcalatime/4.,lgrising_edge,lgp1,lgp2,lgp3,lgp4,lgp5,lgch2));
-	    lghist[r][c]->SetName(Form("lgev%ld",nevent));
-	    lghist[r][c]->Write();
+	  //   lghist[r][c]->SetTitle(Form("lgconv ev:%ld r:%d c:%d at0:%f re:%0.2f p1:%0.2f p2:%0.2f p3:%0.2f p4:%0.2f p5:%0.2f chi2:%0.2f",nevent,r,c,hcalatime/4.,lgrising_edge,lgp1,lgp2,lgp3,lgp4,lgp5,lgch2));
+	  //   lghist[r][c]->SetName(Form("lgev%ld",nevent));
+	  //   lghist[r][c]->Write();
 
-	    //if( lch2 < sgch2 ){
-	      Double_t lmean = lfit->GetParameter(1);
-	      landhist[r][c]->SetTitle(Form("landau ev:%ld r:%d c:%d at0:%f re:%0.2f rev2:%0.2f adc:%0.2f amp:%0.2f mpv:%0.2f mean:%0.2f sig:%0.2f chi2:%0.2f",nevent,r,c,hcalatime/4.,lrising_edge,lrising_edge_v2,adc[r][c],amp[r][c],lmpv,lmean,lsig,lch2));
-	      landhist[r][c]->SetName(Form("lev%ld",nevent));
-	      landhist[r][c]->Write();
-	      //}else{
-	      Double_t sgmean = sgfit->GetParameter(1);
-	      sghist[r][c]->SetTitle(Form("sgaus ev:%ld r:%d c:%d at0:%f re:%0.2f rev2:%0.2f adc:%0.2f amp:%0.2f mpv:%0.2f mean:%0.2f sig:%0.2f skew:%0.2f chi2:%0.2f",nevent,r,c,hcalatime/4.,sgrising_edge,sgrising_edge_v2,adc[r][c],amp[r][c],sgmpv,sgmean,sgsig,sskew,sgch2));
-	      sghist[r][c]->SetName(Form("sgev%ld",nevent));
-	      sghist[r][c]->Write();
-	      //}
-	    pltcntr++;
-	    pblkfill=true;
-	  }
-	  */
+	  //   //if( lch2 < sgch2 ){
+	  //     Double_t lmean = lfit->GetParameter(1);
+	  //     landhist[r][c]->SetTitle(Form("landau ev:%ld r:%d c:%d at0:%f re:%0.2f rev2:%0.2f adc:%0.2f amp:%0.2f mpv:%0.2f mean:%0.2f sig:%0.2f chi2:%0.2f",nevent,r,c,hcalatime/4.,lrising_edge,lrising_edge_v2,adc[r][c],amp[r][c],lmpv,lmean,lsig,lch2));
+	  //     landhist[r][c]->SetName(Form("lev%ld",nevent));
+	  //     landhist[r][c]->Write();
+	  //     //}else{
+	  //     Double_t sgmean = sgfit->GetParameter(1);
+	  //     sghist[r][c]->SetTitle(Form("sgaus ev:%ld r:%d c:%d at0:%f re:%0.2f rev2:%0.2f adc:%0.2f amp:%0.2f mpv:%0.2f mean:%0.2f sig:%0.2f skew:%0.2f chi2:%0.2f",nevent,r,c,hcalatime/4.,sgrising_edge,sgrising_edge_v2,adc[r][c],amp[r][c],sgmpv,sgmean,sgsig,sskew,sgch2));
+	  //     sghist[r][c]->SetName(Form("sgev%ld",nevent));
+	  //     sghist[r][c]->Write();
+	  //     //}
+	  //   pltcntr++;
+	  //   pblkfill=true;
+	  // }
 
-	} //end loop over hcal samples
+	  // if( lgrising_edge==-1000. || lrising_edge==-1000. || sgrising_edge==-1000. ) cout << endl << "lgrising_edge:" << lgrising_edge << " lrising_edge:" << lrising_edge << " sgrising_edge:" << sgrising_edge << endl;
 
-	//Fill all block physics output - this is inefficient, should get primary cluster info from here first
-	Int_t cidx_atime = 0;
-	Double_t c_atimediff = 1000.;
-	Int_t cidx_thetapq = 0;
-	Double_t c_thetapqdiff = 1000.;
-	Int_t cidx_dxdy = 0;
-	Double_t c_dxdydiff = 1000.;
-	Double_t tpq_best;
+	  //f - Results in singular fits and emphasis on gaussians
+	  // f->SetParameters(hsclone->GetMaximum(),hsclone->GetMean(),2.,1.);
+	  // f->SetParLimits(0,0.005,2.0);
+	  // f->SetParLimits(1,econst::minsamp,econst::maxsamp);
+	  // f->SetParLimits(2,0.,(econst::maxsamp-1)*0.25);
+	  // f->SetParLimits(3,0.05,15.);
+	  // fclone->Fit(f,"RQ","",econst::minsamp, econst::maxsamp-1);
+	  // Double_t fmean = f->GetParameter(1);
+	  // Double_t fskew = f->GetParameter(3);
+	  // Double_t fmpv = f->GetMaximumX();
+	  // fclone->SetTitle(Form("sgaus-f r:%d c:%d adc:%f amp:%f mpv:%0.2f mean:%0.2f skew:%f",r,c,adc[r][c],amp[r][c],fmpv,fmean,fskew));
 
-	for( Int_t c=0; c<Nhcalcid; c++ ){
-	  Double_t cdx = hcalcx[c] - xyhcalexp[0];
-	  Double_t cdy = hcalcy[c] - xyhcalexp[1];	  
-	  TVector3 chcalpos = hcalorigin + hcalcx[c]*hcalaxes[0] + hcalcy[c]*hcalaxes[1];
-	  TVector3 cneutdir = ( chcalpos - vertex ).Unit();
-	  TVector3 cprotdir = ( chcalpos + protdeflect * hcalaxes[0] - vertex ).Unit();
-	  Double_t cthetapq_p = acos( cprotdir.Dot( qv.Unit() ) );
-	  Double_t cthetapq_n = acos( cneutdir.Dot( qv.Unit() ) );
-	  Int_t cpid;
-	  bool cis_p = abs(cdx - dx0_p)<3*dxsig_p && abs(cdy - dy0)<3*dysig;
-	  bool cis_n = abs(cdx - dx0_n)<3*dxsig_n && abs(cdy - dy0)<3*dysig;
-	  if( cis_p && !cis_n )
-	    cpid=1;
-	  else if( cis_n && !cis_p )
-	    cpid=2;
-	  else if( cis_p && cis_n )
-	    cpid=0;
-	  else
-	    cpid=-1;
+	  //hsclone->Write();
 
-	  //cout << endl << endl << "event " << nevent << " cluster idx " << c << " nclus " << Nhcalcid << endl;
-	  //cout << "hcalcatime[c] " << hcalcatime[c] << " atime0 " << atime0 << " c_atimediff " << c_atimediff << endl << endl;
+	  // pclone->Fit(pfit,"RQ","",econst::minsamp, econst::maxsamp);
+	  // //Double_t pmean = pfit->GetParameter(1);
+	  // Double_t pmpv = pfit->GetMaximumX();
+	  // Double_t pch2 = pfit->GetChisquare();
+	  // pclone->SetTitle(Form("pfit r:%d c:%d adc:%f amp:%f mpv:%0.2f chi2:%0.2f",r,c,adc[r][c],amp[r][c],pmpv,pch2));
 
-	  //get best cluster indexes
-	  //get cluster which minimizes coin diff
-	  if( abs(hcalcatime[c]-atime0)<c_atimediff ){
-	    cidx_atime = c;
-	    c_atimediff = abs(hcalcatime[c]-atime0);
-	    //cout << "cluster idx " << cidx_atime << " atime lower than default value with atime diff " << c_atimediff << endl;
-	  }
-	  //get cluster which minimizes thetapq (proton for this analysis)
-	  if( cthetapq_p<c_thetapqdiff ){
-	    cidx_thetapq = c;
-	    c_thetapqdiff = cthetapq_p;
-	  }
-	  //get cluster which minimizes distance between cluster center and expected loc dxdy
-	  Double_t dxdydist = sqrt( pow(cdx-dx0_p,2)+pow(cdy-dy0,2));
-	  if( dxdydist<c_dxdydiff ){
-	    cidx_dxdy = c;
-	    c_dxdydiff = dxdydist;
-	    tpq_best = cthetapq_p; //record the "best" cluster thetapq for later
-	  }
+	  // pclone->Write();
+	  // if( nevent>6000 && nevent<6100 && amp[r][c]>80. ){
+	    
+	  //   landhist[r][c]->Write();
+	  //   sghist[r][c]->Write();
+	  //   //fclone->Write();
 
-	  cpblkid_out[c] = hcalcid[c];
-	  chatime_out[c] = hcalcatime[c];
-	  cthetapq_p_out[c] = cthetapq_p;
-	  cthetapq_n_out[c] = cthetapq_n;
-	  cdx_out[c] = cdx;
-	  cdy_out[c] = cdy;
-	  
-	  cpid_out[c] = cpid;
+	  //   // if( lch2 < sgch2 ){
+	  //   //   landhist[r][c]->Write();
+	  //   // }else{
+	  //   //   hsclone->Write();
+	  //   // }
+
+	  // }
 	}
 
-	//Calculate dx, dy, thetapq from the best cluster for later use (USING dxdy for now)
-	Double_t dx_bestcluster = hcalcx[cidx_dxdy] - xyhcalexp[0];
-	Double_t dy_bestcluster = hcalcy[cidx_dxdy] - xyhcalexp[1];
-	Double_t hatime_bestcluster = hcalcatime[cidx_dxdy];
 
-	//Fill single value physics output tree  
-	//if( pblkfill==false ){
 
-	pblkid_out = (double)hcalcbid[0];
-	latime_out = lrising_edge_v2*adcbinw;
-	sgatime_out = sgrising_edge_v2*adcbinw;
-	batime_out = brising_edge;
-	atime_out = hcalcbatime[0];
+	//Fill physics output tree  
+	if( pblkfill==false ){
+
+	  pblkid_out = (double)hcalcbid[0];
+	  latime_out = lrising_edge_v2*adcbinw;
+	  sgatime_out = sgrising_edge_v2*adcbinw;
+	  batime_out = brising_edge*adcbinw;
+	  atime_out = hcalcbatime[0];
    
-	bcatime_dxdy_out = hcalcatime[cidx_dxdy];
-	bcatime_atime_out = hcalcatime[cidx_atime];
-	bcatime_thpq_out = hcalcatime[cidx_thetapq];
-	bcpblkid_dxdy_out = (double)hcalcbid[cidx_dxdy];
-	bcpblkid_atime_out = (double)hcalcbid[cidx_atime];
-	bcpblkid_thpq_out = (double)hcalcbid[cidx_thetapq];
+	  dx_out = dx;
+	  dy_out = dy;
+	  W2_out = W2;
+	  Q2_out = Q2;
+	  hcale_out = hcale;
+	  hcalatime_out = hcalcbatime[0];
+	  hodotmean_out = hodotmean[0];
+	  thetapq_pout = acos( protdir.Dot( pNhat ) );
+	  thetapq_nout = acos( neutdir.Dot( pNhat ) );
+	  mag_out = mag;
+	  run_out = runnum;
+	  tar_out = t;
+	  failedglobal_out = fglobalint;
+	  failedaccmatch_out = faccmatchint;
+	  failedcoin_out = fcoinint;
 
-	dx_out = dx;
-	dy_out = dy;
-	W2_out = W2;
-	Q2_out = Q2;
-	hcale_out = hcale;
-	pse_out = ePS;
-	she_out = eSH;
-	ep_out = p[0];
-	hcalatime_out = hcalcbatime[0];
-	hodotmean_out = hodotmean[0];
-	thetapq_pout = thetapq_p ;
-	thetapq_nout = thetapq_n;
-	mag_out = mag;
-	run_out = runnum;
-	tar_out = t;
-	pid_out = pid;
-	failedglobal_out = fglobalint;
-	failedaccmatch_out = faccmatchint;
-	failedcoin_out = fcoinint;
+	  P->Fill();
+	  pblkfill=true;
+	}
 
-	//pblkfill=true;
-	  //}
-
-
-	P->Fill();
-
-      }//end loop over event
+      }
 
       // getting ready for the next run
       C->Reset();

@@ -22,8 +22,8 @@ namespace vars{
   Double_t pN_expect( Double_t nu,             // energy of the virtual photon (GeV)
 		      std::string Ntype );    // type of nucleon in the reaction
 		   
-  // projected nucleon 3 vector using elastic kinematics (pNhat)
-  TVector3 qVect_unit( Double_t Ntheta,      // recoil nucleon theta (rad)
+  // projected nucleon 3 vector using track angles (pNhat)
+  TVector3 pNhat_track( Double_t Ntheta,      // recoil nucleon theta (rad)
 		       Double_t Nphi );       // recoil nucleon phi (rad) 
 
   // construct hcal coordinate system in hall coordinate system

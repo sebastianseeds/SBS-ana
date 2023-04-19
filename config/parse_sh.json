@@ -1,0 +1,11 @@
+{
+    "rootfile_dir" : {
+	"sbs4"        : "/work/halla/sbs/sbs-gmn/pass0/SBS4/LH2/rootfiles",
+	"sbs7"        : "/work/halla/sbs/sbs-gmn/pass0/SBS7/LH2/rootfiles",
+	"sbs11"       : "/work/halla/sbs/sbs-gmn/pass1/SBS11/LH2/rootfiles",
+	"sbs14"       : "/work/halla/sbs/sbs-gmn/pass1/SBS14/LH2/rootfiles",
+	"sbs8"        : "/work/halla/sbs/sbs-gmn/pass1/SBS8/LH2/rootfiles",
+	"sbs9"        : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LH2/rootfiles"
+    }
+
+}

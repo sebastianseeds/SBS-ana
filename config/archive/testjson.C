@@ -1,4 +1,4 @@
-//sseeds 04.03.23 - Script to extract improved ADC time via application of ToF corrections and waveform corrections
+//sseeds 04.03.23 - Script to test the added functionality of jsonmgr.C
 
 #include <iostream>
 #include "TStopwatch.h"
@@ -14,7 +14,6 @@ void testjson( )
 
   // reading input config file
   JSONManager *jmgr = new JSONManager("test.json");
-  //std::string rootfile_dir = jmgr->GetValueFromKey_str("rootfile_dir");
 
   int val0 = jmgr->GetValueFromKey<int>("key1");
 
@@ -39,18 +38,6 @@ void testjson( )
   for( Int_t el=0; el<vec1.size(); el++ ){
     std::cout << vec1[el] << std::endl;
   }
-
-  // vector<Int_t> lh2runs;
-  // vector<Int_t> ld2runs;
-
-  // vector<Int_t> lh2sbs4runs; jmgr->GetVectorFromSubKey( "lh2", "sbs4_runs", lh2sbs4runs );
-  // vector<Int_t> ld2sbs11runs; jmgr->GetVectorFromSubKey( "ld2", "sbs11_runs", ld2sbs11runs );
-  // vector<Int_t> lh2sbs8runs; jmgr->GetVectorFromSubKey( "lh2", "sbs8_runs", lh2sbs8runs );
-  // vector<Int_t> lh2sbs9runs; jmgr->GetVectorFromSubKey( "lh2", "sbs9_runs", lh2sbs9runs );
-
-  // for( Int_t el=0; el<lh2sbs4runs.size(); el++ ){
-  //   cout << lh2sbs4runs[el] << endl;
-  // }
 
   st->Stop();
 

@@ -1,0 +1,27 @@
+{
+    "rootfiles"     : {
+	"proton"         : "/lustre19/expphy/volatile/halla/sbs/seeds/hcal/mc_hde/proton/replayed_gmn_sbs4_parp_0p_job*",
+	"neutron"        : "/lustre19/expphy/volatile/halla/sbs/seeds/hcal/mc_hde/neutron/replayed_gmn_sbs4_parn_0p_job*"
+    }, 
+
+    "params"     : {
+	"proton"         : "params/meanE_proton.txt",
+	"neutron"        : "params/meanE_neutron.txt"
+    }, 
+
+    "Efit_p0"       : {
+	"proton"         : 0.000,
+	"neutron"        : 0.000
+    },
+
+    "Efit_p1"       : {
+	"proton"         : 0.114,
+	"neutron"        : 0.116
+    },
+    
+    "threshold_fac" : {
+	"proton"         : 4,
+	"neutron"        : 4
+    }
+
+}

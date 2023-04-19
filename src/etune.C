@@ -50,6 +50,31 @@ namespace etune {
     }
   }
 
+
+  //Wide cuts using branches available to hcal expert replays
+  std::string globcut_hexp(Int_t config) {
+    if(config==1)
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.ps.e+bb.sh.e>1.7";
+    else if(config==4)
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.ps.e+bb.sh.e>1.7";
+    else if(config==7)
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.tr.p[0]>2.0&&bb.ps.e>0.2";
+    else if(config==11)
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.tr.p[0]>2.0&&bb.ps.e>0.2";
+    else if(config==14)
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.tr.p[0]>1.6&&bb.ps.e>0.2";
+    else if(config==8)
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3"; 
+    else if(config==9)
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3";
+    else if(config==4363)
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.ps.e+bb.sh.e>1.7";
+    else{
+      std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
+      return "";
+    }
+  }
+
   //Elastic invariant mass squared peak GeV^2
   Double_t W2mean(Int_t config) {
     if(config==1)

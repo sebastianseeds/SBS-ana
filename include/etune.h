@@ -12,8 +12,9 @@ namespace etune {
   // Any tuneable constants for all configurations go here
 
   // Following quantities vary with configuration
-  std::string  globcut(Int_t config);      //List of wide cuts over all subsystems
-  std::string  globcut_earm(Int_t config); //List of wide cuts over BigBite subsystems
+  std::string  globcut(Int_t config);      //List of wide elastic cuts over all subsystems
+  std::string  globcut_earm(Int_t config); //List of wide elastic cuts over BigBite subsystems
+  std::string  globcut_hexp(Int_t config); //List of wide elastic cuts using hcal expert replay
   Double_t     W2mean(Int_t config);
   Double_t     W2sig(Int_t config);
   Double_t     dx0_n(Int_t config,Int_t mag);
@@ -34,6 +35,7 @@ class SBStune {
   Int_t        GetSBStmag()        const { return fSBStmag; }
   std::string  Getglobcut()        const { return fglobcut; }
   std::string  Getglobcut_earm()   const { return fglobcut_earm; }
+  std::string  Getglobcut_hexp()   const { return fglobcut_hexp; }
   Double_t     GetW2mean()         const { return fW2mean; }
   Double_t     GetW2sig()          const { return fW2sig; }
   Double_t     Getdx0_n()          const { return fdx0_n; }
@@ -51,6 +53,7 @@ class SBStune {
     fSBStmag        = sbsmag;
     fglobcut        = etune::globcut(conf);
     fglobcut_earm   = etune::globcut_earm(conf);
+    fglobcut_hexp   = etune::globcut_hexp(conf);
     fW2mean         = etune::W2mean(conf);
     fW2sig          = etune::W2sig(conf);
     fdx0_n          = etune::dx0_n(conf,sbsmag);
@@ -89,6 +92,7 @@ class SBStune {
   Int_t        fSBStmag;          // SBS magnet settings (%)
   std::string  fglobcut;          // wide elastic global cut using all subsystems
   std::string  fglobcut_earm;     // wide elastic global cut using BigBite subsystems only
+  std::string  fglobcut_hexp;     // wide elastic global cut using branches available to hcal expert replays
   Double_t     fW2mean;           // Location of elastic peak in invariant mass distribution (GeV)
   Double_t     fW2sig;            // Width of elastic peak in invariant mass distribution 1-sigma (GeV)
   Double_t     fdx0_n;            // Location of neutron elastic peak in HCal dx distribution (m)

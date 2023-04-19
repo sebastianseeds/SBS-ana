@@ -23,6 +23,7 @@ namespace util {
   TH2D *hhcalxy(std::string name); // returns hcal xy 2d histo (data coordinates)
   TH2D *hhcalxy_mc(std::string name); // returns hcal xy 2d histo (mc coordinates)
   TH2D *hdxdy(std::string name); // returns hcal dxdy 2d histo (wide coordinates)
+  TH1D *hhsamps(Int_t row,Int_t col,Int_t bins); // returns hcal waveform histogram
 
   // draws rectangular cut regions
   void drawarea(vector<Double_t> dimensions,      // a vector with extreme points
