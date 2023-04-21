@@ -40,15 +40,21 @@ Double_t dxtotal(Double_t *x, Double_t *par){ //get poly fit to bg with scaled f
 }
 
 //Pass only kinematic and sbs magnetic field setting. Config file for all kinematics located ../../config/shde.json
-void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
+void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
 { //main  
 
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();
   st->Start( kTRUE );
 
-  Double_t pcsigfac = 0.58;
-  Double_t sampfrac = 0.0641;
+  //Some comparison specific variables
+  const Double_t pcsigfac = 0.58;
+  const Double_t sampfrac = 0.0641;
+  const Double_t dxhmin = -10; //hcal, GeV
+  const Double_t dxhmax = 10; //hcal, GeV
+  const Double_t dyhmin = -10; //hcal, GeV
+  const Double_t dyhmax = 10; //hcal, GeV
+  const Int_t nfac = 100; //Number of bins for hcal E vs nucleon p fits obtained to ensure 1000 events per bin
 
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/shde.json");
@@ -98,6 +104,11 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hdx_allcut = new TH1D( "hdx_allcut", "dx, W^{2} and dy cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_nocut = new TH1D( "hdx_nocut", "dx, no cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+
+  //set up position resolution histograms
+  TH1D *hnu = new TH1D("hnu","HCal Elastic KE (nu);nu (GeV)", 300,0,10);
+  TH1D *hdx_elastic = new TH1D( "hdx_elastic", "HCal dx, Cluster Elastic Cuts;x_{HCAL}-x_{expect} (m)", nfac*(dxhmax-dxhmin), dxhmin, dxhmax);
+  TH1D *hdy_elastic = new TH1D( "hdy_elastic", "HCal dy, Cluster Elastic Cuts;x_{HCAL}-x_{expect} (m)", nfac*(dyhmax-dyhmin), dyhmin, dyhmax);
 
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
@@ -617,7 +628,14 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
 		W2>W2min&&
 		W2<W2max ){
 	      hdx_allcut->Fill( dx_bestcluster );
+	      hdx_elastic->Fill( dx_bestcluster );
 	    }
+	  }
+	  if( dx_bestcluster>dxmin&&dx_bestcluster<dxmax&&
+	      failedglobal==0&&
+	      hatime_bestcluster>atmin&&
+	      hatime_bestcluster<atmax ){
+	    hdy_elastic->Fill( dy_bestcluster );
 	  }
 	}
       }
@@ -767,11 +785,11 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   bgdx->SetFillColor(kRed);
   bgdx->SetFillStyle(3005);
   bgdx->Draw("same");
-  hdxelastic->SetLineColor(kBlue);
-  hdxelastic->SetLineWidth(2);
-  hdxelastic->SetFillColor(kBlue);
-  hdxelastic->SetFillStyle(3003);
-  hdxelastic->Draw("same");
+  // hdxelastic->SetLineColor(kBlue);
+  // hdxelastic->SetLineWidth(2);
+  // hdxelastic->SetFillColor(kBlue);
+  // hdxelastic->SetFillStyle(3003);
+  // hdxelastic->Draw("same");
 
   //Get elastics detected in hcal
   //Double_t bgdxint = bgdx->Integral(hcalfit_l,hcalfit_h)*hbinfac;

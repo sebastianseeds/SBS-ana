@@ -1,8 +1,4 @@
-//sseeds 04.03.23 - Script to extract improved ADC time via application of ToF corrections and waveform corrections
-//04.05.23 Update - Added various fitting alternatives to waveforms and included hodo meantime on tree output
-//04.12.23 Update - Including ToF corrections (where applicable) and best cluster selection
-
-//NOTE: currently configured to function only on HCal expert replays
+//sseeds 04.20.23 - Script to extract single-channel timing resolutions by kinematic/field
 
 #include <vector>
 #include <iostream>
@@ -18,7 +14,7 @@
 #include "../../include/gmn.h"
 
 //Passing kine==-1 will run all kinematics, pass is replay pass, epm is e' momentum calculation method
-void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
+void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 { //main
 
   Double_t adcbinw = econst::hcaladc_binw; //adc sample bin width (4*40=160ns over whole waveform)

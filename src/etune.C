@@ -76,48 +76,54 @@ namespace etune {
   }
 
   //Elastic invariant mass squared peak GeV^2
-  Double_t W2mean(Int_t config) {
+  Double_t W2mean(Int_t config,Int_t mag) {
     if(config==1)
       return 0.92;
-    else if(config==4)
-      return 0.917994;
-    else if(config==7)
+    else if(config==4){
+      if(mag==0) return 0.837127;
+      else if(mag==30) return 0.904666;
+      else if(mag==50) return 0.950815;
+      else return physconst::Mp;
+    }else if(config==7){
       return 0.88;
-    else if(config==11)
+    }else if(config==11){
       return 0.925;
-    else if(config==14)
+    }else if(config==14){
       return 0.870819;
-    else if(config==8)
+    }else if(config==8){
       return 0.91;
-    else if(config==9)
+    }else if(config==9){
       return 0.91;
-    else if(config==4363)
+    }else if(config==4363){
       return 0.92;
-    else{
+    }else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
       return -1;
     }
   }
-
+  
   //Elastic invariant mass squared sigma GeV^2
-  Double_t W2sig(Int_t config) {
+  Double_t W2sig(Int_t config,Int_t mag) {
     if(config==1)
       return 0.325;
-    else if(config==4)
-      return 0.167922;
-    else if(config==7)
+    else if(config==4){
+      if(mag==0) return 0.0961233;
+      else if(mag==30) return 0.0966413;
+      else if(mag==50) return 0.0944658;
+      else return physconst::Mp;
+    }else if(config==7){
       return 0.5;
-    else if(config==11)
+    }else if(config==11){
       return 0.325;
-    else if(config==14)
+    }else if(config==14){
       return 0.19443;
-    else if(config==8)
+    }else if(config==8){
       return 0.21;
-    else if(config==9)
+    }else if(config==9){
       return 0.17;
-    else if(config==4363)
+    }else if(config==4363){
       return 0.325;
-    else{
+    }else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
       return -1;
     }
@@ -234,7 +240,7 @@ namespace etune {
   }
 
   //Location of elastic peaks in HCal dy (m)
-  Double_t dy0(Int_t config) {
+  Double_t dy0(Int_t config,Int_t mag) {
       if(config==1)
       return 0.;
     else if(config==4)
@@ -368,7 +374,7 @@ namespace etune {
   }
 
   //Sigma of elastic peaks in HCal dy (m)
-  Double_t dysig(Int_t config) {
+  Double_t dysig(Int_t config,Int_t mag) {
        if(config==1)
       return 0.1;
     else if(config==4)
@@ -392,7 +398,7 @@ namespace etune {
   }
 
   //HCal ADCt elastic peak (ns)
-  Double_t atime0(Int_t config) {
+  Double_t atime0(Int_t config,Int_t mag) {
     if(config==1)
       return 51.5;
     else if(config==4)
@@ -416,7 +422,7 @@ namespace etune {
   }
 
   //HCal ADCt elastic sigma (ns)
-  Double_t atimesig(Int_t config) {
+  Double_t atimesig(Int_t config,Int_t mag) {
        if(config==1)
       return 3.0;
     else if(config==4)

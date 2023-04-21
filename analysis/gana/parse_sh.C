@@ -13,7 +13,7 @@
 #include "../../include/gmn.h"
 
 //
-void parse_sh( Int_t kine=14, Int_t epm=2 )
+void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
 { //main  
 
   // Define a clock to check macro processing time
@@ -23,7 +23,15 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/parse_sh.json");
 
-  std::string rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("sbs%d",kine));
+  std::string rootfile_dir;
+  Int_t mcmag = -1;
+  if( !mc ){
+    rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("sbs%d",kine) );
+  }else{
+    rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("mcsbs%d",kine) );
+    mcmag = jmgr->GetValueFromSubKey<Int_t>( "mc_magset", Form("sbs%d",kine) ); 
+  }
+
   Int_t pass = 1;
 
   if( pass>1 ){
@@ -44,8 +52,14 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
   util::ReadRunList(runsheet_dir,nhruns,kine,"LH2",pass,verb,crunh); //modifies nruns to be very large when -1
   util::ReadRunList(runsheet_dir,ndruns,kine,"LD2",pass,verb,crund);
 
+  std::string mcstr = "";
+  
+  if( mc ){
+    mcstr = "_mc";
+  }
+
   //set up output files
-  TFile *fout = new TFile( Form("outfiles/shortparse_sbs%d.root",kine), "RECREATE" );
+  TFile *fout = new TFile( Form("outfiles/shortparse_sbs%d%s.root",kine,mcstr.c_str()), "RECREATE" );
 
   //set up diagnostic histograms
   TH2D *hW2mag = new TH2D( "hW2mag", "W^{2} vs sbsmag; \%; GeV^{2}", 20, 0, 100, 200, 0, 2 );
@@ -109,9 +123,9 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
   
   for ( Int_t t=0; t<2; t++ ){ //loop over targets
     // t==0, lh2; t==1, ld2
-    Int_t nruns;
-    if( t==0 ) nruns = nhruns;
-    if( t==1 ) nruns = ndruns;
+    Int_t nruns = 1;
+    if( t==0 && !mc ) nruns = nhruns;
+    if( t==1 && !mc ) nruns = ndruns;
 
     for (Int_t irun=0; irun<nruns; irun++) {
       // accessing run info
@@ -120,24 +134,33 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
       Int_t ebeam;
       std::string targ;
       std::string rfname;
-      if( t==0 ){
+      if( t==0 && !mc ){
 	runnum = crunh[irun].runnum;
 	mag = crunh[irun].sbsmag / 21; //convert to percent
 	ebeam = crunh[irun].ebeam; //get beam energy per run
 	targ = crunh[irun].target;
 	rfname = rootfile_dir + Form("/*%d*",crunh[irun].runnum);
       }
-      if( t==1 ){
+      if( t==1 && !mc ){
 	runnum = crund[irun].runnum;
 	mag = crund[irun].sbsmag / 21;
 	ebeam = crund[irun].ebeam;
 	targ = crund[irun].target;
 	rfname = rootfile_dir + Form("/*%d*",crund[irun].runnum);
       }
+      if( mc ){ //put bs in here for now
+	runnum = -1; //irrelevant for mc data
+	mag = mcmag; //set with mc data json variable
+	targ = "LH2";
+	rfname = rootfile_dir + Form("/replayed_gmn_sbs%d*",kine);
+      }
       std::cout << "Analyzing " << targ << " run " << runnum << ".." << std::endl;
 
       //set up configuration and tune objects to load analysis parameters
       SBSconfig config(kine,mag);
+
+      if( mc )
+	ebeam = config.GetEbeam();
 
       //Obtain configuration pars from config file
       Double_t hcaltheta = config.GetHCALtheta_rad();
@@ -157,7 +180,7 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
       }
       
       //Obtain cuts from tune class
-    std:string gcut   = tune.Getglobcut();
+      std:string gcut   = tune.Getglobcut();
       Double_t W2mean   = tune.GetW2mean();
       Double_t W2sig    = tune.GetW2sig();
       Double_t dx0_n    = tune.Getdx0_n();
@@ -259,17 +282,23 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
       Int_t treenum = 0, currenttreenum = 0;
 
       while (C->GetEntry(nevent++)) {
-
+	
+	std::cout << "Processing run " << runnum << " event " << nevent << " / " << nevents << "\r";
+	std::cout.flush();
+	
 	///////
 	//Single-loop globalcut method. Save pass/fail for output tree.
-	currenttreenum = C->GetTreeNumber();
-	if( nevent == 1 || currenttreenum != treenum ){
-	  treenum = currenttreenum; 
-	  GlobalCut->UpdateFormulaLeaves();
-	  cout << "Updating formula leaves and switching segment at event: " << nevent << endl;
+	bool failedglobal = false;
+	if( !mc ){
+	  currenttreenum = C->GetTreeNumber();
+	  if( nevent == 1 || currenttreenum != treenum ){
+	    treenum = currenttreenum; 
+	    GlobalCut->UpdateFormulaLeaves();
+	    cout << "Updating formula leaves and switching segment at event: " << nevent << endl;
+	  }
+	  failedglobal = GlobalCut->EvalInstance(0) == 0;
 	}
-	bool failedglobal = GlobalCut->EvalInstance(0) == 0;
-
+	
 	//if( failedglobal ) continue;
 	Int_t fglobalint = 0;
 	if( failedglobal ) fglobalint = 1;
@@ -287,7 +316,12 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
 	///////
 	//Physics calculations
 	//correct beam energy with vertex information
-	Double_t ebeam_c = vars::ebeam_c( ebeam, vz[0], targ );
+	Double_t ebeam_c;
+	if( mc ){
+	  ebeam_c = ebeam;
+	}else{
+	  ebeam_c = vars::ebeam_c( ebeam, vz[0], targ );
+	}
 	TVector3 vertex( 0., 0., vz[0] );
 
 	//set up four-momenta with some empty for various calculation methods
@@ -303,8 +337,12 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
 	Double_t ephi = vars::ephi(pe);
 	Double_t pcent = vars::pcentral(ebeam,etheta,nucleon); //e' p reconstructed by angles
 	Double_t phNexp = ephi + physconst::pi;
-	Double_t Q2, W2, nu, thNexp, pNexp;
-	Double_t ebeam_o = vars::ebeam_o( ebeam_c, etheta, targ ); //Second energy correction accounting for energy loss leaving target
+	Double_t Q2, W2, nu, thNexp, pNexp, ebeam_o;
+	if( mc ){
+	  ebeam_o = ebeam;
+	}else{
+	  ebeam_o = vars::ebeam_o( ebeam_c, etheta, targ ); //Second energy correction accounting for energy loss leaving target
+	}
 
 	/* Can reconstruct e' momentum for downstream calculations differently:
 	   v1 - Use four-momentum member functions
@@ -326,14 +364,14 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
 	  nu = ekinenu;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::qVect_unit( thNexp, phNexp );
+	  pNhat = vars::pNhat_track( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	}else if( epm==3 ){
 	  //v3
 	  nu = pbeam.E() - pcent;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::qVect_unit( thNexp, phNexp );
+	  pNhat = vars::pNhat_track( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
 	  W2 = vars::W2( pbeam.E(), pe.E(), Q2, nucleon );
@@ -342,7 +380,7 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
 	  nu = pbeam.E() - pe.E();
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::qVect_unit( thNexp, phNexp );
+	  pNhat = vars::pNhat_track( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
 	  W2 = vars::W2( pbeam.E(), pe.E(), Q2, nucleon );
@@ -352,14 +390,14 @@ void parse_sh( Int_t kine=14, Int_t epm=2 )
 	  nu = ekinenu;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
-	  pNhat = vars::qVect_unit( thNexp, phNexp );
+	  pNhat = vars::pNhat_track( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  std::cout << "Warning: epm version incorrect. Defaulting to version 2." << endl;
 	}
 
 	//Calculate h-arm quantities
 	vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
-	TVector3 hcalpos = hcalorigin - hcalx*hcalaxes[0] + hcaly*hcalaxes[1];
+	TVector3 hcalpos = hcalorigin + hcalx*hcalaxes[0] + hcaly*hcalaxes[1];
 	Double_t dx = hcalx - xyhcalexp[0];
 	Double_t dy = hcaly - xyhcalexp[1];
 	TVector3 neutdir = (hcalpos - vertex).Unit();

@@ -95,7 +95,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   }
 
   //set up output files
-  TFile *fout = new TFile( Form("outfiles/mcrep_hde_i%d_tfac%f.root",iter,tfac), "RECREATE" );
+  TFile *fout = new TFile( Form("outfiles/mcrep_hde_i%d_tfac%0.0f.root",iter,tfac), "RECREATE" );
   
   //set up diagnostic histograms
   TH2D *hEdepvP_p = new TH2D("hEdepvP_p","HCal E dep vs proton momentum; p_{proton} (GeV); E_{hcal} (GeV)", nbin, 1, 9, 200, Emin, Emax);
@@ -113,6 +113,11 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   TH1D *hxexp = new TH1D("hxexp","x exp (angles);x_{expect} (m)", 400, -2, 2);
   TH1D *hyexp = new TH1D("hyexp","y exp (angles);y_{expect} (m)", 400, -2, 2);
   
+  TH2D *hdxvp_p = new TH2D("hdxvp_p","dx vs proton p; p_{p} (GeV); x_{HCAL}-x_{expect} (m)", nbin, 1, 9, 400, -2, 2);
+  TH2D *hdyvp_p = new TH2D("hdyvp_p","dy vs proton p; p_{p} (GeV); y_{HCAL}-y_{expect} (m)", nbin, 1, 9, 400, -2, 2);
+  TH2D *hdxvp_n = new TH2D("hdxvp_n","dx vs neutron p; p_{n} (GeV); x_{HCAL}-x_{expect} (m)", nbin, 1, 9, 400, -2, 2);
+  TH2D *hdyvp_n = new TH2D("hdyvp_n","dy vs neutron p; p_{n} (GeV); y_{HCAL}-y_{expect} (m)", nbin, 1, 9, 400, -2, 2);
+
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
   std::string nuc;
@@ -203,6 +208,8 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 	hEdepvP_p->Fill(mc_p,hcale);
 	hdx_p->Fill(dx);
 	hdy_p->Fill(dy);
+	hdxvp_p->Fill(mc_p,dx_v2);
+	hdyvp_p->Fill(mc_p,dy_v2);
 	hdx_p_v2->Fill(dx_v2);
 	hdy_p_v2->Fill(dy_v2);
       }
@@ -216,6 +223,8 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 	hEdepvP_n->Fill(mc_p,hcale);
 	hdx_n->Fill(dx);
 	hdy_n->Fill(dy);
+	hdxvp_n->Fill(mc_p,dx_v2);
+	hdyvp_n->Fill(mc_p,dy_v2);
 	hdx_n_v2->Fill(dx_v2);
 	hdy_n_v2->Fill(dy_v2);
       }
@@ -232,6 +241,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   gStyle->SetEndErrorSize(0);
   TCanvas *c1 = new TCanvas("c1","HCal E vs Nucleon P",1600,1200);
   c1->SetGrid();
+  c1->cd();
 
   //Iter 0 arrays
   Double_t binp[nbin] = {0.};
@@ -425,6 +435,160 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
     c1->Write();
 
   }
+  
+  TCanvas *c2 = new TCanvas("c2","HCal dx Sigma vs Nucleon p (MC)",1600,1200);
+  //c2->Divide(2,1);
+  c2->SetGrid();
+  
+  c2->cd();
+
+  Double_t dbinp[nbin] = {0.};
+
+  Double_t dxsig_p[nbin] = {0.};
+  Double_t dxsig_n[nbin] = {0.};
+  Double_t dysig_p[nbin] = {0.};
+  Double_t dysig_n[nbin] = {0.};
+
+  auto dxmg = new TMultiGraph();
+  auto dymg = new TMultiGraph();
+
+  //loop over nucleons for slices, n==0 proton, n==1 neutron
+  for(Int_t n=0; n<2; n++){
+      
+    Double_t p0;
+    Double_t p1;
+    TH2D *hdxvp;
+    TH2D *hdyvp;
+      
+    if( n==0 ){ //if proton
+      hdxvp = (TH2D*)(hdxvp_p->Clone("hdxvp"));
+      hdyvp = (TH2D*)(hdyvp_p->Clone("hdyvp"));
+    }else if( n==1 ){ //if neutron
+      hdxvp = (TH2D*)(hdxvp_n->Clone("hdxvp"));
+      hdyvp = (TH2D*)(hdyvp_n->Clone("hdyvp"));
+    }else
+      break;
+    
+    Double_t fitl;
+    Double_t fith;
+
+    TH1D *pbindxslice[nbin]; 
+    TH1D *pbindyslice[nbin];
+
+    for(Int_t b=0; b<nbin; b++){
+
+      //Get expected mean from fit to hcale vs nucleon p
+      Double_t p = b*p_step+pmin;
+      Double_t fitp1exp = 0;
+      Double_t fitp2exp = 0.10;
+
+      pbindxslice[b] = hdxvp->ProjectionY(Form("pbindxslice_%d",b+1),b+1,b+1);
+      pbindyslice[b] = hdyvp->ProjectionY(Form("pbindyslice_%d",b+1),b+1,b+1);
+
+      fitl = fitp1exp - 3*fitp2exp;
+      fith = fitp1exp + 3*fitp2exp;
+	  
+      TF1 *gausfitdx = new TF1("gausfitdx",fits::g_gfit,fitl,fith,3);
+      gausfitdx->SetParameter(0,800);
+      gausfitdx->SetParameter(1,fitp1exp);
+      gausfitdx->SetParLimits(1,fitl,fith);
+      gausfitdx->SetParameter(2,fitp2exp);
+      gausfitdx->SetParLimits(2,0,0.25);
+
+      TF1 *gausfitdy = new TF1("gausfitdy",fits::g_gfit,fitl,fith,3);
+      gausfitdy->SetParameter(0,800);
+      gausfitdy->SetParameter(1,fitp1exp);
+      gausfitdy->SetParLimits(1,fitl,fith);
+      gausfitdy->SetParameter(2,fitp2exp);
+      gausfitdy->SetParLimits(2,0,0.25);
+
+      pbindxslice[b]->Fit("gausfitdx","RBM");
+      pbindxslice[b]->Draw();
+      pbindyslice[b]->Fit("gausfitdy","RBM");
+      pbindyslice[b]->Draw();
+	
+      dbinp[b] = p;
+      if( n==0 ){
+	dxsig_p[b] = gausfitdx->GetParameter(2);
+	dysig_p[b] = gausfitdy->GetParameter(2);
+	pbindxslice[b]->SetTitle(Form("dxslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dxsig_p[b]));
+	pbindyslice[b]->SetTitle(Form("dyslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dysig_p[b]));   
+
+      }else if( n==1 ){
+	dxsig_n[b] = gausfitdx->GetParameter(2);
+	dysig_n[b] = gausfitdy->GetParameter(2);
+	pbindxslice[b]->SetTitle(Form("dxslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dxsig_p[b]));
+	pbindyslice[b]->SetTitle(Form("dyslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dysig_p[b]));
+   
+      }
+	
+    } //end loop over bins
+
+  } //end loop over nucleons
+
+
+  //Draw graphs
+  auto dxgrp = new TGraph(nbin,binp,dxsig_p);
+  dxgrp->SetTitle("Proton");
+  dxgrp->SetMarkerColor(kRed);
+  dxgrp->SetMarkerStyle(21);
+  dxgrp->SetMarkerSize(1);
+  dxgrp->SetLineColor(kRed);
+  dxgrp->SetLineWidth(0);
+  dxmg->Add(dxgrp);
+
+  auto dxgrn = new TGraph(nbin,binp,dxsig_n);
+  dxgrn->SetTitle("Neutron");
+  dxgrn->SetMarkerColor(kBlue);
+  dxgrn->SetMarkerStyle(20);
+  dxgrn->SetMarkerSize(1);
+  dxgrn->SetLineColor(kBlue);
+  dxgrn->SetLineWidth(0);
+  dxmg->Add(dxgrn);
+
+  dxmg->SetTitle("HCal X Res vs Nucleon p (MC)");
+  dxmg->GetXaxis()->SetTitle("Nucleon p (GeV)");
+  dxmg->GetYaxis()->SetTitle("dx sigma (m)");
+  dxmg->Draw("AP");
+
+  c2->BuildLegend();
+
+  c2->Write();
+
+  TCanvas *c3 = new TCanvas("c3","HCal dy Sigma vs Nucleon P (MC)",1600,1200);
+  //c2->Divide(2,1);
+  c3->SetGrid();
+
+  c3->cd();
+
+  //Draw graphs
+  auto dygrp = new TGraph(nbin,dbinp,dysig_p);
+  dygrp->SetTitle("Proton");
+  dygrp->SetMarkerColor(kRed);
+  dygrp->SetMarkerStyle(21);
+  dygrp->SetMarkerSize(1);
+  dygrp->SetLineColor(kRed);
+  dygrp->SetLineWidth(0);
+  dymg->Add(dxgrp);
+
+  auto dygrn = new TGraphErrors(nbin,dbinp,dysig_n);
+  dygrn->SetTitle("Neutron");
+  dygrn->SetMarkerColor(kBlue);
+  dygrn->SetMarkerStyle(20);
+  dygrn->SetMarkerSize(1);
+  dygrn->SetLineColor(kBlue);
+  dygrn->SetLineWidth(0);
+  dymg->Add(dygrn);
+
+  dymg->SetTitle("HCal Y Res vs Nucleon p (MC)");
+  dymg->GetXaxis()->SetTitle("Nucleon p (GeV)");
+  dymg->GetYaxis()->SetTitle("dy sigma (m)");
+  dymg->Draw("AP");
+
+  c3->BuildLegend();
+
+  c3->Write();
+
 
   fout->Write();
 

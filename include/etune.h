@@ -15,16 +15,16 @@ namespace etune {
   std::string  globcut(Int_t config);      //List of wide elastic cuts over all subsystems
   std::string  globcut_earm(Int_t config); //List of wide elastic cuts over BigBite subsystems
   std::string  globcut_hexp(Int_t config); //List of wide elastic cuts using hcal expert replay
-  Double_t     W2mean(Int_t config);
-  Double_t     W2sig(Int_t config);
+  Double_t     W2mean(Int_t config,Int_t mag);
+  Double_t     W2sig(Int_t config,Int_t mag);
   Double_t     dx0_n(Int_t config,Int_t mag);
   Double_t     dx0_p(Int_t config,Int_t mag);
-  Double_t     dy0(Int_t config);
+  Double_t     dy0(Int_t config,Int_t mag);
   Double_t     dxsig_n(Int_t config,Int_t mag);
   Double_t     dxsig_p(Int_t config,Int_t mag);
-  Double_t     dysig(Int_t config);
-  Double_t     atime0(Int_t config);
-  Double_t     atimesig(Int_t config);
+  Double_t     dysig(Int_t config,Int_t mag);
+  Double_t     atime0(Int_t config,Int_t mag);
+  Double_t     atimesig(Int_t config,Int_t mag);
 }
 
 // a class for SBS config
@@ -54,16 +54,16 @@ class SBStune {
     fglobcut        = etune::globcut(conf);
     fglobcut_earm   = etune::globcut_earm(conf);
     fglobcut_hexp   = etune::globcut_hexp(conf);
-    fW2mean         = etune::W2mean(conf);
-    fW2sig          = etune::W2sig(conf);
+    fW2mean         = etune::W2mean(conf,sbsmag);
+    fW2sig          = etune::W2sig(conf,sbsmag);
     fdx0_n          = etune::dx0_n(conf,sbsmag);
     fdx0_p          = etune::dx0_p(conf,sbsmag);
-    fdy0            = etune::dy0(conf);
+    fdy0            = etune::dy0(conf,sbsmag);
     fdxsig_n        = etune::dxsig_n(conf,sbsmag);
     fdxsig_p        = etune::dxsig_p(conf,sbsmag);
-    fdysig          = etune::dysig(conf);
-    fatime0         = etune::atime0(conf);
-    fatimesig       = etune::atimesig(conf);
+    fdysig          = etune::dysig(conf,sbsmag);
+    fatime0         = etune::atime0(conf,sbsmag);
+    fatimesig       = etune::atimesig(conf,sbsmag);
   }
 
   // define an ostream operator to print to screen conveniently

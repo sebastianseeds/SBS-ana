@@ -3,10 +3,9 @@
 # SSeeds - 4.19.23 - shell script to run mc hcal detection efficiency script quickly
 
 ## Usage
-#./run_mcreplayed_hde.sh <iter> <tfac>
+#./run_mcreplayed_pos.sh <kine>
 
-iter=$1
-tfac=$2
+kine=$1
 
-root -l 'mcreplayed_hde.C('$iter','$tfac')'
+root -l -b -q 'mcreplayed_pos.C('$kine')'
 

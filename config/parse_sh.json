@@ -5,7 +5,21 @@
 	"sbs11"       : "/work/halla/sbs/sbs-gmn/pass1/SBS11/LH2/rootfiles",
 	"sbs14"       : "/work/halla/sbs/sbs-gmn/pass1/SBS14/LH2/rootfiles",
 	"sbs8"        : "/work/halla/sbs/sbs-gmn/pass1/SBS8/LH2/rootfiles",
-	"sbs9"        : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LH2/rootfiles"
-    }
+	"sbs9"        : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LH2/rootfiles",
+	"mcsbs4"      : "/lustre19/expphy/volatile/halla/sbs/seeds/sim032123",
+	"mcsbs7"      : "/lustre19/expphy/volatile/halla/sbs/seeds/sim032123",
+	"mcsbs11"     : "/lustre19/expphy/volatile/halla/sbs/seeds/sim032123",
+	"mcsbs14"     : "/lustre19/expphy/volatile/halla/sbs/seeds/sim032123",
+	"mcsbs8"      : "/lustre19/expphy/volatile/halla/sbs/seeds/sim042023",
+	"mcsbs9"      : "/lustre19/expphy/volatile/halla/sbs/seeds/sim032123"
+    },
 
+    "mc_magset" : {
+	"sbs4"        : 30,
+	"sbs7"        : 85,
+	"sbs11"       : 100,
+	"sbs14"       : 70,
+	"sbs8"        : 70,
+	"sbs9"        : 70
+    }
 }
