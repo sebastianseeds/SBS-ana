@@ -1,12 +1,12 @@
 {
-    "rootdir"     : "/lustre19/expphy/volatile/halla/sbs/seeds/sim032123/",
+    "rootdir"     : "/lustre19/expphy/volatile/halla/sbs/seeds/sim042123/",
 
     "magset"      : {
-	"sbs4"        : [ 0, 30 ],
-	"sbs7"        : [ 85 ],
-	"sbs11"       : [ 100 ],
-	"sbs14"       : [ 70 ],
-	"sbs8"        : [ 70 ],
-	"sbs9"        : [ 70 ]
+	"sbs4"        : [ 0 ],
+	"sbs7"        : [ 0 ],
+	"sbs11"       : [ 0 ],
+	"sbs14"       : [ 0 ],
+	"sbs8"        : [ 0 ],
+	"sbs9"        : [ 0 ]
 	}
 }

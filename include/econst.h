@@ -23,7 +23,9 @@ namespace econst {
   static const Int_t hcalchan = 288;
   static const Int_t hcalcol = 12;
   static const Int_t hcalrow = 24;
-  static const Double_t hcaladc_binw = 4.;           //ns, width of each ADC bin
+  static const Double_t hcal_hrange = 1.85928;    //m, total range in horizontal direction of HCal (end-to-end)
+  static const Double_t hcal_vrange = 3.81;       //m, total range in vertical direction of HCal (end-to-end)
+  static const Double_t hcaladc_binw = 4.;        //ns, width of each ADC bin
   static const Double_t hcalblk_w = 0.1524;       //m, width of a HCAL block
   static const Double_t hcalblk_h = 0.1524;       //m, height of a HCAL block
   static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist.
@@ -54,6 +56,8 @@ namespace econst {
 
   //// Experimental constants
   static const Int_t nkine = 6;
+  static const Int_t kIdx[6] = {4,7,11,14,8,9};
+
   // target
   static const Double_t l_tgt = 0.15;  //m 
   static const Double_t celldiameter = 1.6*2.54/100; //m, right now this is a guess

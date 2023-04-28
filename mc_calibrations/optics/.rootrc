@@ -1,0 +1,8 @@
+# Don't override a user's rootlogon.C. See if this works instead.
+Rint.Logon        /work/halla/sbs/seeds/sim/install/root_macros/rootlogon.C
+
+Unix.*.Root.DynamicPath:   .:lib64:$(ROOTSYS)/lib
+Unix.*.Root.MacroPath:     .:/work/halla/sbs/seeds/sim/install/root_macros:$(ROOTSYS)/macros
+
+ACLiC.IncludePaths:       -Iinclude
+

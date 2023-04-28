@@ -80,20 +80,48 @@ namespace etune {
     if(config==1)
       return 0.92;
     else if(config==4){
-      if(mag==0) return 0.837127;
-      else if(mag==30) return 0.904666;
-      else if(mag==50) return 0.950815;
-      else return physconst::Mp;
+      if(mag==0) return 0.845610;
+      else if(mag==30) return 0.913681;
+      else if(mag==50) return 0.959941;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
     }else if(config==7){
-      return 0.88;
+      if(mag==85) return 0.88;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
     }else if(config==11){
-      return 0.925;
+      if(mag==0) return 0.925;
+      else if(mag==100) return 0.925;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
     }else if(config==14){
-      return 0.870819;
+      if(mag==0) return 0.870819;
+      else if(mag==70) return 0.870819;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
     }else if(config==8){
-      return 0.91;
+      if(mag==0) return 0.91;
+      else if(mag==50) return 0.91;
+      else if(mag==70) return 0.91;
+      else if(mag==100) return 0.91;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
     }else if(config==9){
-      return 0.91;
+      if(mag==70) return 0.91;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
     }else if(config==4363){
       return 0.92;
     }else{
@@ -107,20 +135,48 @@ namespace etune {
     if(config==1)
       return 0.325;
     else if(config==4){
-      if(mag==0) return 0.0961233;
-      else if(mag==30) return 0.0966413;
-      else if(mag==50) return 0.0944658;
-      else return physconst::Mp;
+      if(mag==0) return 0.0909989;
+      else if(mag==30) return 0.0911511;
+      else if(mag==50) return 0.0873467;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
     }else if(config==7){
-      return 0.5;
+      if(mag==85) return 0.5;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
     }else if(config==11){
-      return 0.325;
+      if(mag==0) return 0.325;
+      else if(mag==100) return 0.325;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
     }else if(config==14){
-      return 0.19443;
+      if(mag==0) return 0.19443;
+      else if(mag==70) return 0.19443;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
     }else if(config==8){
-      return 0.21;
+      if(mag==0) return 0.21;
+      else if(mag==50) return 0.21;
+      else if(mag==70) return 0.21;
+      else if(mag==100) return 0.21;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
     }else if(config==9){
-      return 0.17;
+      if(mag==70) return 0.17;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
     }else if(config==4363){
       return 0.325;
     }else{
@@ -243,19 +299,50 @@ namespace etune {
   Double_t dy0(Int_t config,Int_t mag) {
       if(config==1)
       return 0.;
-    else if(config==4)
-      return -0.0270143;
-    else if(config==7)
-      return 0.0158817;
-    else if(config==11)
-      return -0.0119;
-    else if(config==14)
-      return 0.00220912;
-    else if(config==8)
-      return -0.0119;
-    else if(config==9)
-      return -0.0175041;
-    else if(config==4363)
+    else if(config==4){
+      if(mag==0) return -0.0270143;
+      else if(mag==30) return -0.0270143;
+      else if(mag==50) return -0.0270143;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 0.0158817;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return -0.0119;
+      else if(mag==100) return -0.0119;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 0.00220912;
+      else if(mag==70) return 0.00220912;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return -0.0119;
+      else if(mag==50) return -0.0119;
+      else if(mag==70) return -0.0119;
+      else if(mag==100) return -0.0119;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return -0.0175041;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
       return 0.;
     else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
@@ -377,19 +464,50 @@ namespace etune {
   Double_t dysig(Int_t config,Int_t mag) {
        if(config==1)
       return 0.1;
-    else if(config==4)
-      return 0.0869443;
-    else if(config==7)
-      return 0.155968;
-    else if(config==11)
-      return 0.08675;
-    else if(config==14)
-      return 0.0824202;
-    else if(config==8)
-      return 0.08675;
-    else if(config==9)
-      return 0.134702;
-    else if(config==4363)
+    else if(config==4){
+      if(mag==0) return 0.0869443;
+      else if(mag==30) return 0.0869443;
+      else if(mag==50) return 0.0869443;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 0.155968;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return 0.08675;
+      else if(mag==100) return 0.08675;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 0.0824202;
+      else if(mag==70) return 0.0824202;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return 0.08675;
+      else if(mag==50) return 0.08675;
+      else if(mag==70) return 0.08675;
+      else if(mag==100) return 0.08675;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return 0.134702;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
       return 0.1;
     else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
@@ -401,19 +519,50 @@ namespace etune {
   Double_t atime0(Int_t config,Int_t mag) {
     if(config==1)
       return 51.5;
-    else if(config==4)
-      return 51.466;
-    else if(config==7)
-      return 63.1685;
-    else if(config==11)
-      return 50.36;
-    else if(config==14)
-      return 58.7825;
-    else if(config==8)
-      return 50.36;
-    else if(config==9)
-      return 50.6158;
-    else if(config==4363)
+    else if(config==4){
+      if(mag==0) return 51.466;
+      else if(mag==30) return 51.466;
+      else if(mag==50) return 51.466;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 63.1685;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return 50.36;
+      else if(mag==100) return 50.36;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 58.7825;
+      else if(mag==70) return 58.7825;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return 50.36;
+      else if(mag==50) return 50.36;
+      else if(mag==70) return 50.36;
+      else if(mag==100) return 50.36;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return 50.6158;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
       return 51.5;
     else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
@@ -425,19 +574,50 @@ namespace etune {
   Double_t atimesig(Int_t config,Int_t mag) {
        if(config==1)
       return 3.0;
-    else if(config==4)
-      return 3.67744;
-    else if(config==7)
-      return 3.69617;
-    else if(config==11)
-      return 3.73;
-    else if(config==14)
-      return 3.68101;
-    else if(config==8)
-      return 3.73;
-    else if(config==9)
-      return 3.52261;
-    else if(config==4363)
+    else if(config==4){
+      if(mag==0) return 3.67744;
+      else if(mag==30) return 3.67744;
+      else if(mag==50) return 3.67744;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 3.69617;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return 3.73;
+      else if(mag==100) return 3.73;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 3.68101;
+      else if(mag==70) return 3.68101;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return 3.73;
+      else if(mag==50) return 3.73;
+      else if(mag==70) return 3.73;
+      else if(mag==100) return 3.73;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return 3.52261;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
       return 3.0;
     else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;

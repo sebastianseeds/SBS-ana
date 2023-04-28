@@ -1,4 +1,5 @@
-//sseeds 04.18.23 - Script to extract hcal detection efficiency from Juan Carlos Cornejo method detailed by Provakar datta well here: https://sbs.jlab.org/DocDB/0003/000339/001/wSoft_gmnAna_11_18_22.pdf
+//sseeds 04.18.23 - Script to extract hcal detection efficiency from Juan Carlos Cornejo method detailed by Provakar datta well here: https://sbs.jlab.org/DocDB/0003/000339/001/wSoft_gmnAna_11_18_22.pdf.
+//04.25.23 Update - Adds position efficiency information and efficiency ratio
 
 #include <vector>
 #include <iostream>
@@ -256,6 +257,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   //Iter 1 arrays
   Double_t hde_proton[nbin] = {0.};
   Double_t hde_neutron[nbin] = {0.};
+  Double_t hde_npratio[nbin] = {0.};
 
   auto mg = new TMultiGraph();
 
@@ -346,6 +348,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
     grp->SetMarkerSize(2);
     grp->SetLineColor(kRed);
     grp->SetLineWidth(2);
+    grp->Write();
     mg->Add(grp);
 
     auto grn = new TGraphErrors(nbin,binp,Emean_n,binerr_n,Esig_n);
@@ -355,12 +358,15 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
     grn->SetMarkerSize(2);
     grn->SetLineColor(kBlue);
     grn->SetLineWidth(2);
+    grn->Write();
     mg->Add(grn);
 
     mg->SetTitle("HCal E vs Nucleon p");
     mg->GetXaxis()->SetTitle("Nucleon p (GeV)");
     mg->GetYaxis()->SetTitle("E_{hcal}");
     mg->Draw("AP");
+
+    mg->Write();
 
     //c1->Modified();
 
@@ -397,7 +403,9 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
       
       hde_proton[b] = (double)P_pass[b] / (double)P_tot[b] *100.;
       hde_neutron[b] = (double)N_pass[b] / (double)N_tot[b] *100.;
-	 
+      
+      hde_npratio[b] = hde_neutron[b]/hde_proton[b];
+
     }
     
     //Draw graphs
@@ -436,6 +444,31 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   }
   
+  
+  TCanvas *c0 = new TCanvas("c0","HCal Efficiency Ratio (N/P)(E_{T}=1/4 E_{peak})",1600,1200);
+  //c2->Divide(2,1);
+  c0->SetGrid();
+  
+  c0->cd();
+
+  auto grr = new TGraph(nbin,binp,hde_npratio);
+  grr->SetTitle("HCal Efficiency Ratio (N/P)(E_{T}=1/4 E_{peak})");
+  grr->SetMarkerColor(kMagenta);
+  grr->SetMarkerStyle(20);
+  grr->SetMarkerSize(1);
+  grr->SetLineColor(kMagenta);
+  grr->SetLineWidth(0);
+  grr->GetXaxis()->SetTitle("Nucleon Momentum (GeV/c)");
+  grr->GetYaxis()->SetTitle("Efficiency Ratio (N/P)");
+  //mg->Add(grr);
+  grr->Draw("AP");
+
+  grr->GetYaxis()->SetRangeUser(0.9,1.05);
+
+  c0->Modified();
+
+  c0->Write();
+
   TCanvas *c2 = new TCanvas("c2","HCal dx Sigma vs Nucleon p (MC)",1600,1200);
   //c2->Divide(2,1);
   c2->SetGrid();
@@ -451,6 +484,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   auto dxmg = new TMultiGraph();
   auto dymg = new TMultiGraph();
+  auto allmg = new TMultiGraph();
 
   //loop over nucleons for slices, n==0 proton, n==1 neutron
   for(Int_t n=0; n<2; n++){
@@ -509,16 +543,16 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 	
       dbinp[b] = p;
       if( n==0 ){
-	dxsig_p[b] = gausfitdx->GetParameter(2);
-	dysig_p[b] = gausfitdy->GetParameter(2);
-	pbindxslice[b]->SetTitle(Form("dxslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dxsig_p[b]));
-	pbindyslice[b]->SetTitle(Form("dyslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dysig_p[b]));   
+  	dxsig_p[b] = gausfitdx->GetParameter(2)*100; //convert to cm
+  	dysig_p[b] = gausfitdy->GetParameter(2)*100;
+  	pbindxslice[b]->SetTitle(Form("dxslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dxsig_p[b]));
+  	pbindyslice[b]->SetTitle(Form("dyslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dysig_p[b]));   
 
       }else if( n==1 ){
-	dxsig_n[b] = gausfitdx->GetParameter(2);
-	dysig_n[b] = gausfitdy->GetParameter(2);
-	pbindxslice[b]->SetTitle(Form("dxslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dxsig_p[b]));
-	pbindyslice[b]->SetTitle(Form("dyslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dysig_p[b]));
+  	dxsig_n[b] = gausfitdx->GetParameter(2)*100;
+  	dysig_n[b] = gausfitdy->GetParameter(2)*100;
+  	pbindxslice[b]->SetTitle(Form("dxslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dxsig_p[b]));
+  	pbindyslice[b]->SetTitle(Form("dyslice Loop:%d Np:%f Nuc:%d sig:%f",b,p,n,dysig_p[b]));
    
       }
 	
@@ -529,22 +563,24 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   //Draw graphs
   auto dxgrp = new TGraph(nbin,binp,dxsig_p);
-  dxgrp->SetTitle("Proton");
+  dxgrp->SetTitle("Proton X (RMS)");
   dxgrp->SetMarkerColor(kRed);
   dxgrp->SetMarkerStyle(21);
   dxgrp->SetMarkerSize(1);
   dxgrp->SetLineColor(kRed);
   dxgrp->SetLineWidth(0);
   dxmg->Add(dxgrp);
+  allmg->Add(dxgrp);
 
   auto dxgrn = new TGraph(nbin,binp,dxsig_n);
-  dxgrn->SetTitle("Neutron");
+  dxgrn->SetTitle("Neutron X (RMS)");
   dxgrn->SetMarkerColor(kBlue);
   dxgrn->SetMarkerStyle(20);
   dxgrn->SetMarkerSize(1);
   dxgrn->SetLineColor(kBlue);
   dxgrn->SetLineWidth(0);
   dxmg->Add(dxgrn);
+  allmg->Add(dxgrn);
 
   dxmg->SetTitle("HCal X Res vs Nucleon p (MC)");
   dxmg->GetXaxis()->SetTitle("Nucleon p (GeV)");
@@ -563,22 +599,24 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   //Draw graphs
   auto dygrp = new TGraph(nbin,dbinp,dysig_p);
-  dygrp->SetTitle("Proton");
+  dygrp->SetTitle("Proton Y (RMS)");
   dygrp->SetMarkerColor(kRed);
-  dygrp->SetMarkerStyle(21);
+  dygrp->SetMarkerStyle(25);
   dygrp->SetMarkerSize(1);
   dygrp->SetLineColor(kRed);
   dygrp->SetLineWidth(0);
-  dymg->Add(dxgrp);
+  dymg->Add(dygrp);
+  allmg->Add(dygrp);
 
   auto dygrn = new TGraphErrors(nbin,dbinp,dysig_n);
-  dygrn->SetTitle("Neutron");
+  dygrn->SetTitle("Neutron Y (RMS)");
   dygrn->SetMarkerColor(kBlue);
-  dygrn->SetMarkerStyle(20);
+  dygrn->SetMarkerStyle(24);
   dygrn->SetMarkerSize(1);
   dygrn->SetLineColor(kBlue);
   dygrn->SetLineWidth(0);
   dymg->Add(dygrn);
+  allmg->Add(dygrn);
 
   dymg->SetTitle("HCal Y Res vs Nucleon p (MC)");
   dymg->GetXaxis()->SetTitle("Nucleon p (GeV)");
@@ -589,7 +627,25 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   c3->Write();
 
+  TCanvas *c4 = new TCanvas("c4","HCal dx and dy Sigma vs Nucleon P (MC)",1600,1200);
+  //c2->Divide(2,1);
+  c4->SetGrid();
 
+  c4->cd();
+
+  allmg->SetTitle("HCal Spatial Resolution (4x4 cluster)");
+  allmg->GetXaxis()->SetTitle("Nucleon momentum (GeV/c)");
+  allmg->GetYaxis()->SetTitle("X and Y Resolution (RMS) (cm)");
+  allmg->Draw("AP");
+  
+
+  allmg->GetYaxis()->SetRangeUser(0,10);
+
+  c4->Modified();
+
+  c4->BuildLegend();
+
+  c4->Write();
   fout->Write();
 
   // Send time efficiency report to console

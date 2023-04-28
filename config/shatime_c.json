@@ -2,11 +2,11 @@
     "rootfile_dir" : "/volatile/halla/sbs/seeds/rootfiles",
     "lh2" : {
 	"sbs4_runs" : [ 11589, 11590, 11592 ],
-	"sbs8_runs" : [ 13559 ],
 	"sbs9_runs" : [ 13747 ]
     },
     
     "ld2" : {
+	"sbs8_runs" : [ 13559 ],
 	"sbs11_runs" : [ 12382 ]
     }
 }

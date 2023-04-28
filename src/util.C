@@ -16,6 +16,71 @@ namespace util {
     return date;
   }
 
+  // reads a set of parameters into a vector from a txt file at <const_path>. Assumes endl delimiter
+  void readParam( std::string const_path, vector<Double_t> &param ) {
+
+    ifstream const_file; const_file.open( const_path );
+
+    //Get all params
+    if(const_file.is_open()){
+  
+      Int_t n1=0;
+      Double_t d1;
+      string readline;
+    
+      while( getline( const_file, readline ) ){
+	if( readline.at(0) == '#' ) {
+	  continue;
+	}
+	stringstream ss( readline );
+	ss >> d1;     
+	param.push_back(d1);
+	n1++;
+      }
+      
+    }else
+      throw "Error on [util::readConst] Parameter file doesn't exist";
+
+    const_file.close();
+  }
+
+  // overload 1. Allows for selection of subset of data with type and expected set size
+  void readParam( std::string const_path, std::string type, Int_t setsize, vector<Double_t> &param ) {
+    ifstream const_file; const_file.open( const_path );
+    
+    //Get all params at datatype
+    if(const_file.is_open()){
+
+      Int_t n1=0;
+      Double_t d1=0;
+      string readline;
+      bool skip_line = true;
+
+      while( getline( const_file, readline ) ){
+      
+	if( n1==( setsize ) ) break;
+      
+	TString Tline = (TString)readline;
+      
+	if( Tline.BeginsWith( type.c_str() ) && skip_line==true ){	
+	  skip_line = false;
+	  continue;
+	}
+      
+	if( skip_line==false ){
+	  istringstream ss( readline );
+	  while( ss >> d1 ){
+	    param.push_back(d1);
+	    n1++;
+	  }
+	}
+      }
+    }else
+      throw "Error on [util::readConst] Parameter file doesn't exist";
+
+    const_file.close();
+  }
+
   ////HCal
   // returns TH2D for hcal face (row,col), note that row/col start at 1
   TH2D *hhcalrowcol(std::string name) {

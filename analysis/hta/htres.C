@@ -1,4 +1,4 @@
-//sseeds 04.20.23 - Script to extract single-channel timing resolutions by kinematic/field
+//sseeds 04.20.23 - Script to extract single-channel best possible timing resolutions by kinematic/field
 
 #include <vector>
 #include <iostream>
@@ -14,7 +14,7 @@
 #include "../../include/gmn.h"
 
 //Passing kine==-1 will run all kinematics, pass is replay pass, epm is e' momentum calculation method
-void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
+void htres( Int_t kine=8, Int_t epm=3, bool waveform=false, Int_t pass=1 )
 { //main
 
   Double_t adcbinw = econst::hcaladc_binw; //adc sample bin width (4*40=160ns over whole waveform)
@@ -23,31 +23,94 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   TStopwatch *st = new TStopwatch();
   st->Start( kTRUE );
 
-  // reading input config file
-  JSONManager *jmgr = new JSONManager("../../config/shatime_c.json");
-  std::string rootfile_dir = jmgr->GetValueFromKey_str("rootfile_dir");
+  // reading config file
+  JSONManager *jmgr = new JSONManager("../../config/shtres.json");
+  std::string rootfile_dir;
+  if(waveform)
+    rootfile_dir = jmgr->GetValueFromKey_str("expert_rootfile_dir");
+  else
+    rootfile_dir = jmgr->GetValueFromSubKey_str("general_rootfile_dir",Form("sbs%d",kine));
 
-  vector<Int_t> lh2r;
-  jmgr->GetVectorFromSubKey<Int_t>( "lh2", "sbs4_runs", lh2r );
-  jmgr->GetVectorFromSubKey<Int_t>( "lh2", "sbs8_runs", lh2r );
-  jmgr->GetVectorFromSubKey<Int_t>( "lh2", "sbs9_runs", lh2r );
+  //define structure to encode parameters for continuous ep fit tdc/adct corrections
+  typedef struct{
+    vector<Int_t> kIdx;
+    Int_t nfset_lh2; //total number of different field settings for lh2
+    Int_t nfset_ld2; //total number of different field settings for ld2
+    vector<Int_t> fset_lh2; //all field settings for lh2 (percent, -1 indicates no setting)
+    vector<Int_t> fset_ld2; //all field settings for ld2 (percent, -1 indicates no setting)
+    Int_t TOFfitp_mset; //field settings with TOF vs nucleon p available
+    vector<Double_t> TOFfitp_p; //TOF vs proton p fit parameters
+    vector<Double_t> TOFfitp_n; //TOF vs neutron p fit parameters
+    Double_t TOFfitp_ulim; //upper nucleon momentum limit on fits, beyond which fits diverge quickly
+  } SBSSET;
+
+  SBSSET fitparams[econst::nkine]; //One structure per kinematic
+
+  Int_t gIdx; //get the global index for this kinematic
+  for( Int_t k=0; k<econst::nkine; k++ ){
+    jmgr->GetVectorFromKey<Int_t>("kIdx",fitparams[k].kIdx);
+    Int_t ki = fitparams[k].kIdx[k];
+
+    fitparams[k].nfset_lh2 = jmgr->GetValueFromSubKey<Int_t>("nfset_lh2",Form("sbs%d",ki));    
+    fitparams[k].nfset_ld2 = jmgr->GetValueFromSubKey<Int_t>("nfset_ld2",Form("sbs%d",ki));
+    jmgr->GetVectorFromSubKey<Int_t>("fset_lh2",Form("sbs%d",ki),fitparams[k].fset_lh2);
+    jmgr->GetVectorFromSubKey<Int_t>("fset_ld2",Form("sbs%d",ki),fitparams[k].fset_ld2);
+    fitparams[k].TOFfitp_mset = jmgr->GetValueFromSubKey<Int_t>("TOFfitp_mset",Form("sbs%d",ki));
+    jmgr->GetVectorFromSubKey<Double_t>("TOFfitp_p",Form("sbs%d",ki),fitparams[k].TOFfitp_p);
+    jmgr->GetVectorFromSubKey<Double_t>("TOFfitp_n",Form("sbs%d",ki),fitparams[k].TOFfitp_n);
+    fitparams[k].TOFfitp_ulim = jmgr->GetValueFromSubKey<Double_t>("TOFfitp_ulim",Form("sbs%d",ki));
+
+    if( fitparams[0].kIdx[k]==kine )
+      gIdx=k;
+  }
+
+  //Read in timewalk parameters
+  typedef struct{
+    vector<Double_t> tdcp;
+    vector<Double_t> adcp;
+  } TW;
+
+  TW timewalk[3]; //three timewalk parameters of the form p0*exp(-p1*x[0])+p2
+
+  for( Int_t p=0; p<3; p++ ){
+    std::string tdcpath = Form("params/TW/TDC/tdctwP%d_sbs%d.txt",p,kine);
+    util::readParam(tdcpath,timewalk[p].tdcp);
+    std::string adctpath = Form("params/TW/ADC/adcttwP%d_sbs%d.txt",p,kine);
+    util::readParam(adctpath,timewalk[p].adcp);
+  }
+
+  //Read in gain parameters for more accurate timewalk corrections
+  vector<Double_t> oldadcgain;
+  vector<Double_t> adcgain;
+  std::string oldadcgainpath = "params/gain/oldcoeff.txt";
+  std::string adcgainpath = Form("params/gain/coeff_sbs%d.txt",kine);
+  std::string gmoniker = "sbs.hcal.adc.gain";
+  util::readParam(oldadcgainpath,gmoniker,econst::hcalchan,oldadcgain);
+  util::readParam(adcgainpath,gmoniker,econst::hcalchan,adcgain);
+
+  vector<Int_t> lh2r; //jmgr adds (not replace) when called
+  jmgr->GetVectorFromSubKey<Int_t>( "lh2runs", "sbs4_runs", lh2r );
+  jmgr->GetVectorFromSubKey<Int_t>( "lh2runs", "sbs9_runs", lh2r );
 
   vector<Int_t> ld2r;
-  jmgr->GetVectorFromSubKey<Int_t>( "ld2", "sbs11_runs", ld2r );
+  jmgr->GetVectorFromSubKey<Int_t>( "ld2runs", "sbs8_runs", ld2r );
+  jmgr->GetVectorFromSubKey<Int_t>( "ld2runs", "sbs11_runs", ld2r );
 
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
   Int_t nruns = -1; //Always analyze all available runs for this application. If not, need to pass nruns for lh2 and ld2 separately.
+  Int_t nruns_h = -1;
+  Int_t nruns_d = -1;
   Int_t verb = 0; //Don't print diagnostic info by default
 
   //read the run list to parse run numbers associated to input parameters and set up for loop over runs
   vector<crun> crunh; 
   vector<crun> crund; 
-  util::ReadRunList(runsheet_dir,nruns,kine,"LH2",pass,verb,crunh); //modifies nruns to be very large when -1
-  util::ReadRunList(runsheet_dir,nruns,kine,"LD2",pass,verb,crund); //modifies nruns to be very large when -1
+  util::ReadRunList(runsheet_dir,nruns_h,kine,"LH2",pass,verb,crunh); //modifies nruns to be very large when -1
+  util::ReadRunList(runsheet_dir,nruns_d,kine,"LD2",pass,verb,crund); //modifies nruns to be very large when -1
   
   //set up output files
-  TFile *fout = new TFile( Form("outfiles/ohatime_sbs%d.root",kine), "RECREATE" );
+  TFile *fout = new TFile( Form("outfiles/htresout_sbs%d_epm%d.root",kine,epm), "RECREATE" );
 
   //set up waveform histograms
   TH1D *landhist[econst::hcalrow][econst::hcalcol]; //For landau fits
@@ -66,25 +129,39 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   
   // create output tree
   TTree *P = new TTree("P","Analysis Tree"); 
-  
-  // output tree vars
+
+  // timing
   Double_t pblkid_out; //hcal primary cluster, primary block id
   Double_t latime_out; //hcal primary cluster landau fit adc time
   Double_t sgatime_out; //hcal primary cluster skewed gaussian fit adc time
   Double_t batime_out; //hcal primary cluster "best" fit adc time
   Double_t atime_out; //hcal primary cluster adc time, tree
+  Double_t tdc_out; //hcal primary cluster tdc time, tree
 
-  Double_t bcatime_dxdy_out; //hcal best cluster adc time, tree
-  Double_t bcatime_atime_out; //hcal best cluster adc time, tree
-  Double_t bcatime_thpq_out; //hcal best cluster adc time, tree
-  Double_t bcpblkid_dxdy_out; //hcal best cluster, primary block id
-  Double_t bcpblkid_atime_out; //hcal best cluster, primary block id
-  Double_t bcpblkid_thpq_out; //hcal best cluster, primary block id
+  Double_t bcatime_dxdy_out; //hcal dxdy best cluster adc time, tree
+  Double_t bcatime_atime_out; //hcal atime best cluster adc time, tree
+  Double_t bcatime_thpq_out; //hcal thetapq best cluster adc time, tree
+  Double_t bctdc_dxdy_out; //hcal dxdy best cluster adc time, tree
+  Double_t bctdc_atime_out; //hcal atime best cluster adc time, tree
+  Double_t bctdc_thpq_out; //hcal thetapq best cluster adc time, tree
+  Double_t bcpblkid_dxdy_out; //hcal dxdy best cluster, primary block id
+  Double_t bcpblkid_atime_out; //hcal atime best cluster, primary block id
+  Double_t bcpblkid_thpq_out; //hcal thetapq best cluster, primary block id
 
+  //"best" timing (atime cut around 3sig, then min thetapq)
+  Double_t btdc_out;
+  Double_t badct_out;
+  Double_t tofcorr_out;
+  Double_t bclustwcorr_out;
+  Double_t bclusatwcorr_out;
+  Double_t bcpblkid_cuts_out; //channel of best cluster primary block
+
+  //physics
   Double_t dx_out; //hcal primary cluster dx
   Double_t dy_out; //hcal primary cluster dy 
   Double_t W2_out;
   Double_t Q2_out;
+  Double_t pN_out;
   Double_t hcale_out; //hcal primary cluster energy
   Double_t pse_out; //bbcal preshower primary cluster energy
   Double_t she_out; //bbcal shower primary cluster energy
@@ -104,6 +181,7 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   //cluster tree vars
   Double_t cpblkid_out[econst::maxclus];
   Double_t chatime_out[econst::maxclus];
+  Double_t chtdc_out[econst::maxclus];
   Double_t cthetapq_p_out[econst::maxclus];
   Double_t cthetapq_n_out[econst::maxclus];
   Double_t cdx_out[econst::maxclus];
@@ -120,9 +198,19 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
   P->Branch( "bcatime_dxdy", &bcatime_dxdy_out, "bcatime_dxdy/D" );
   P->Branch( "bcatime_atime", &bcatime_atime_out, "bcatime_atime/D" );
   P->Branch( "bcatime_thpq", &bcatime_thpq_out, "bcatime_thpq/D" );
+  P->Branch( "bctdc_dxdy", &bctdc_dxdy_out, "bctdc_dxdy/D" );
+  P->Branch( "bctdc_atime", &bctdc_atime_out, "bctdc_atime/D" );
+  P->Branch( "bctdc_thpq", &bctdc_thpq_out, "bctdc_thpq/D" );
   P->Branch( "bcpblkid_dxdy", &bcpblkid_dxdy_out, "bcpblkid_dxdy/D" );
   P->Branch( "bcpblkid_atime", &bcpblkid_atime_out, "bcpblkid_atime/D" );
   P->Branch( "bcpblkid_thpq", &bcpblkid_thpq_out, "bcpblkid_thpq/D" );
+  
+  P->Branch( "btdc", &btdc_out, "btdc/D" );
+  P->Branch( "badct", &badct_out, "badct/D" );
+  P->Branch( "tofcorr", &tofcorr_out, "tofcorr/D" );
+  P->Branch( "bclustwcorr", &bclustwcorr_out, "bclustwcorr/D" );
+  P->Branch( "bclusatwcorr", &bclusatwcorr_out, "bclusatwcorr/D" );
+  P->Branch( "bcpblkid_cuts", &bcpblkid_cuts_out, "bcpblkid_cuts/D" );
 
   P->Branch( "dx", &dx_out, "dx/D" );
   P->Branch( "dy", &dy_out, "dy/D" );
@@ -146,6 +234,7 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
   P->Branch( "cpblkid", &cpblkid_out, Form("cpblkid[%d]/D",econst::maxchan) );
   P->Branch( "chatime", &chatime_out, Form("chatime[%d]/D",econst::maxchan) );
+  P->Branch( "chtdc", &chtdc_out, Form("chtdc[%d]/D",econst::maxchan) );
   P->Branch( "cthetapq_p", &cthetapq_p_out, Form("cthetapq_p[%d]/D",econst::maxchan) );
   P->Branch( "cthetapq_n", &cthetapq_n_out, Form("cthetapq_n[%d]/D",econst::maxchan) );
   P->Branch( "cdx", &cdx_out, Form("cdx[%d]/D",econst::maxchan) );
@@ -154,16 +243,30 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
   // setup reporting indices
   Int_t curmag = -1;
-  std::string curtar = "";
+  std::string roottar = "";
 
   for ( Int_t t=0; t<2; t++ ){ //loop over targets
     // t==0, lh2; t==1, ld2
+    std::string rootfile_fdir;
+
+    if( t==0 ){
+      roottar = "LH2";
+      nruns = nruns_h;
+    }else{
+      roottar = "LD2";
+      nruns = nruns_d;
+    }
+
+    if( !waveform )
+      rootfile_fdir = rootfile_dir + Form("/%s/rootfiles",roottar.c_str());
+    else
+      rootfile_fdir = rootfile_dir;
 
     for (Int_t irun=0; irun<nruns; irun++) { //loop over runs in each target category
       // accessing run info
       Int_t runnum;
       Int_t mag;
-      Int_t ebeam;
+      Double_t ebeam;
       Int_t conf;
       std::string targ;
       std::string rfname;
@@ -173,12 +276,14 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	ebeam = crunh[irun].ebeam; //get beam energy per run
 	conf = crunh[irun].sbsconf; //get config of current run
 	targ = crunh[irun].target;
-	rfname = rootfile_dir + Form("/*%d*",crunh[irun].runnum);
+	rfname = rootfile_fdir + Form("/*%d*",crunh[irun].runnum);
+
+	//selects from the runsheet only those runs for which expert replayes exist
 	bool skip = true;
 	for( Int_t el=0; el<lh2r.size(); el++ ){     
 	  if( runnum==lh2r[el] ) skip=false;
 	}
-	if( skip==true ) continue;
+	if( skip==true && waveform ) continue;
       }
       if( t==1 ){
 	runnum = crund[irun].runnum;
@@ -186,17 +291,20 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	ebeam = crund[irun].ebeam;
 	conf = crund[irun].sbsconf; //get config of current run
 	targ = crund[irun].target;
-	rfname = rootfile_dir + Form("/*%d*",crund[irun].runnum);
+	rfname = rootfile_fdir + Form("/*%d*",crund[irun].runnum);
+
+	//selects from the runsheet only those runs for which expert replayes exist
 	bool skip = true;
 	for( Int_t el=0; el<ld2r.size(); el++ ){     
 	  if( runnum==ld2r[el] ) skip=false;
 	}
-	if( skip==true ) continue;
-      }
-
-      std::cout << "Analyzing run " << runnum << ".." << std::endl;
+	if( skip==true && waveform ) continue;
+      }      
 
       if( conf!=kine && kine!=-1) continue; //do not proceed if kinematic is constrained
+      if( !waveform && mag!=fitparams[gIdx].TOFfitp_mset ) continue; //continue if TOF corrections not available
+
+      std::cout << "Analyzing run " << runnum << ".." << std::endl;
 
       //set up configuration and tune objects to load analysis parameters
       SBSconfig config(kine,mag);
@@ -209,11 +317,12 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
       SBStune tune(kine,mag);
     
-      if( targ.compare(curtar)!=0 || mag!=curmag ){
+      //if( targ.compare(curtar)!=0 || mag!=curmag ){
+      if( mag!=curmag ){
 	std::cout << "Settings change.." << endl;
 	cout << config;
 	cout << tune;
-	curtar = targ;
+	//curtar = targ;
 	curmag = mag;
       }
 
@@ -233,6 +342,8 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
       //std::string rfname = rootfile_dir + Form("/*%d*",crunh[irun].runnum);
       C = new TChain("T");
       C->Add(rfname.c_str());
+
+      std::cout << "Added " << rfname << " to the chain with " << C->GetEntries() << " entries.." << std::endl;
 
       // setting up ROOT tree branch addresses
       C->SetBranchStatus("*",0);    
@@ -389,7 +500,7 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	Double_t ephi = vars::ephi(pe);
 	Double_t pcent = vars::pcentral(ebeam,etheta,nucleon); //e' p reconstructed by angles
 	Double_t phNexp = ephi + physconst::pi;
-	Double_t Q2, W2, nu, thNexp, pNexp;
+	Double_t Q2, W2, nu, thNexp, pNexp, pNcalc, pp, pn;
 	Double_t ebeam_o = vars::ebeam_o( ebeam_c, etheta, targ ); //Second energy correction accounting for energy loss leaving target
 
 	/* Can reconstruct e' momentum for downstream calculations differently:
@@ -405,6 +516,8 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  Q2 = -q.M2();
 	  W2 = pN.M2();
 	  nu = q.E();
+	  pNexp = vars::pN_expect( nu, nucleon );
+	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
 	}else if( epm==2 ){
 	  //v2
 	  Q2 = ekineQ2;
@@ -442,6 +555,8 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	  std::cout << "Warning: epm version incorrect. Defaulting to version 2." << endl;
 	}
+	pp = sqrt(pow(nu,2)+2.*physconst::Mp*nu); //momentum of proton
+	pn = sqrt(pow(nu,2)+2.*physconst::Mn*nu); //momentum of proton
 
 	//Calculate h-arm quantities
 	vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
@@ -458,14 +573,19 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	Int_t pid;
 	bool is_p = abs(dx - dx0_p)<3*dxsig_p && abs(dy - dy0)<3*dysig;
 	bool is_n = abs(dx - dx0_n)<3*dxsig_n && abs(dy - dy0)<3*dysig;
-	if( is_p && !is_n )
+	if( (is_p && !is_n) || targ.compare("LH2")==0 ){
 	  pid=1;
-	else if( is_n && !is_p )
+	  pNcalc = vars::pN_expect( nu, "p" );
+	}else if( is_n && !is_p ){
 	  pid=2;
-	else if( is_p && is_n )
+	  pNcalc = vars::pN_expect( nu, "n" );
+	}else if( is_p && is_n ){
 	  pid=0;
-	else
+	  pNcalc = vars::pN_expect( nu, "n" );
+	}else{
 	  pid=-1;
+	  pNcalc = pNexp;
+	}
 
 	///////
 	//HCal active area cut (acceptance matching). Save pass/fail for output tree.
@@ -652,7 +772,7 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
 	} //end loop over hcal samples
 
-	//Fill all block physics output - this is inefficient, should get primary cluster info from here first
+	//Fill all cluster primary block physics output - this is inefficient, should get primary cluster info from here first
 	Int_t cidx_atime = 0;
 	Double_t c_atimediff = 1000.;
 	Int_t cidx_thetapq = 0;
@@ -660,6 +780,10 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	Int_t cidx_dxdy = 0;
 	Double_t c_dxdydiff = 1000.;
 	Double_t tpq_best;
+
+	Int_t cidx_cuts = 0;
+	Double_t c_cutsdiff = 1000.;
+	bool cuts_skip = true;
 
 	for( Int_t c=0; c<Nhcalcid; c++ ){
 	  Double_t cdx = hcalcx[c] - xyhcalexp[0];
@@ -681,15 +805,11 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	  else
 	    cpid=-1;
 
-	  //cout << endl << endl << "event " << nevent << " cluster idx " << c << " nclus " << Nhcalcid << endl;
-	  //cout << "hcalcatime[c] " << hcalcatime[c] << " atime0 " << atime0 << " c_atimediff " << c_atimediff << endl << endl;
-
 	  //get best cluster indexes
 	  //get cluster which minimizes coin diff
 	  if( abs(hcalcatime[c]-atime0)<c_atimediff ){
 	    cidx_atime = c;
 	    c_atimediff = abs(hcalcatime[c]-atime0);
-	    //cout << "cluster idx " << cidx_atime << " atime lower than default value with atime diff " << c_atimediff << endl;
 	  }
 	  //get cluster which minimizes thetapq (proton for this analysis)
 	  if( cthetapq_p<c_thetapqdiff ){
@@ -704,8 +824,18 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	    tpq_best = cthetapq_p; //record the "best" cluster thetapq for later
 	  }
 
+	  //get cluster which passes atime cut first, then minimizes thetapq ("best")
+	  if( abs(hcalcatime[c]-atime0)<3*atimesig ){
+	    if( cthetapq_p<c_cutsdiff ){
+	      cuts_skip = false;
+	      cidx_cuts = c;
+	      c_cutsdiff = cthetapq_p;
+	    }
+	  }
+
 	  cpblkid_out[c] = hcalcid[c];
 	  chatime_out[c] = hcalcatime[c];
+	  chtdc_out[c] = hcalctdctime[c];
 	  cthetapq_p_out[c] = cthetapq_p;
 	  cthetapq_n_out[c] = cthetapq_n;
 	  cdx_out[c] = cdx;
@@ -715,22 +845,77 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	}
 
 	//Calculate dx, dy, thetapq from the best cluster for later use (USING dxdy for now)
-	Double_t dx_bestcluster = hcalcx[cidx_dxdy] - xyhcalexp[0];
-	Double_t dy_bestcluster = hcalcy[cidx_dxdy] - xyhcalexp[1];
-	Double_t hatime_bestcluster = hcalcatime[cidx_dxdy];
+	Double_t dx_bestcluster = hcalcx[cidx_cuts] - xyhcalexp[0];
+	Double_t dy_bestcluster = hcalcy[cidx_cuts] - xyhcalexp[1];
+	Double_t hatime_bestcluster = hcalcatime[cidx_cuts];
+	Int_t bcluschan = hcalcbid[cidx_cuts];
 
-	//Fill single value physics output tree  
-	//if( pblkfill==false ){
+	//For best clusters, apply time of flight to all
+	Double_t protmom = pp;
+	Double_t neutmom = pn;
+	Double_t p0_p = fitparams[gIdx].TOFfitp_p[0];
+	Double_t p1_p = fitparams[gIdx].TOFfitp_p[1];
+	Double_t p2_p = fitparams[gIdx].TOFfitp_p[2];
+	Double_t p3_p = fitparams[gIdx].TOFfitp_p[3];
+	Double_t p0_n = fitparams[gIdx].TOFfitp_n[0];
+	Double_t p1_n = fitparams[gIdx].TOFfitp_n[1];
+	Double_t p2_n = fitparams[gIdx].TOFfitp_n[2];
+	Double_t p3_n = fitparams[gIdx].TOFfitp_n[3];
+
+	//time of flight proton correction from momentum fit
+	Double_t tofcorr = 0.;
+	if( protmom>fitparams[gIdx].TOFfitp_ulim ) protmom = fitparams[gIdx].TOFfitp_ulim; //do not pass corrections for momenta > fit limit in MC
+	Double_t tofpcorr_p = p0_p+p1_p*protmom+p2_p*pow(protmom,2)+p3_p*pow(protmom,3);
+
+	//time of flight neutron correction from momentum fit
+	if( neutmom>fitparams[gIdx].TOFfitp_ulim ) neutmom = fitparams[gIdx].TOFfitp_ulim;
+	Double_t tofpcorr_n = p0_n+p1_n*neutmom+p2_n*pow(neutmom,2)+p3_n*pow(neutmom,3);
+
+	if( pid==1 )
+	  tofcorr = tofpcorr_p;
+	else if( pid==2 || pid==0)
+	  tofcorr = tofpcorr_n;
+	else if( pid==-1 )
+	  tofcorr = 0.;
+
+	//timewalk corrections - leave off overall offset corrections (p2)
+	Double_t bcE = hcalcbe[cidx_cuts]/oldadcgain[bcluschan]*adcgain[bcluschan]; //best here is closest to expected adctime. Correct with pass2 gain coefficients not already included in pass0/1 replays
+	Double_t twp0tdc = timewalk[0].tdcp[bcluschan];
+	Double_t twp1tdc = timewalk[1].tdcp[bcluschan];
+	Double_t twp0adc = timewalk[0].adcp[bcluschan];
+	Double_t twp1adc = timewalk[1].adcp[bcluschan];
+
+	Double_t twcorr = twp0tdc*exp(-twp1tdc*bcE); //tdc
+	Double_t atwcorr = twp0adc*exp(-twp1adc*bcE); //adct
+
+	//trigger corrections (hodoscope primary (idx 0) cluster meantime)
+	Double_t trcorr = hodotmean[0];
 
 	pblkid_out = (double)hcalcbid[0];
 	latime_out = lrising_edge_v2*adcbinw;
 	sgatime_out = sgrising_edge_v2*adcbinw;
 	batime_out = brising_edge;
 	atime_out = hcalcbatime[0];
-   
+	tdc_out = hcalcbtdctime[0];
+
+	//mark events where no "best" cluster was available (failed atime cut or no passable thetapq )
+	Double_t skipmarker = 0.;
+	if( cuts_skip )
+	  skipmarker = -1000.;
+	btdc_out = hcalctdctime[cidx_cuts]-trcorr-twcorr-tofcorr+skipmarker;
+	badct_out = hcalcatime[cidx_cuts]-trcorr-tofcorr+skipmarker; //not clear that tw is effective with adct
+
+	tofcorr_out = tofcorr;
+	bclustwcorr_out = twcorr;
+	bclusatwcorr_out = atwcorr;
+	bcpblkid_cuts_out = (double)hcalcbid[cidx_cuts];
+
 	bcatime_dxdy_out = hcalcatime[cidx_dxdy];
 	bcatime_atime_out = hcalcatime[cidx_atime];
 	bcatime_thpq_out = hcalcatime[cidx_thetapq];
+	bctdc_dxdy_out = hcalctdctime[cidx_dxdy];
+	bctdc_atime_out = hcalctdctime[cidx_atime];
+	bctdc_thpq_out = hcalctdctime[cidx_thetapq];
 	bcpblkid_dxdy_out = (double)hcalcbid[cidx_dxdy];
 	bcpblkid_atime_out = (double)hcalcbid[cidx_atime];
 	bcpblkid_thpq_out = (double)hcalcbid[cidx_thetapq];
@@ -739,6 +924,7 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	dy_out = dy;
 	W2_out = W2;
 	Q2_out = Q2;
+	pN_out = pNcalc;
 	hcale_out = hcale;
 	pse_out = ePS;
 	she_out = eSH;
@@ -754,10 +940,6 @@ void htres( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 	failedglobal_out = fglobalint;
 	failedaccmatch_out = faccmatchint;
 	failedcoin_out = fcoinint;
-
-	//pblkfill=true;
-	  //}
-
 
 	P->Fill();
 

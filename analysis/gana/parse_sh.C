@@ -13,7 +13,7 @@
 #include "../../include/gmn.h"
 
 //
-void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
+void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
 { //main  
 
   // Define a clock to check macro processing time
@@ -23,14 +23,10 @@ void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/parse_sh.json");
 
-  std::string rootfile_dir;
-  Int_t mcmag = -1;
-  if( !mc ){
-    rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("sbs%d",kine) );
-  }else{
-    rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("mcsbs%d",kine) );
-    mcmag = jmgr->GetValueFromSubKey<Int_t>( "mc_magset", Form("sbs%d",kine) ); 
-  }
+  std::string rootfile_dir_lh2 = jmgr->GetValueFromSubKey_str( "rootfile_dir_lh2", Form("sbs%d",kine) );;
+  std::string rootfile_dir_ld2 = jmgr->GetValueFromSubKey_str( "rootfile_dir_ld2", Form("sbs%d",kine) );
+  std::string rootfile_dir_mc = jmgr->GetValueFromSubKey_str( "rootfile_dir_mc", Form("mcsbs%d",kine) );
+  Int_t mcmag = jmgr->GetValueFromSubKey<Int_t>( "mc_magset", Form("sbs%d",kine) );  
 
   Int_t pass = 1;
 
@@ -49,8 +45,8 @@ void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
   //read the run list to parse run numbers associated to input parameters and set up for loop over runs
   vector<crun> crunh; 
   vector<crun> crund;
-  util::ReadRunList(runsheet_dir,nhruns,kine,"LH2",pass,verb,crunh); //modifies nruns to be very large when -1
-  util::ReadRunList(runsheet_dir,ndruns,kine,"LD2",pass,verb,crund);
+  util::ReadRunList(runsheet_dir,nhruns,kine,"LH2",pass,verb,crunh); //modifies nruns
+  util::ReadRunList(runsheet_dir,ndruns,kine,"LD2",pass,verb,crund); //modifies nruns
 
   std::string mcstr = "";
   
@@ -120,7 +116,7 @@ void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
   // setup reporting indices
   Int_t curmag = -1;
   std::string curtar = "";
-  
+
   for ( Int_t t=0; t<2; t++ ){ //loop over targets
     // t==0, lh2; t==1, ld2
     Int_t nruns = 1;
@@ -131,7 +127,7 @@ void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
       // accessing run info
       Int_t runnum;
       Int_t mag;
-      Int_t ebeam;
+      Double_t ebeam;
       std::string targ;
       std::string rfname;
       if( t==0 && !mc ){
@@ -139,23 +135,23 @@ void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
 	mag = crunh[irun].sbsmag / 21; //convert to percent
 	ebeam = crunh[irun].ebeam; //get beam energy per run
 	targ = crunh[irun].target;
-	rfname = rootfile_dir + Form("/*%d*",crunh[irun].runnum);
+	rfname = rootfile_dir_lh2 + Form("/*%d*",crunh[irun].runnum);
       }
       if( t==1 && !mc ){
 	runnum = crund[irun].runnum;
 	mag = crund[irun].sbsmag / 21;
 	ebeam = crund[irun].ebeam;
 	targ = crund[irun].target;
-	rfname = rootfile_dir + Form("/*%d*",crund[irun].runnum);
+	rfname = rootfile_dir_ld2 + Form("/*%d*",crund[irun].runnum);
       }
       if( mc ){ //put bs in here for now
 	runnum = -1; //irrelevant for mc data
 	mag = mcmag; //set with mc data json variable
 	targ = "LH2";
-	rfname = rootfile_dir + Form("/replayed_gmn_sbs%d*",kine);
+	rfname = rootfile_dir_mc + Form("/replayed_gmn_sbs%d*",kine);
       }
       std::cout << "Analyzing " << targ << " run " << runnum << ".." << std::endl;
-
+      
       //set up configuration and tune objects to load analysis parameters
       SBSconfig config(kine,mag);
 
@@ -254,9 +250,10 @@ void parse_sh( Int_t kine=4, Int_t epm=1, bool mc = true )
       // globalcut branches
       C->SetBranchStatus("bb.gem.track.nhits", 1);
       C->SetBranchStatus("bb.etot_over_p", 1);
-      C->SetBranchStatus("bb.tr.n", 1);
+      //C->SetBranchStatus("bb.tr.n", 1);
 
       TCut GCut = gcut.c_str();
+
       TTreeFormula *GlobalCut = new TTreeFormula( "GlobalCut", GCut, C );
 
       // get experimental quantities by run

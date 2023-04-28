@@ -11,6 +11,7 @@
 #include "TLatex.h"
 #include "TH1D.h"
 #include "TStopwatch.h"
+#include "TMatrixD.h"
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
@@ -40,7 +41,7 @@ Double_t dxtotal(Double_t *x, Double_t *par){ //get poly fit to bg with scaled f
 }
 
 //Pass only kinematic and sbs magnetic field setting. Config file for all kinematics located ../../config/shde.json
-void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
+void hde( Int_t kine=8, Int_t magset=0, bool pclusonly=false )
 { //main  
 
   // Define a clock to check macro processing time
@@ -240,7 +241,7 @@ void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
     Double_t atmax = atime0 + 3*atimesig;
 
     //Set minimum energy for expected recoil nucleon to be considered
-    Double_t hminE = 0.05;  //GeV
+    Double_t hminE = 0.0;  //0.05 GeV or nothing
     
     std::string rfname = rootfile_dir + Form("/*%d*",corun[irun].runnum);
     //std::cout << "Switching to run " << rfname << ".." << std::endl;
@@ -484,7 +485,7 @@ void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
 	hxyexp_aacut->Fill( xyhcalexp[1], xyhcalexp[0] );
       }
 
-      //Fill all block physics output - this is inefficient, should get primary cluster info from here first
+      //Fill best cluster info - this is inefficient, should get primary cluster info from here first
       Int_t cidx_atime = 0;
       Double_t c_atimediff = 1000.;
       Int_t cidx_thetapq = 0;
@@ -688,19 +689,27 @@ void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
   hW2elas->SetFillStyle(3003);
   hW2elas->Draw("same");
 
-  //get expected elastics (elastic divergence from bg begin: ebound_l, end: ebound_h)
-  Double_t bgint = bg->Integral(ebound_l,ebound_h)*binfac;
+  //get error params
   Int_t W2elasb = ebound_l*binfac;
   Int_t W2elase = ebound_h*binfac;
+  TFitResultPtr s = hW2->Fit("tfit","S");
+  //TMatrixD *bgcov = tfit->GetCovarianceMatrix(); 
+  Double_t bgerr = tfit->IntegralError(ebound_l,ebound_h,s->GetParams(),s->GetCovarianceMatrix().GetMatrixArray())*binfac;
+
+  //get expected elastics (elastic divergence from bg begin: ebound_l, end: ebound_h)
+  Double_t bgint = bg->Integral(ebound_l,ebound_h)*binfac;
+  //Double_t bgerr = bg->IntegralError(ebound_l,ebound_h,bg->GetParameters(),bgcov->GetMatrixArray())*binfac;
   Double_t W2nocutint = hW2->Integral(W2elasb,W2elase);
+  Double_t W2nocutinterr = sqrt(W2nocutint);
   Double_t W2elas = W2nocutint - bgint;
+  Double_t serr = sqrt( pow(bgerr,2) + pow(W2nocutinterr,2) );
 
   //Add a legend to the canvas
   auto nocutlegend = new TLegend(0.1,0.6,0.5,0.9);
-  nocutlegend->SetTextSize( 0.03 );
+  //nocutlegend->SetTextSize( 0.03 );
   nocutlegend->AddEntry( hW2elas, "Tight Elastic Cut", "l");
   nocutlegend->AddEntry( bg, "Interpolated Background (scaled)", "l");
-  nocutlegend->AddEntry( tfit, "Total fit (scaled background + interpolated signal)", "l");
+  nocutlegend->AddEntry( tfit, "Total fit", "l");
   nocutlegend->Draw();
 
   c1->cd(2);
@@ -726,25 +735,34 @@ void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
   bgres->Draw("same");
   hW2elasres->SetLineColor(kBlue);
   hW2elasres->SetLineWidth(2);
-  hW2elasres->SetFillColor(kBlue);
+  hW2elasres->SetFillColorAlpha(kBlue,0.35);
   hW2elasres->SetFillStyle(3003);
   hW2elasres->Draw("same");
 
-  //get elastics missing from hcal
-  Double_t bgresint = bgres->Integral(ebound_l,ebound_h)*binfac;
-  Double_t W2resint = hW2res->Integral(W2elasb,W2elase);
-  Double_t W2elasres = W2resint - bgresint;
+  //get error
+  TFitResultPtr r = hW2res->Fit("tfitres","S");
+  //TMatrixD *bgrescov = r->GetCovarianceMatrix();
+  Double_t bgreserr = tfitres->IntegralError(ebound_l,ebound_h,r->GetParams(),r->GetCovarianceMatrix().GetMatrixArray())*binfac;
 
+  //get elastics missing from hcal
+  Double_t bgresint = bgres->Integral(ebound_l,ebound_h)*binfac; //from fit
+  //Double_t bgreserr = bgres->IntegralError(ebound_l,ebound_h,bgres->GetParameters(),bgrescov->GetMatrixArray())*binfac;
+  Double_t W2resint = hW2res->Integral(W2elasb,W2elase); //from histo
+  Double_t W2reserr = sqrt(W2resint);
+  Double_t W2elasres = W2resint - bgresint;
+  Double_t reserr = sqrt( pow(bgreserr,2) + pow(W2reserr,2) );
+  
   Double_t effres = ( (W2elas-W2elasres) / W2elas )*100.;
+  Double_t effreserr = effres*sqrt(pow(serr/W2elas,2)+pow(reserr/W2elasres,2));
   Double_t effhist =  ( (W2fullint-W2resfullint) / W2elas )*100.; //Nonsense - BG will not remain the same between W2nocut and W2residuals
-  Double_t efferr = sqrt(effres/100.*(1-effres/100.)/W2elas)*100.;
+  Double_t efferr = sqrt( pow(sqrt(effres/100.*(1-effres/100.)/W2elas)*100.,2) + effreserr);
 
   //Add a legend to the canvas
   auto reslegend = new TLegend(0.1,0.6,0.5,0.9);
-  reslegend->SetTextSize( 0.03 );
-  reslegend->AddEntry( hW2elasres, "HCal dx/dy Elastic Anticut", "l");
+  //reslegend->SetTextSize( 0.03 );
+  reslegend->AddEntry( hW2elasres, "Tight Elastic Cut", "l");
   reslegend->AddEntry( bgres, "Interpolated Background (scaled)", "l");
-  reslegend->AddEntry( tfitres, "Total fit (scaled background + interpolated signal)", "l");
+  reslegend->AddEntry( tfitres, "Total fit", "l");
   reslegend->AddEntry( (TObject*)0, "", "");
   reslegend->AddEntry( (TObject*)0, Form("HDE via residuals: %0.3f%% +/- %0.3f%%",effres,efferr), "");
   // reslegend->AddEntry( (TObject*)0, "", "");
@@ -753,64 +771,64 @@ void hde( Int_t kine=4, Int_t magset=30, bool pclusonly=false )
 
   c1->Write();
 
-  //Make canvas for hcal dx detected / expected 
-  TCanvas *c2 = new TCanvas("c2",Form("HDE v2 sbs%d mag%d",kine,magset),1200,500);
-  gStyle->SetPalette(53);
-  c2->Divide(1,2);
-  c2->cd(1);
+  // //Make canvas for hcal dx detected / expected 
+  // TCanvas *c2 = new TCanvas("c2",Form("HDE v2 sbs%d mag%d",kine,magset),1200,500);
+  // gStyle->SetPalette(53);
+  // c2->Divide(1,2);
+  // c2->cd(1);
 
-  //Draw the expected elastic extraction first
-  hW2->Draw();
-  bg->Draw("same");
-  hW2elasres->Draw("same");
+  // //Draw the expected elastic extraction first
+  // hW2->Draw();
+  // bg->Draw("same");
+  // hW2elasres->Draw("same");
 
-  c2->cd(2);
+  // c2->cd(2);
 
-  //Then draw the dx interpolated signal fit
-  hdxelastic = (TH1D*)(hdx_allcut->Clone("hdxelastic"));
-  TF1 *tfitdx = new TF1("tfitdx",dxtotal,hcalfit_l,hcalfit_h,14); //tfit npar = 1+pNfit_npar+1
-  TF1 *bgdx = new TF1("bgdx",fits::g_p12fit,hcalfit_l,hcalfit_h,13);
-  tfitdx->SetLineColor(kGreen);
-  if( pclusonly )
-    hdx->SetTitle("dx highest E cluster, Acceptance Cut Only");
-  else
-    hdx->SetTitle("dx best cluster, Acceptance Cut Only");
-  hdx->Fit("tfitdx","RBM");
+  // //Then draw the dx interpolated signal fit
+  // hdxelastic = (TH1D*)(hdx_allcut->Clone("hdxelastic"));
+  // TF1 *tfitdx = new TF1("tfitdx",dxtotal,hcalfit_l,hcalfit_h,14); //tfit npar = 1+pNfit_npar+1
+  // TF1 *bgdx = new TF1("bgdx",fits::g_p12fit,hcalfit_l,hcalfit_h,13);
+  // tfitdx->SetLineColor(kGreen);
+  // if( pclusonly )
+  //   hdx->SetTitle("dx highest E cluster, Acceptance Cut Only");
+  // else
+  //   hdx->SetTitle("dx best cluster, Acceptance Cut Only");
+  // hdx->Fit("tfitdx","RBM");
 
-  Double_t *tpardx = tfitdx->GetParameters();
+  // Double_t *tpardx = tfitdx->GetParameters();
 
-  //Get fit parameters for bg function and draw identical function on canvas
-  bgdx->SetParameters(&tpardx[1]);
-  bgdx->SetLineColor(kRed);
-  bgdx->SetFillColor(kRed);
-  bgdx->SetFillStyle(3005);
-  bgdx->Draw("same");
+  // //Get fit parameters for bg function and draw identical function on canvas
+  // bgdx->SetParameters(&tpardx[1]);
+  // bgdx->SetLineColor(kRed);
+  // bgdx->SetFillColor(kRed);
+  // bgdx->SetFillStyle(3005);
+  // bgdx->Draw("same");
   // hdxelastic->SetLineColor(kBlue);
-  // hdxelastic->SetLineWidth(2);
-  // hdxelastic->SetFillColor(kBlue);
+  // hdxelastic->SetLineWidth(1);
+  // hdxelastic->SetFillColorAlpha(kBlue,0.35);
   // hdxelastic->SetFillStyle(3003);
   // hdxelastic->Draw("same");
 
-  //Get elastics detected in hcal
-  //Double_t bgdxint = bgdx->Integral(hcalfit_l,hcalfit_h)*hbinfac;
-  Double_t bgdxint = bgdx->Integral(dxmean-2*dxsigma,dxmean+2*dxsigma)*hbinfac;
-  //Double_t dxnocutint = hdx->Integral(1,harmrange*hbinfac);
-  Double_t dxnocutint = hdx->Integral((-hcalfit_l+dxmean-2*dxsigma)*hbinfac,(-hcalfit_l+dxmean+2*dxsigma)*hbinfac);
-  Double_t dxelas = dxnocutint - bgdxint;  //hcal elastics alt
+  // //Get elastics detected in hcal
+  // //Double_t bgdxint = bgdx->Integral(hcalfit_l,hcalfit_h)*hbinfac;
+  // Double_t bgdxint = bgdx->Integral(dxmean-2*dxsigma,dxmean+2*dxsigma)*hbinfac;
+  // //Double_t dxnocutint = hdx->Integral(1,harmrange*hbinfac);
+  // Double_t dxnocutint = hdx->Integral((-hcalfit_l+dxmean-2*dxsigma)*hbinfac,(-hcalfit_l+dxmean+2*dxsigma)*hbinfac);
+  // Double_t dxelas = dxnocutint - bgdxint;  //hcal elastics alt
 
-  Double_t effdx =  ( dxelas / W2elas )*100.; 
+  // Double_t effdx =  ( dxelas / W2elas )*100.; 
 
-  //Add a legend to the canvas
-  auto dxlegend = new TLegend(0.1,0.7,0.5,0.9);
-  dxlegend->SetTextSize( 0.03 );
-  dxlegend->AddEntry( hdxelastic, "Tight Elastic Cut", "l");
-  dxlegend->AddEntry( bgdx, "Interpolated Background (scaled)", "l");
-  dxlegend->AddEntry( tfitdx, "Total fit (background + signal)", "l");
-  dxlegend->AddEntry( (TObject*)0, "", "");
-  dxlegend->AddEntry( (TObject*)0, Form("HDE via dx: %0.3f%%",effdx), "");
-  dxlegend->Draw();
+  // //Add a legend to the canvas
+  // auto dxlegend = new TLegend(0.1,0.7,0.5,0.9);
+  // dxlegend->SetTextSize( 0.03 );
+  // dxlegend->AddEntry( hdxelastic, "Tight Elastic Cut", "l");
+  // dxlegend->AddEntry( bgdx, "Interpolated Background (scaled)", "l");
+  // dxlegend->AddEntry( tfitdx, "Total fit (background + signal)", "l");
+  // dxlegend->AddEntry( (TObject*)0, "", "");
+  // dxlegend->AddEntry( (TObject*)0, Form("HDE via dx: %0.3f%%",effdx), "");
+  // dxlegend->Draw();
 
-  c2->Write();
+  // c2->Write();
   fout->Write();
 
   // Send time efficiency report to console

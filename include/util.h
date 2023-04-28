@@ -18,6 +18,13 @@
 
 namespace util {
 
+  //Console
+  string getDate();
+
+  //General
+  void readParam(std::string const_path,vector<Double_t> &param); //reads parameters from txt file
+  void readParam(std::string const_path,std::string type,Int_t setsize,vector<Double_t> &param); //overload to read subset of data from sbs db-like file
+
   //HCal histograms
   TH2D *hhcalrowcol(std::string name); // returns hcal row/col 2d histo
   TH2D *hhcalxy(std::string name); // returns hcal xy 2d histo (data coordinates)
