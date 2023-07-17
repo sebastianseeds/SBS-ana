@@ -82,6 +82,25 @@ namespace util {
   }
 
   ////HCal
+
+  // checks if a point is within proton or neutron spot. rotation angle in rad, if ever applicable
+  bool Nspotcheck(Double_t dy, Double_t dx, Double_t dy_mean, Double_t dx_mean, Double_t dy_sigma, Double_t dx_sigma, Double_t rotationAngle) {
+
+    // Caculate semimajor and semiminor axes
+    Double_t dyAxis = 6 * dy_sigma;
+    Double_t dxAxis = 6 * dx_sigma;
+
+    // Apply rotation angle if applicable
+    Double_t cosAngle = std::cos(rotationAngle);
+    Double_t sinAngle = std::sin(rotationAngle);
+    Double_t dyRot = (dy - dy_mean) * cosAngle + (dx - dx_mean) * sinAngle;
+    Double_t dxRot = (dx - dx_mean) * cosAngle - (dy - dy_mean) * sinAngle;
+
+    // Check if point is within the ellipse equation
+    Double_t result = ((dyRot * dyRot) / (dyAxis * dyAxis)) + ((dxRot * dxRot) / (dxAxis * dxAxis));
+    return result <= 1.0;
+  }
+
   // returns TH2D for hcal face (row,col), note that row/col start at 1
   TH2D *hhcalrowcol(std::string name) {
     TH2D *h = new TH2D(name.c_str(), ";HCAL columns;HCAL rows",

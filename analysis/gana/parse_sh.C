@@ -13,7 +13,7 @@
 #include "../../include/gmn.h"
 
 //
-void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
+void parse_sh( Int_t kine=11, Int_t epm=3, bool mc = false )
 { //main  
 
   // Define a clock to check macro processing time
@@ -54,8 +54,12 @@ void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
     mcstr = "_mc";
   }
 
+  // outfile path
+  std::string outdir_path = gSystem->Getenv("OUT_DIR");
+  std::string shortparse_path = outdir_path + Form("/shortparse/shortparse_sbs%d%s.root",kine,mcstr.c_str());
+
   //set up output files
-  TFile *fout = new TFile( Form("outfiles/shortparse_sbs%d%s.root",kine,mcstr.c_str()), "RECREATE" );
+  TFile *fout = new TFile( shortparse_path.c_str(), "RECREATE" );
 
   //set up diagnostic histograms
   TH2D *hW2mag = new TH2D( "hW2mag", "W^{2} vs sbsmag; \%; GeV^{2}", 20, 0, 100, 200, 0, 2 );
@@ -85,7 +89,7 @@ void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
   Double_t thetapq_pout;
   Double_t thetapq_nout;
   Int_t run_out;
-  Int_t tar_out; //0: LH2, 1:LD2
+  Int_t tar_out; //0:LH2, 1:LD2
   Int_t mag_out;
   Int_t failedglobal_out;
   Int_t failedaccmatch_out;
@@ -162,7 +166,8 @@ void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
       Double_t hcaltheta = config.GetHCALtheta_rad();
       Double_t hcaldist = config.GetHCALdist();
       Double_t sbsdist = config.GetSBSdist();
-    
+      Double_t bbthr = config.GetBBtheta_rad(); //in radians
+
       //SBStune *tune = new SBStune(kine,mag);
       SBStune tune(kine,mag);
     
@@ -262,6 +267,11 @@ void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
       vector<TVector3> hcalaxes; vars::sethcalaxes( hcaltheta, hcalaxes );
       TVector3 hcalorigin = hcaldist*hcalaxes[2] + econst::hcalvoff*hcalaxes[0];
       Double_t BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
+      Double_t Eloss_outgoing;
+      if(t==0)
+	Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::lh2tarrho * econst::lh2dEdx;
+      if(t==1)
+	Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::ld2tarrho * econst::ld2dEdx;
 
       // set nucleon defaults by target
       std::string nucleon;
@@ -291,7 +301,7 @@ void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
 	  if( nevent == 1 || currenttreenum != treenum ){
 	    treenum = currenttreenum; 
 	    GlobalCut->UpdateFormulaLeaves();
-	    cout << "Updating formula leaves and switching segment at event: " << nevent << endl;
+	    //cout << "Updating formula leaves and switching segment at event: " << nevent << endl;
 	  }
 	  failedglobal = GlobalCut->EvalInstance(0) == 0;
 	}
@@ -321,9 +331,13 @@ void parse_sh( Int_t kine=7, Int_t epm=3, bool mc = false )
 	}
 	TVector3 vertex( 0., 0., vz[0] );
 
+	//reconstructed momentum, corrected for mean energy loss exiting the target (later we'll also want to include Al shielding on scattering chamber)
+	Double_t precon = p[0] + Eloss_outgoing;
+
 	//set up four-momenta with some empty for various calculation methods
 	TLorentzVector pbeam( 0., 0., ebeam_c, ebeam_c ); //beam momentum
-	TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' momentum
+	//TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' momentum
+	TLorentzVector pe( precon*px[0]/p[0], precon*py[0]/p[0], precon*pz[0]/p[0], precon ); //e' recon plvect
 	TLorentzVector ptarg; vars::setPN(nucleon,ptarg); //target momentum
 	TLorentzVector q = pbeam - pe; //virtual photon mom. or mom. transferred to scatter nucleon (N')
 	TLorentzVector pN; //N' momentum

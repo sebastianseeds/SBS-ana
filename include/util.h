@@ -32,6 +32,15 @@ namespace util {
   TH2D *hdxdy(std::string name); // returns hcal dxdy 2d histo (wide coordinates)
   TH1D *hhsamps(Int_t row,Int_t col,Int_t bins); // returns hcal waveform histogram
 
+  // checks if point is within proton/neutron spot
+  bool Nspotcheck(Double_t dy,               //hcaly
+		  Double_t dx,               //hcalx
+		  Double_t dy_mean,          //elastic peak location in dy
+		  Double_t dx_mean,          //elastic peak location in dx
+		  Double_t dy_sigma,         //elastic peak sigma in dy
+		  Double_t dx_sigma,         //elastic peak sigma in dx
+		  Double_t rotationAngle);   //rotation angle in radians, if ever applicable
+  
   // draws rectangular cut regions
   void drawarea(vector<Double_t> dimensions,      // a vector with extreme points
 		Int_t lcolor,  // Default = 2 

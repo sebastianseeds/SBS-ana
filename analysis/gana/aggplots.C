@@ -23,7 +23,11 @@ void aggplots(){ //main
   TStopwatch *st = new TStopwatch();
   st->Start( kTRUE );
 
-  TFile *fout = new TFile( "outfiles/psE_shE_plots_allkine.root", "RECREATE" );
+  // outfile path
+  std::string outdir_path = gSystem->Getenv("OUT_DIR");
+  std::string out_path = outdir_path + "/shortparse/psE_shE_plots_allkine.root";
+
+  TFile *fout = new TFile( out_path.c_str(), "RECREATE" );
 
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
@@ -40,7 +44,8 @@ void aggplots(){ //main
     hshe[k] = new TH1D( Form("hshe_%d",kine), Form("BBCal Shower E, SBS%d; GeV",kine), 350, 0., 3.5);
 
     C = new TChain("P"); //P designated tree name for output analysis tree
-    std::string Pfile = Form("outfiles/shortparse_sbs%d.root",kine);
+    std::string Pfile = outdir_path + Form("/shortparse/shortparse_sbs%d.root",kine);
+
     C->Add(Pfile.c_str());
 
     // setting up ROOT tree branches

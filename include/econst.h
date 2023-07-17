@@ -60,7 +60,7 @@ namespace econst {
 
   // target
   static const Double_t l_tgt = 0.15;  //m 
-  static const Double_t celldiameter = 1.6*2.54/100; //m, right now this is a guess
+  static const Double_t celldiameter = 1.6*2.54; //cm, right now this is a guess
   // LH2
   static const Double_t lh2tarrho = 0.0723;     //g/cc, target density
   static const Double_t lh2cthick = 0.02;       //cm, target cell thickness

@@ -1,6 +1,8 @@
 //sseeds 03.31.23 - test script to use analysis framework to produce hcal detection efficiency output more efficiently
 //04.10.23 Update - Added W2 interpolate method for obtaining background fits to both total W2 distribution and W2 with HCal anticut 
 //04.11.23 Update - Added back direct dx "detected" yield method for comparison. Fixed thetapq calculation and included in elastic cuts.
+//5.20.23 Update - broke from general script and focused this script on extraction of hcal detection efficiency directly from dx after dy cuts normalized by strong earm elastic cuts. 
+//5.30.23 Update - NOTE that fits (and resulting yields) are very sensitive to fit ranges. Background shape varies considerably and fit range should reflect 3sigma about the dx elastic peak to avoid overcounting
 
 #include <vector>
 #include <iostream>
@@ -14,6 +16,10 @@
 #include "TMatrixD.h"
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
+
+const Int_t atimeSigFac = 5;
+const Double_t dx_fitlow = -0.3;
+const Double_t dx_fithigh = 0.3;
 
 //Total fits using Interpolate with elastic signal histo and 6th order poly fit to bg
 TH1D *hW2elas;
@@ -37,11 +43,17 @@ Double_t dxtotal(Double_t *x, Double_t *par){ //get poly fit to bg with scaled f
   Double_t dx= x[0];
   Double_t sig_scale = par[0];
   Double_t signal = sig_scale * hdxelastic->Interpolate(dx);
-  return signal + fits::g_p12fit(x,&par[1]);
+  return signal + fits::g_p6fit(x,&par[1]);
 }
 
 //Pass only kinematic and sbs magnetic field setting. Config file for all kinematics located ../../config/shde.json
-void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
+//cluster_idx refers to cluster selection method:
+//// 1) Highest Energy cluster
+//// 2) Cluster which minimizes the time between expected adc time and primary block adc time
+//// 3) Cluster which minimizes proton thetapq
+//// 4) Cluster which minimizes distance between cluster center and expected location of scattered nucleon
+//// 5) Cluster which passes 5 sigma cut on adc time, then minimizes proton theta pq.
+void hde_dxdirect( Int_t kine=4, Int_t magset=0, Int_t cluster_idx=5)
 { //main  
 
   // Define a clock to check macro processing time
@@ -91,13 +103,19 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   //set up output files
   TFile *fout = new TFile( Form("outfiles/hde_sbs%d_%s_epm%d_magset%d.root",kine,target.c_str(),epm,magset), "RECREATE" );
 
+  ////////////
+  //HISTOGRAMS
+
+  //Basic
+  TH2D *hdxdy_nocut = new TH2D("hdxdy_nocut","HCal dxdy, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_spotcut = new TH2D("hdxdy_spotcut","HCal dxdy, cut on proton spot; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_earm_cut = new TH2D("hdxdy_earm_cut","HCal dxdy, e-arm elastic cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH1D *hW2_earm_cut = new TH1D( "hW2_earm_cut", "W^{2}, global/dy/dx/thetapq cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+
+
   //set up diagnostic histograms
-  TH2D *hxy_nocut = new TH2D("hxy_nocut","HCal xy, no cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH2D *hxyexp_nocut = new TH2D("hxyexp_nocut","HCal xy expected from BB, no cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH2D *hxyexp_aacut = new TH2D("hxyexp_aacut","HCal xy expected from BB, hcal active area cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH1D *hbclus_atime = new TH1D("hbclus_atime","Best coin cluster idx", 10, 0, 10 );
-  TH1D *hbclus_thetapq = new TH1D("hbclus_thetapq","Best thetapq cluster idx", 10, 0, 10 );
-  TH1D *hbclus_dxdy = new TH1D("hbclus_dxdy","Best dxdy cluster idx", 10, 0, 10 );
 
   //set up detection efficiency histograms
   TH1D *hW2_allcut = new TH1D( "hW2_allcut", "W^{2}, global/dy/dx/thetapq cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
@@ -105,11 +123,7 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hdx_allcut = new TH1D( "hdx_allcut", "dx, W^{2} and dy cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_nocut = new TH1D( "hdx_nocut", "dx, no cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-
-  //set up position resolution histograms
-  TH1D *hnu = new TH1D("hnu","HCal Elastic KE (nu);nu (GeV)", 300,0,10);
-  TH1D *hdx_elastic = new TH1D( "hdx_elastic", "HCal dx, Cluster Elastic Cuts;x_{HCAL}-x_{expect} (m)", nfac*(dxhmax-dxhmin), dxhmin, dxhmax);
-  TH1D *hdy_elastic = new TH1D( "hdy_elastic", "HCal dy, Cluster Elastic Cuts;x_{HCAL}-x_{expect} (m)", nfac*(dyhmax-dyhmin), dyhmin, dyhmax);
+  TH1D *hdx_anticut = new TH1D( "hdx_anticut", "dx, e-arm elastic anticut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
 
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
@@ -118,60 +132,67 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   TTree *P = new TTree("P","Analysis Tree"); 
 
   // output tree vars
-  Double_t dx_out;
-  Double_t dy_out;
   Double_t W2_out;
   Double_t Q2_out;
   Double_t nu_out;
   Double_t ep_out; //track reconstructed e' momentum
-  Double_t hcale_out;
-  Double_t hcaleexp_out;
-  Double_t hcalatime_out;
-  Double_t thetapq_pout;
-  Double_t thetapq_nout;
-  Int_t pblkid_out;
-  Int_t pid_out; //-1:neither,0:ambiguous,1:proton,2:neutron
+  Double_t hcalpexp_out;
   Int_t mag_out;
   Int_t run_out; //run number
-  Int_t failedglobal_out;
+  Int_t failedglobal_out; //earm global variable cuts only
   Int_t failedaccmatch_out;
-  Int_t failedcoin_out;
+  Int_t cidx_best_atime_out;
+  Int_t cidx_best_tpq_out;
+  Int_t cidx_best_dxdy_out;
+  Int_t cidx_best_tpqatime_out;
+  Double_t bc_atime_out;
+  Double_t bc_hcale_out;
+  Double_t bc_thpq_out;
+  Double_t bc_dx_out;
+  Double_t bc_dy_out;
 
   //cluster tree vars
   Double_t cpblkid_out[econst::maxclus];
   Double_t chatime_out[econst::maxclus];
+  Double_t chcale_out[econst::maxclus];
   Double_t cthetapq_p_out[econst::maxclus];
   Double_t cthetapq_n_out[econst::maxclus];
   Double_t cdx_out[econst::maxclus];
   Double_t cdy_out[econst::maxclus];
-  Int_t cpid_out[econst::maxclus];
+  Int_t cpid_out[econst::maxclus]; //-1:neither,0:ambiguous,1:proton,2:neutron
+  Int_t cfailedcoin_out[econst::maxclus];
+  Int_t cinspot_p_out[econst::maxclus];
 
   // set output tree branches
-  P->Branch( "dx", &dx_out, "dx/D" );
-  P->Branch( "dy", &dy_out, "dy/D" );
   P->Branch( "W2", &W2_out, "W2/D" );
   P->Branch( "Q2", &Q2_out, "Q2/D" );
   P->Branch( "nu", &nu_out, "nu/D" );
-  P->Branch( "hcale", &hcale_out, "hcale/D" );
-  P->Branch( "hcaleexp", &hcaleexp_out, "hcaleexp/D" );
-  P->Branch( "hcalatime", &hcalatime_out, "hcalatime/D" );
-  P->Branch( "thetapq_p", &thetapq_pout, "thetapq_p/D" );
-  P->Branch( "thetapq_n", &thetapq_nout, "thetapq_n/D" );
-  P->Branch( "pblkid", &pblkid_out, "pblkid/I" );
-  P->Branch( "pid", &pid_out, "pid_out/I" );
+  P->Branch( "ep", &ep_out, "ep/D" );
+  P->Branch( "hcalpexp", &hcalpexp_out, "hcalpexp/D" );
   P->Branch( "mag", &mag_out, "mag/I" );
   P->Branch( "run", &run_out, "run_out/I" );
   P->Branch( "failedglobal", &failedglobal_out, "failedglobal/I" );
   P->Branch( "failedaccmatch", &failedaccmatch_out, "failedaccmatch/I" );
-  P->Branch( "failedcoin", &failedcoin_out, "failedcoin/I" );
+  P->Branch( "cidx_best_atime", &cidx_best_atime_out, "cidx_best_atime/I" );
+  P->Branch( "cidx_best_tpq", &cidx_best_tpq_out, "cidx_best_tpq/I" );
+  P->Branch( "cidx_best_dxdy", &cidx_best_dxdy_out, "cidx_best_dxdy/I" );
+  P->Branch( "cidx_best_tpqatime", &cidx_best_tpqatime_out, "cidx_best_tpqatime/I" );
+  P->Branch( "bc_atime", &bc_atime_out, "bc_atime/D" );
+  P->Branch( "bc_hcale", &bc_hcale_out, "bc_hcale/D" );
+  P->Branch( "bc_thpq", &bc_thpq_out, "bc_thpq/D" );
+  P->Branch( "bc_dx", &bc_dx_out, "bc_dx/D" );
+  P->Branch( "bc_dy", &bc_dy_out, "bc_dy/D" );
 
-  P->Branch( "cpblkid", &cpblkid_out, Form("cpblkid[%d]/D",econst::maxchan) );
-  P->Branch( "chatime", &chatime_out, Form("chatime[%d]/D",econst::maxchan) );
-  P->Branch( "cthetapq_p", &cthetapq_p_out, Form("cthetapq_p[%d]/D",econst::maxchan) );
-  P->Branch( "cthetapq_n", &cthetapq_n_out, Form("cthetapq_n[%d]/D",econst::maxchan) );
-  P->Branch( "cdx", &cdx_out, Form("cdx[%d]/D",econst::maxchan) );
-  P->Branch( "cdy", &cdy_out, Form("cdy[%d]/D",econst::maxchan) );
-  P->Branch( "cpid", &cpid_out, Form("cpid[%d]/I",econst::maxchan) );
+  P->Branch( "cpblkid", &cpblkid_out, Form("cpblkid[%d]/D",econst::maxclus) );
+  P->Branch( "chatime", &chatime_out, Form("chatime[%d]/D",econst::maxclus) );
+  P->Branch( "chcale", &chcale_out, Form("chcale[%d]/D",econst::maxclus) );
+  P->Branch( "cthetapq_p", &cthetapq_p_out, Form("cthetapq_p[%d]/D",econst::maxclus) );
+  P->Branch( "cthetapq_n", &cthetapq_n_out, Form("cthetapq_n[%d]/D",econst::maxclus) );
+  P->Branch( "cdx", &cdx_out, Form("cdx[%d]/D",econst::maxclus) );
+  P->Branch( "cdy", &cdy_out, Form("cdy[%d]/D",econst::maxclus) );
+  P->Branch( "cpid", &cpid_out, Form("cpid[%d]/I",econst::maxclus) );
+  P->Branch( "cfailedcoin", &cfailedcoin_out, Form("cfailedcoin[%d]/I",econst::maxclus) );
+  P->Branch( "cinspot_p", &cinspot_p_out, Form("cinspot_p[%d]/I",econst::maxclus) );
 
   // setup reporting indices
   Int_t curmag = -1;
@@ -231,14 +252,14 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
     dxsigma = dxsig_p;
 
     //Set cut/anticut limits for proton
-    Double_t dxmin = dx0_p - 3*dxsig_p; //Obtain 99.5% of elastic sample
-    Double_t dxmax = dx0_p + 3*dxsig_p; //Obtain 99.5% of elastic sample
+    Double_t dxmin = dx0_p - 3*dxsig_p; //Obtain 99.73% of elastic sample
+    Double_t dxmax = dx0_p + 3*dxsig_p; //Obtain 99.73% of elastic sample
     Double_t dymin = dy0 - 2*dysig;
     Double_t dymax = dy0 + 2*dysig;
-    Double_t W2min = W2mean - 3*W2sig;
-    Double_t W2max = W2mean + 3*W2sig;
-    Double_t atmin = atime0 - 3*atimesig;
-    Double_t atmax = atime0 + 3*atimesig;
+    Double_t W2min = W2mean - 2*W2sig;
+    Double_t W2max = W2mean + 2*W2sig;
+    Double_t atmin = atime0 - 6*atimesig;
+    Double_t atmax = atime0 + 6*atimesig;
 
     //Set minimum energy for expected recoil nucleon to be considered
     Double_t hminE = 0.0;  //0.05 GeV or nothing
@@ -257,7 +278,7 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
     std::vector<void*> hcalvarlink = {&hcalid,&hcale,&hcalx,&hcaly,&hcalr,&hcalc,&hcaltdc,&hcalatime};
     rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
 
-    // HCal cluster branches
+    // HCal cluster branches (primary block information for id, tdc, and atime)
     Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus];
     Int_t Nhcalcid;
     std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","id"};
@@ -346,22 +367,8 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
       }
       bool failedglobal = GlobalCut->EvalInstance(0) == 0;
 
-      //if( failedglobal ) continue;
-      Int_t fglobalint = 0;
-      if( failedglobal ) fglobalint = 1;
       ///////
-      
-      ///////
-      //HCal coin cut. Save pass/fail for output tree.
-      bool failedcoin = abs( hcalatime - atime0 ) > 3*atimesig;
-
-      //if( failedcoin ) continue;
-      Int_t fcoinint = 0;
-      if( failedcoin ) fcoinint = 1;
-      ///////
-
-      ///////
-      //Physics calculations
+      //E-arm physics calculations
       //correct beam energy with vertex information
       Double_t ebeam_c = vars::ebeam_c( ebeam, vz[0], target.c_str() );
       TVector3 vertex( 0., 0., vz[0] );
@@ -438,81 +445,67 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
 	std::cout << "Warning: epm version incorrect. Defaulting to version 2." << endl;
       }
 
-      //Calculate h-arm quantities
-      vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
-      TVector3 hcalpos = hcalorigin + hcalx*hcalaxes[0] + hcaly*hcalaxes[1]; //-,+ before
-      Double_t dx = hcalx - xyhcalexp[0];
-      Double_t dy = hcaly - xyhcalexp[1];
-      TVector3 neutdir = (hcalpos - vertex).Unit();
-      Double_t protdeflect = tan( 0.3 * BdL / qv.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
-      TVector3 protdir = ( hcalpos + protdeflect * hcalaxes[0] - vertex ).Unit();
-      Double_t thetapq_p = acos( protdir.Dot( qv.Unit() ) );
-      Double_t thetapq_n = acos( neutdir.Dot( qv.Unit() ) );
+      //Fill earm physics analysis tree variables
+      W2_out = W2;
+      Q2_out = Q2;
+      nu_out = nu;
+      ep_out = precon;
+      hcalpexp_out = pNexp;
 
-      Double_t KE_exp = nu*sampfrac/pcsigfac; //Expected measured E in HCal
-
-      //Get PID
-      Int_t pid;
-      bool is_p = abs(dx - dx0_p)<3*dxsig_p && abs(dy - dy0)<3*dysig;
-      bool is_n = abs(dx - dx0_n)<3*dxsig_n && abs(dy - dy0)<3*dysig;
-      if( is_p && !is_n )
-	pid=1;
-      else if( is_n && !is_p )
-	pid=2;
-      else if( is_p && is_n )
-	pid=0;
-      else
-	pid=-1;
-
-      //Fill diagnostic histos
-      hxy_nocut->Fill( hcaly, hcalx );
-      hxyexp_nocut->Fill( xyhcalexp[1], xyhcalexp[0] );
+      /////////////////////
+      //W2 elastic cut bool
+      bool failedW2 = W2<W2min || W2>W2max;
 
       ///////
       //HCal active area cut (acceptance matching). Save pass/fail for output tree.
+      vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
       bool failedaccmatch = 
 	xyhcalexp[1] > (econst::hcalposYf_mc-econst::hcalblk_div_h) ||
 	xyhcalexp[1] < (econst::hcalposYi_mc+econst::hcalblk_div_h) ||
 	xyhcalexp[0] > (econst::hcalposXf_mc-econst::hcalblk_div_v) ||
 	xyhcalexp[0] < (econst::hcalposXi_mc+econst::hcalblk_div_v);
 
-      //if( failedaccmatch ) continue;
-      Int_t faccmatchint = 0;
-      if( failedaccmatch ) faccmatchint = 1;
-      ///////
-
-      if( !failedaccmatch ){
+      hxyexp_nocut->Fill( xyhcalexp[1], xyhcalexp[0] );
+      if( !failedaccmatch )
 	hxyexp_aacut->Fill( xyhcalexp[1], xyhcalexp[0] );
-      }
+     
+      //Get expected proton deflection for thetapq (zero field, so this shouldn't matter)
+      Double_t protdeflect = tan( 0.3 * BdL / qv.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
 
-      //Fill best cluster info - this is inefficient, should get primary cluster info from here first
+      //////////////////////
+      //ALL CLUSTER ANALYSIS
+
+      //Set up indexes and variables for best cluster analysis
       Int_t cidx_atime = 0;
       Double_t c_atimediff = 1000.;
       Int_t cidx_thetapq = 0;
       Double_t c_thetapqdiff = 1000.;
       Int_t cidx_dxdy = 0;
       Double_t c_dxdydiff = 1000.;
-      Double_t tpq_best;
-
       Int_t cidx_tpq_atime = 0;
-      Double_t c_tpq_atimediff = 1000.
+      Double_t c_tpq_atimediff = 1000.;
 
-      //loop through all clusters looking at primary (highest E) block information
+      Double_t tpq_p[econst::maxclus];
+
+      //loop through all clusters
       for( Int_t c=0; c<Nhcalcid; c++ ){
-	//calculate physical quantities per element
+
+	//calculate h-arm physics quantities per cluster
 	Double_t cdx = hcalcx[c] - xyhcalexp[0];
 	Double_t cdy = hcalcy[c] - xyhcalexp[1];	  
 	TVector3 chcalpos = hcalorigin + hcalcx[c]*hcalaxes[0] + hcalcy[c]*hcalaxes[1];
 	TVector3 cneutdir = ( chcalpos - vertex ).Unit();
 	TVector3 cprotdir = ( chcalpos + protdeflect * hcalaxes[0] - vertex ).Unit();
 	Double_t cthetapq_p = acos( cprotdir.Dot( qv.Unit() ) );
+	tpq_p[c]=cthetapq_p;
 	Double_t cthetapq_n = acos( cneutdir.Dot( qv.Unit() ) );
 	Int_t cpid;
 	bool cis_p = abs(cdx - dx0_p)<3*dxsig_p && abs(cdy - dy0)<3*dysig;
 	bool cis_n = abs(cdx - dx0_n)<3*dxsig_n && abs(cdy - dy0)<3*dysig;
-	bool c_failedcoin = abs( hcalcatime[c] - atime0 ) > 3*atimesig;
+	bool c_failedcoin = abs( hcalcatime[c] - atime0 ) > atimeSigFac*atimesig;
+	bool c_spotcheck_p = util::Nspotcheck(cdy,cdx,dy0,dx0_p,dysig,dxsig_p,0);
 
-	//determine from dx and dy information pid
+	//determine pid from dx and dy information
 	if( cis_p && !cis_n )
 	  cpid=1;
 	else if( cis_n && !cis_p )
@@ -522,149 +515,142 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
 	else
 	  cpid=-1;
 
-	//get best cluster indexes
-	//get cluster which minimizes coin diff
+	//////////////////////////////////////////////
+	//get best cluster indexes for various methods
+
+	//get cluster which minimizes coin diff (METHOD 2)
 	if( abs(hcalcatime[c]-atime0)<c_atimediff ){
 	  cidx_atime = c;
 	  c_atimediff = hcalcatime[c];
 	}
-	//get cluster which minimizes thetapq (proton for hydrogen analysis)
+	//get cluster which minimizes thetapq (proton for hydrogen analysis) (METHOD 3)
 	if( cthetapq_p<c_thetapqdiff ){
 	  cidx_thetapq = c;
 	  c_thetapqdiff = cthetapq_p;
 	}
-	//get cluster which minimizes distance between cluster center and expected loc dxdy
+	//get cluster which minimizes distance between cluster center and expected loc dxdy (METHOD 4)
 	Double_t dxdydist = sqrt( pow(cdx-dx0_p,2)+pow(cdy-dy0,2));
 	if( dxdydist<c_dxdydiff ){
 	  cidx_dxdy = c;
 	  c_dxdydiff = dxdydist;
-	  //tpq_best = cthetapq_p; //record the "best" cluster thetapq for later
 	}
-	//get cluster which passes wide cut on atime, then minimizes thetapq
+	//get cluster which passes wide cut on atime, then minimizes thetapq (METHOD 5)
 	if( !c_failedcoin && cthetapq_p<c_tpq_atimediff ){
 	  cidx_tpq_atime = c;
 	  c_tpq_atimediff = cthetapq_p; 
 	}
 
-
+	//fill analysis tree variables
+	chcale_out[c] = hcalce[c];
 	cpblkid_out[c] = hcalcid[c];
 	chatime_out[c] = hcalcatime[c];
 	cthetapq_p_out[c] = cthetapq_p;
 	cthetapq_n_out[c] = cthetapq_n;
 	cdx_out[c] = cdx;
 	cdy_out[c] = cdy;
-	  
 	cpid_out[c] = cpid;
+	cfailedcoin_out[c] = (Int_t)c_failedcoin;
+	cinspot_p_out[c] = (Int_t)c_spotcheck_p;
+       
       }
 	
-      //Calculate dx, dy, thetapq from the best cluster for later use (USING dxdy for now)
-      Double_t dx_bestcluster = hcalcx[cidx_dxdy] - xyhcalexp[0];
-      Double_t dy_bestcluster = hcalcy[cidx_dxdy] - xyhcalexp[1];
-      Double_t hatime_bestcluster = hcalcatime[cidx_dxdy];
-      
-      hbclus_atime->Fill(cidx_atime);
-      hbclus_thetapq->Fill(cidx_thetapq);
-      hbclus_dxdy->Fill(cidx_dxdy);
+      //Switch between best clusters for systematic analysis
+      Int_t cidx_best;
 
-      //Fill physics output tree     
-      dx_out = dx;
-      dy_out = dy;
-      W2_out = W2;
-      Q2_out = Q2;
-      nu_out = nu;
-      ep_out = precon;
-      hcale_out = hcale;
-      hcaleexp_out = KE_exp;
-      hcalatime_out = hcalatime;
-      thetapq_pout = thetapq_p;
-      thetapq_nout = thetapq_n;
-      pblkid_out = hcalid;
+      switch (cluster_idx) {
+      case 1:
+	cidx_best = 0;
+	break;
+      case 2:
+	cidx_best = cidx_atime;
+	break;
+      case 3:
+	cidx_best = cidx_thetapq;
+	break;
+      case 4:
+	cidx_best = cidx_dxdy;
+	break;
+      case 5:
+	cidx_best = cidx_tpq_atime;
+	break;
+      default:
+	cidx_best = 0;
+      }
+      
+      //Calculations from the best cluster for later use
+      Double_t dx_bestcluster = hcalcx[cidx_best] - xyhcalexp[0];
+      Double_t dy_bestcluster = hcalcy[cidx_best] - xyhcalexp[1];
+      Double_t hatime_bestcluster = hcalcatime[cidx_best];
+      Double_t thpq_bestcluster = tpq_p[cidx_best];
+      Double_t ce_bestcluster = hcalce[cidx_best];
+
+      //check if best cluster position is within the proton spot
+      bool spotcheck_p = util::Nspotcheck(dy_bestcluster,dx_bestcluster,dy0,dx0_p,dysig,dxsig_p,0);
+      //check if best cluster passes wide coin cut
+      bool passedcoin = abs( hatime_bestcluster - atime0 ) < atimeSigFac*atimesig;
+
+      hdxdy_nocut->Fill(dy_bestcluster,dx_bestcluster);
+      if( spotcheck_p )
+	hdxdy_spotcut->Fill(dy_bestcluster,dx_bestcluster);
+
+      //Fill final output tree variables    
       mag_out = mag;
       run_out = runnum;
-      pid_out = pid;
-      failedglobal_out = fglobalint;
-      failedaccmatch_out = faccmatchint;
-      failedcoin_out = fcoinint;
+      failedglobal_out = (Int_t)failedglobal;
+      failedaccmatch_out = (Int_t)failedaccmatch;
+      cidx_best_atime_out = cidx_atime;
+      cidx_best_tpq_out = cidx_thetapq;
+      cidx_best_dxdy_out = cidx_dxdy;
+      cidx_best_tpqatime_out = cidx_tpq_atime;
+      bc_atime_out = hatime_bestcluster;
+      bc_hcale_out = ce_bestcluster;
+      bc_thpq_out = thpq_bestcluster;
+      bc_dx_out = dx_bestcluster;
+      bc_dy_out = dy_bestcluster;
 
       P->Fill();
 
-      /////////////////////////////////////////////
-      //HCal Detection Efficiency - primary cluster
-      /////////////////////////////////////////////
-      if( pclusonly ){
-	//All analyses must first require elastic acceptance matching between e and h arms per event
-	if( !failedaccmatch&&KE_exp>hminE ){
-	  //Obtain W2 distribution with only acceptance matching
-	  hW2_nocut->Fill( W2 );
-	  hdx_nocut->Fill( dx );
-	  //Make strongest possible hcal elastic anticut (failedglobal left out)
-	  if( thetapq_p>0.04&&(dx<dxmin||dx>dxmax)&&(dy<dymin||dy>dymax) ){
-	    hW2_anticut->Fill( W2 );
-	  }
-	  //And tightest elastic cut possible for elastic shape (both W2 and dx)
-	  if( dy>dymin&&dy<dymax&&failedglobal==0&&hcalatime>atmin&&hcalatime<atmax ){
-	    if( thetapq_p<0.04&&dx>dxmin&&dx<dxmax ){
-	      hW2_allcut->Fill( W2 );
-	    }
-	    if( W2>W2min&&W2<W2max ){
-	      hdx_allcut->Fill( dx );
-	    }
-	  }
-	}
-      }
-      /////////////////////////////////////////////
+      ////////////////////////////////////////////////
+      //HCal detection efficiency - dx direct approach
+      ////////////////////////////////////////////////
+      if( !failedaccmatch ){ //cut on acceptance matching for all analysis
+	
+	//Obtain distributions with only acceptance matching
+	hW2_nocut->Fill( W2 );
+	hdx_nocut->Fill( dx_bestcluster );
+	    
+	//Make tightest elastic cut possible for elastic SHAPE only (W2 and dx)
+	if( spotcheck_p &&
+	    passedcoin &&
+	    !failedglobal ){
 
-      /////////////////////////////////////////////
-      //HCal Detection Efficiency - "best" cluster
-      /////////////////////////////////////////////
-      if( !pclusonly ){
-	//All analyses must first require elastic acceptance matching between e and h arms per event
-	if( !failedaccmatch&&KE_exp>hminE ){
-	  //Obtain W2 distribution with only acceptance matching
-	  hW2_nocut->Fill( W2 );
-	  hdx_nocut->Fill( dx_bestcluster );
-	  //Make strongest possible hcal only elastic anticut (failedglobal left out)
-	  if( tpq_best>0.04&&
-	      (dx_bestcluster<dxmin||dx_bestcluster>dxmax)&&
-	      (dy_bestcluster<dymin||dy_bestcluster>dymax) ){
-	    hW2_anticut->Fill( W2 );
+	  if( thpq_bestcluster<0.04 ){
+	    hW2_allcut->Fill( W2 ); //Don't cut on W2 for W2 distribution
+	    //if( !failedW2 && ce_bestcluster>0.01 && ce_bestcluster<0.14 )
+	    if( !failedW2 && ce_bestcluster>0.035 && ce_bestcluster<0.105)
+	      hdx_allcut->Fill(dx_bestcluster); //Cut on dx in spotcheck may be too tight
 	  }
-	  //And tightest elastic cut possible for elastic shape (both W2 and dx)
-	  if( dy_bestcluster>dymin&&dy_bestcluster<dymax&&
-	      failedglobal==0&&
-	      hatime_bestcluster>atmin&&
-	      hatime_bestcluster<atmax ){
-	    if( tpq_best<0.04&&
-		dx_bestcluster>dxmin&&
-		dx_bestcluster<dxmax ){
-	      hW2_allcut->Fill( W2 );
-	    }
-	    if( tpq_best<0.04&&
-		W2>W2min&&
-		W2<W2max&&
-		!failedglobal ){
-	      hdx_allcut->Fill( dx_bestcluster );
-	      hdx_elastic->Fill( dx_bestcluster );
-	    }
-	  }
-	  if( dx_bestcluster>dxmin&&dx_bestcluster<dxmax&&
-	      failedglobal==0&&
-	      hatime_bestcluster>atmin&&
-	      hatime_bestcluster<atmax ){
-	    hdy_elastic->Fill( dy_bestcluster );
-	  }
-	}
-      }
-      /////////////////////////////////////////////
 
-      // /////////////////////////////////////////////
-      // //HCal detection efficiency - Simple approach
-      // /////////////////////////////////////////////
-      // if( !pclusonly )
-      // 	if( !failedaccmatch )
+	}
+
+	//Make cut on e-arm only for dx distribution
+	if( !failedglobal &&
+	    !failedW2 )
+	  hdxdy_earm_cut->Fill(dy_bestcluster,dx_bestcluster);
 	  
+	//Make hcal only elastic anticut
+	if( thpq_bestcluster>0.04 &&
+	    !spotcheck_p &&
+	    !passedcoin )
+	  hW2_anticut->Fill( W2 );
+	  
+	//Make e-arm only elastic anticut
+	if( failedglobal &&
+	    failedW2 )
+	  hdx_anticut->Fill( dx_bestcluster );
 
-
+      }
+	 
     } //end event loop
 
     // reset chain for the next run config
@@ -672,13 +658,13 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
 
   } //end run loop
 
-  ////////////////////////////////////////////////////
-  //HCal detection efficiency post-event-loop analysis
-  ////////////////////////////////////////////////////
+  ///////////////////
+  //W2 ANTICUT METHOD
 
   TH1D *hW2 = (TH1D*)(hW2_nocut->Clone("hW2"));
   TH1D *hW2res = (TH1D*)(hW2_anticut->Clone("hW2res"));
   TH1D *hdx = (TH1D*)(hdx_nocut->Clone("hdx")); 
+  TH1D *hdx_2 = (TH1D*)(hdx_nocut->Clone("hdx")); 
 
   Double_t W2fullint = hW2->Integral(0,W2fitmax);
   Double_t W2resfullint = hW2res->Integral(0,W2fitmax);
@@ -686,7 +672,7 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   //Make canvas for (expected-residuals)/expected
   TCanvas *c1 = new TCanvas("c1",Form("HDE sbs%d mag%d",kine,magset),1200,500);
   gStyle->SetPalette(53);
-  c1->Divide(1,2);
+  c1->Divide(2,1);
   c1->cd(1);
 
   //Acceptance matching cut only first with "pure elastic" hW2_allcut
@@ -732,6 +718,8 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   nocutlegend->AddEntry( hW2elas, "Tight Elastic Cut", "l");
   nocutlegend->AddEntry( bg, "Interpolated Background (scaled)", "l");
   nocutlegend->AddEntry( tfit, "Total fit", "l");
+  nocutlegend->AddEntry( (TObject*)0, "", "");
+  nocutlegend->AddEntry( (TObject*)0, Form("Number of Elastics Expected: %d",(Int_t)W2elas), "");
   nocutlegend->Draw();
 
   c1->cd(2);
@@ -741,10 +729,7 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   TF1 *tfitres = new TF1("tfitres",W2totalres,0,W2fitmax,8);
   TF1 *bgres = new TF1("bgres",fits::g_p6fit,0.,W2fitmax,7);
   tfitres->SetLineColor(kGreen);
-  if( pclusonly )
-    hW2res->SetTitle("W^{2}, Acceptance Cut and HCal highest E cluster elastic anticut");
-  else
-    hW2res->SetTitle("W^{2}, Acceptance Cut and HCal best cluster elastic anticut");
+  hW2res->SetTitle("W^{2}, Acceptance Cut and HCal best cluster elastic anticut");
   hW2res->Fit("tfitres","RBM");
 
   Double_t *tparres = tfitres->GetParameters();
@@ -786,6 +771,7 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   reslegend->AddEntry( bgres, "Interpolated Background (scaled)", "l");
   reslegend->AddEntry( tfitres, "Total fit", "l");
   reslegend->AddEntry( (TObject*)0, "", "");
+  reslegend->AddEntry( (TObject*)0, Form("Number of Elastics Detected: %d",(Int_t)(W2elas-W2elasres)), "");
   reslegend->AddEntry( (TObject*)0, Form("HDE via residuals: %0.3f%% +/- %0.3f%%",effres,efferr), "");
   // reslegend->AddEntry( (TObject*)0, "", "");
   // reslegend->AddEntry( (TObject*)0, Form("HDE via histo subtraction: %0.3f%%",effhist), "");
@@ -793,29 +779,57 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
 
   c1->Write();
 
+  //////////////////
+  //DX DIRECT METHOD
+
   //Make canvas for hcal dx detected / expected 
   TCanvas *c2 = new TCanvas("c2",Form("HDE v2 sbs%d mag%d",kine,magset),1200,500);
   gStyle->SetPalette(53);
-  c2->Divide(1,2);
+  c2->Divide(2,1);
   c2->cd(1);
 
   //Draw the expected elastic extraction first
   hW2->Draw();
   bg->Draw("same");
-  hW2elasres->Draw("same");
+  hW2elas->Draw("same");
+
+  auto wlegend = new TLegend(0.1,0.7,0.5,0.9);
+  wlegend->AddEntry( hW2elas, "Tight Elastic Cut", "l");
+  wlegend->AddEntry( bg, "Interpolated Background (scaled)", "l");
+  wlegend->AddEntry( tfit, "Total fit", "l");
+  wlegend->AddEntry( (TObject*)0, "", "");
+  wlegend->AddEntry( (TObject*)0, Form("Number of Elastics Expected: %d",(Int_t)W2elas), "");
+  wlegend->Draw();
 
   c2->cd(2);
 
+  Double_t lowdxcut = dxmean-3*dxsigma;
+  Double_t highdxcut = dxmean+3*dxsigma;
+  // Double_t lowdxcut = dx_fitlow;
+  // Double_t highdxcut = dx_fithigh;
+  Double_t lowdxrange = dxmean-3*dxsigma;
+  Double_t highdxrange = dxmean+3*dxsigma;
+  Int_t dxelasb = hcalfit_l*hbinfac;
+  Int_t dxelase = hcalfit_h*hbinfac;
+
+  hdx_2->SetMinimum(0.0);
+  hdx_2->Draw();
+
+  //hdx_2->GetXaxis()->SetRangeUser(lowdxcut,highdxcut);
+  //hdx_2->GetXaxis()->SetRangeUser(-0.3,0.3);
+  //hdx_2->GetXaxis()->SetRangeUser(-0.5,0.5);
+  hdx_2->GetXaxis()->SetRangeUser(dx_fitlow,dx_fithigh);
+
+
   //Then draw the dx interpolated signal fit
   hdxelastic = (TH1D*)(hdx_allcut->Clone("hdxelastic"));
-  TF1 *tfitdx = new TF1("tfitdx",dxtotal,hcalfit_l,hcalfit_h,14); //tfit npar = 1+pNfit_npar+1
-  TF1 *bgdx = new TF1("bgdx",fits::g_p12fit,hcalfit_l,hcalfit_h,13);
+  // TF1 *tfitdx = new TF1("tfitdx",dxtotal,hcalfit_l,hcalfit_h,4); //tfit npar = 1+pNfit_npar+1
+  // TF1 *bgdx = new TF1("bgdx",fits::g_p2fit,hcalfit_l,hcalfit_h,3); //poly pN fit Nparam = N+1
+  TF1 *tfitdx = new TF1("tfitdx",dxtotal,dx_fitlow,dx_fithigh,8); //tfit npar = 1+pNfit_npar+1
+  TF1 *bgdx = new TF1("bgdx",fits::g_p6fit,dx_fitlow,dx_fithigh,7); //poly pN fit Nparam = N+1
   tfitdx->SetLineColor(kGreen);
-  if( pclusonly )
-    hdx->SetTitle("dx highest E cluster, Acceptance Cut Only");
-  else
-    hdx->SetTitle("dx best cluster, Acceptance Cut Only");
-  hdx->Fit("tfitdx","RBM");
+  hdx_2->SetTitle("dx best cluster, Acceptance Cut Only");
+  hdx_2->Fit("tfitdx","RBM");
 
   Double_t *tpardx = tfitdx->GetParameters();
 
@@ -826,31 +840,107 @@ void hde( Int_t kine=4, Int_t magset=0, bool pclusonly=false )
   bgdx->SetFillStyle(3005);
   bgdx->Draw("same");
   hdxelastic->SetLineColor(kBlue);
-  hdxelastic->SetLineWidth(1);
+  hdxelastic->SetLineWidth(2);
   hdxelastic->SetFillColorAlpha(kBlue,0.35);
   hdxelastic->SetFillStyle(3003);
   hdxelastic->Draw("same");
 
+  // TLine *line1 = new TLine(lowdxcut, hdx_2->GetMinimum(), lowdxcut, hdx_2->GetMaximum());
+  // line1->SetLineColor(kRed);
+  // line1->SetLineWidth(2);
+  // line1->Draw("same");
+
+  // TLine *line2 = new TLine(highdxcut, hdx_2->GetMinimum(), highdxcut, hdx_2->GetMaximum());
+  // line2->SetLineColor(kRed);
+  // line2->SetLineWidth(2);
+  // line2->Draw("same");
+
   //Get elastics detected in hcal
-  //Double_t bgdxint = bgdx->Integral(hcalfit_l,hcalfit_h)*hbinfac;
-  Double_t bgdxint = bgdx->Integral(dxmean-2*dxsigma,dxmean+2*dxsigma)*hbinfac;
-  //Double_t dxnocutint = hdx->Integral(1,harmrange*hbinfac);
-  Double_t dxnocutint = hdx->Integral((-hcalfit_l+dxmean-2*dxsigma)*hbinfac,(-hcalfit_l+dxmean+2*dxsigma)*hbinfac);
-  Double_t dxelas = dxnocutint - bgdxint;  //hcal elastics alt
+  Int_t dxbinmin = hdx_2->FindBin(lowdxcut);
+  Int_t dxbinmax = hdx_2->FindBin(highdxcut);
+
+  //get error params
+
+  TFitResultPtr t = hdx_2->Fit("tfitdx","S");
+  //TMatrixD *bgcov = tfit->GetCovarianceMatrix(); 
+  //Double_t dxbgerr = tfitdx->IntegralError(hcalfit_l,hcalfit_h,t->GetParams(),t->GetCovarianceMatrix().GetMatrixArray())*hbinfac;
+  Double_t dxbgerr = tfitdx->IntegralError(lowdxcut,highdxcut,t->GetParams(),t->GetCovarianceMatrix().GetMatrixArray())*hbinfac;
+
+  cout << "dxbgerr: " << dxbgerr << endl;
+
+  Double_t bgdxint = bgdx->Integral(lowdxcut,highdxcut)*hbinfac;
+
+  // Double_t int_C = bgdx->Integral(hcalfit_l,hcalfit_h);
+  // Double_t int_D = bgdx->Integral(hcalfit_l,hcalfit_h)*hbinfac;
+  // Double_t int_E = bgdx->Integral(lowdxcut,highdxcut);
+  // Double_t int_F = bgdx->Integral(lowdxcut,highdxcut)*hbinfac;
+  // Double_t int_G = hdx_2->Integral();
+  // Double_t int_H = hdx_2->Integral(lowdxcut,highdxcut);
+  // Double_t int_I = hdx_2->Integral(dxbinmin,dxbinmax);
+
+  Double_t int_direct = 0;
+  for( int i=dxbinmin; i<=dxbinmax; i++ ){
+    int_direct+=hdx_2->GetBinContent(i);
+  }
+
+  //Double_t bgdxint = bgdx->Integral(lowdxcut,highdxcut)*hbinfac;
+  Double_t dxnocutint = int_direct;
+  //Double_t dxnocutint = hdx_2->Integral(dxbinmin,dxbinmax);
+  Double_t dxerr = sqrt(dxnocutint);
+
+  cout << "dxerr: " << dxerr << endl;
+
+  Double_t dxTerr = sqrt( pow(dxbgerr,2) + pow(dxerr,2) );
+
+
+  Double_t dxelas = dxnocutint - bgdxint;  //hcal elastics dx direct
 
   Double_t effdx =  ( dxelas / W2elas )*100.; 
 
+  Double_t effdxerr = effdx*sqrt(pow(dxbgerr/dxelas,2)+pow(dxerr/dxTerr,2));
+
+  Double_t efferr2 = sqrt( pow(sqrt(effdx/100.*(1-effdx/100.)/W2elas)*100.,2) + effdxerr);
+
+
+  // cout << "///////////////////////////////" << endl;
+  // cout << "Let's figure this out:" << endl;
+  // cout << "bgdx fit values!" << endl;
+  // cout << "hbinfac: " << hbinfac << endl;
+  // cout << "hcalfit_l: " << hcalfit_l << endl;
+  // cout << "hcalfit_h: " << hcalfit_h << endl;
+  // cout << "lowdxcut: " << lowdxcut << endl;
+  // cout << "highdxcut: " << highdxcut << endl;
+  // cout << "dxbinmin: " << dxbinmin << endl;
+  // cout << "dxbinmax: " << dxbinmax << endl;
+  // cout << "bgdx full integral on full range: " << int_C << endl;
+  // cout << "bgdx full integral on full range with binfac: " << int_D << endl;
+  // cout << "bgdx full integral on restricted range: " << int_E << endl;
+  // cout << "bgdx full integral on restricted range with binfac: " << int_F << endl;
+  // cout << endl;
+  // cout << "dxnocutint TH1D values!" << endl;
+  // cout << "dxelasb: " << dxelasb << endl;
+  // cout << "dxelase: " << dxelase << endl;
+  // cout << "hdx_2 full integral: " << int_G << endl;
+  // cout << "hdx_2 full integral on full range: " << dxnocutint << endl;
+  // cout << "hdx_2 full integral on restricted range: " << int_H << endl;
+  // cout << "hdx_2 full integral on FindBin restricted range: " << int_I << endl;
+  // cout << "hdx_2 full integral on restricted range manual: " << int_direct << endl;
+  
+
+  
+
   //Add a legend to the canvas
   auto dxlegend = new TLegend(0.1,0.7,0.5,0.9);
-  dxlegend->SetTextSize( 0.03 );
   dxlegend->AddEntry( hdxelastic, "Tight Elastic Cut", "l");
-  dxlegend->AddEntry( bgdx, "Interpolated Background (scaled)", "l");
-  dxlegend->AddEntry( tfitdx, "Total fit (background + signal)", "l");
+  dxlegend->AddEntry( bgdx, Form("Interpolated Background (scaled): %d",(Int_t)bgdxint), "l");
+  dxlegend->AddEntry( tfitdx, "Total fit", "l");
   dxlegend->AddEntry( (TObject*)0, "", "");
-  dxlegend->AddEntry( (TObject*)0, Form("HDE via dx: %0.3f%%",effdx), "");
+  dxlegend->AddEntry( (TObject*)0, Form("Total Events on Range: %d",(Int_t)dxnocutint), "");
+  dxlegend->AddEntry( (TObject*)0, Form("Number of Elastics Detected: %d",(Int_t)dxelas), "");
+  dxlegend->AddEntry( (TObject*)0, Form("HDE via dx: %0.3f%% +/- %0.3f%%",effdx,efferr2), "");
   dxlegend->Draw();
 
-  // c2->Write();
+  c2->Write();
   fout->Write();
 
   // Send time efficiency report to console

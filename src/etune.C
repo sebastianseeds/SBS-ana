@@ -245,7 +245,7 @@ namespace etune {
   if(config==1)
       return 0.0;
     else if(config==4){
-      if(mag==0) return 0.01914;
+      if(mag==0) return 0.01885;
       else if(mag==30) return -0.6449;
       else if(mag==50) return -1.08927;
       else{
@@ -300,7 +300,7 @@ namespace etune {
       if(config==1)
       return 0.;
     else if(config==4){
-      if(mag==0) return -0.0270143;
+      if(mag==0) return -0.0424993;
       else if(mag==30) return -0.0270143;
       else if(mag==50) return -0.0270143;
       else{
@@ -410,7 +410,7 @@ namespace etune {
   if(config==1)
       return 0.0;
     else if(config==4){
-      if(mag==0) return 0.05911;
+      if(mag==0) return 0.05469;
       else if(mag==30) return 0.1806;
       else if(mag==50) return 0.193991;
       else{
@@ -465,7 +465,7 @@ namespace etune {
        if(config==1)
       return 0.1;
     else if(config==4){
-      if(mag==0) return 0.0869443;
+      if(mag==0) return 0.0548388;
       else if(mag==30) return 0.0869443;
       else if(mag==50) return 0.0869443;
       else{
