@@ -34,17 +34,20 @@ namespace econst {
   static const Double_t hcalblk_gap_h = 0.00254;  //m, horiz. gap bet. two blocks
   static const Double_t hcalblk_gap_v = 0.00635;  //m, vert. gap bet. two blocks
   // Positions (mc)
-  static const Double_t hcalposXi_mc = -2.3531;   //m, distance from beam center to top of HCal
-  static const Double_t hcalposXf_mc = 1.45309;   //m, distance from beam center to bottom of HCal
-  static const Double_t hcalposYi_mc = -0.931545; //m, distance from beam center to opposite-beam side of HCal
-  static const Double_t hcalposYf_mc = 0.931545;  //m, distance from beam center to beam side of HCal
+  static const Double_t hcalposXi_mc = -2.655;   //m, distance from beam center to top of HCal w/75cm offset
+  static const Double_t hcalposXf_mc = 1.155;   //m, distance from beam center to bottom of HCal w/75cm offset
+  static const Double_t hcalposYi_mc = -0.92964; //m, distance from beam center to opposite-beam side of HCal
+  static const Double_t hcalposYf_mc = 0.92964;  //m, distance from beam center to beam side of HCal
   // Positions (data)
-  static const Double_t hcalposXi = -2.268095;    //m, distance from beam center to top of HCal
-  static const Double_t hcalposXf = 1.538095;     //m, distance from beam center to bottom of HCal
-  static const Double_t hcalposYi = -0.931545;    //m, distance from beam center to opposite-beam side of HCal
-  static const Double_t hcalposYf = 0.931545;     //m, distance from beam center to beam side of HCal
+  static const Double_t hcalposXi = -2.268095;    //m, distance from beam center to top of HCal (obsolete)
+  static const Double_t hcalposXf = 1.538095;     //m, distance from beam center to bottom of HCal (obsolete)
+  static const Double_t hcalposYi = -0.931545;    //m, distance from beam center to opposite-beam side of HCal (obsolete)
+  static const Double_t hcalposYf = 0.931545;     //m, distance from beam center to beam side of HCal (obsolete)
   // Global
-  static const Double_t hcalvoff = -0.2897;       //m, height of the center of hcal above beam (m)
+  //static const Double_t hcalvoff = -0.2897;       //m, height of the center of hcal above beam (m)
+  static const Double_t hcalvoff = -0.3735;       //m, height of the center of hcal above beam (m) (sbs8)
+  //static const Double_t hcalvoff = -0.75;       //m, height of the center of hcal above beam (m)
+  //static const Double_t hcalvoff = 0.0;         //m, height of the center of hcal above beam (m) after pass2 corr
 
   // BBCAL
   static const Int_t shchan = 189;

@@ -5,21 +5,21 @@ namespace etune {
   //Wide cuts using all subsystems
   std::string globcut(Int_t config) {
     if(config==1)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.ps.e+bb.sh.e>1.7";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==4)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.ps.e+bb.sh.e>1.7";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==7)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==11)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==14)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>1.6&&sbs.hcal.e>0.01&&bb.ps.e>0.2";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>1.6&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==8)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3"; 
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0"; 
     else if(config==9)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==4363)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.ps.e+bb.sh.e>1.7";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
       return "";
@@ -572,6 +572,116 @@ namespace etune {
 
   //HCal ADCt elastic sigma (ns)
   Double_t atimesig(Int_t config,Int_t mag) {
+       if(config==1)
+      return 3.0;
+    else if(config==4){
+      if(mag==0) return 3.67744;
+      else if(mag==30) return 3.67744;
+      else if(mag==50) return 3.67744;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 3.69617;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return 3.73;
+      else if(mag==100) return 3.73;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 3.68101;
+      else if(mag==70) return 3.68101;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return 3.73;
+      else if(mag==50) return 3.73;
+      else if(mag==70) return 3.73;
+      else if(mag==100) return 3.73;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return 3.52261;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
+      return 3.0;
+    else{
+      std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
+      return -1;
+    }
+  }
+
+  //HCal ADCt - BBCal Shower ADCt elastic peak (ns)
+  Double_t atimediff0(Int_t config,Int_t mag) {
+    if(config==1)
+      return 51.5;
+    else if(config==4){
+      if(mag==0) return 51.466;
+      else if(mag==30) return 51.466;
+      else if(mag==50) return 51.466;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 63.1685;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return 50.36;
+      else if(mag==100) return 50.36;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 58.7825;
+      else if(mag==70) return 58.7825;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return 50.36;
+      else if(mag==50) return 50.36;
+      else if(mag==70) return 50.36;
+      else if(mag==100) return 50.36;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return 50.6158;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
+      return 51.5;
+    else{
+      std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
+      return -1;
+    }
+  }
+
+  //HCal ADCt - BBCal Shower ADCt elastic sigma (ns)
+  Double_t atimediffsig(Int_t config,Int_t mag) {
        if(config==1)
       return 3.0;
     else if(config==4){

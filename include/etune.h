@@ -25,6 +25,8 @@ namespace etune {
   Double_t     dysig(Int_t config,Int_t mag);
   Double_t     atime0(Int_t config,Int_t mag);
   Double_t     atimesig(Int_t config,Int_t mag);
+  Double_t     atimediff0(Int_t config,Int_t mag);
+  Double_t     atimediffsig(Int_t config,Int_t mag);
 }
 
 // a class for SBS config
@@ -46,6 +48,8 @@ class SBStune {
   Double_t     Getdysig()          const { return fdysig; }
   Double_t     Getatime0()         const { return fatime0; }
   Double_t     Getatimesig()       const { return fatimesig; }
+  Double_t     Getatimediff0()     const { return fatimediff0; }
+  Double_t     Getatimediffsig()   const { return fatimediffsig; }
 
   // constructor
   SBStune(Int_t conf, Int_t sbsmag) {
@@ -64,13 +68,15 @@ class SBStune {
     fdysig          = etune::dysig(conf,sbsmag);
     fatime0         = etune::atime0(conf,sbsmag);
     fatimesig       = etune::atimesig(conf,sbsmag);
+    fatimediff0     = etune::atimediff0(conf,sbsmag);
+    fatimediffsig   = etune::atimediffsig(conf,sbsmag);
   }
 
   // define an ostream operator to print to screen conveniently
   friend ostream& operator <<(ostream &out, const SBStune& sbstune) {
     out  << " -------------------------- "                                                        << std::endl
-	 << Form(" SBS Tune Config: %d, "                         , sbstune.fSBStconf)             << std::endl
-	 << Form(" SBS Tune Magnet Settings: %d (p), "            , sbstune.fSBStmag)              << std::endl
+	 << Form(" SBS Tune Config: %d, "                         , sbstune.fSBStconf)            << std::endl
+	 << Form(" SBS Tune Magnet Settings: %d (p), "            , sbstune.fSBStmag)             << std::endl
     	 << Form(" Global Cut: %s,"                               , sbstune.fglobcut.c_str())     << std::endl
     	 << Form(" Global Cut Earm: %s,"                          , sbstune.fglobcut_earm.c_str())<< std::endl
     	 << Form(" W2 Elastic Peak Mean : %0.5f (GeV),"           , sbstune.fW2mean)              << std::endl
@@ -83,6 +89,8 @@ class SBStune {
     	 << Form(" HCal dy Elastic Peak Sigma: %0.5f (m),"        , sbstune.fdysig)               << std::endl
     	 << Form(" HCal Elastic ADCt Mean: %0.5f (m),"            , sbstune.fatime0)              << std::endl
     	 << Form(" HCal Elastic ADCt Sigma: %0.5f (m),"           , sbstune.fatimesig)            << std::endl
+    	 << Form(" HCal - BBCal Elastic ADCt Mean: %0.5f (m),"    , sbstune.fatimediff0)          << std::endl
+    	 << Form(" HCal - BBCal Elastic ADCt Sigma: %0.5f (m),"   , sbstune.fatimediffsig)        << std::endl
 	 << " -------------------------- "                        << std::endl                    << std::endl;
     return out;
   }
@@ -101,8 +109,10 @@ class SBStune {
   Double_t     fdxsig_n;          // Width of neutron elastic peak in HCal dx distribution (m)
   Double_t     fdxsig_p;          // Width of proton elastic peak in HCal dx distribution (m)
   Double_t     fdysig;            // Width of elastic peak in HCal dy distribution (m)
-  Double_t     fatime0;           // ADC time wrt BB trigger for elastic events (mean of distribution) (ns)
-  Double_t     fatimesig;         // ADC time wrt BB trigger for elastic events (sigma of distribution) (ns)
+  Double_t     fatime0;           // ADC time for elastic events (mean of distribution) (ns)
+  Double_t     fatimesig;         // ADC time for elastic events (sigma of distribution) (ns)
+  Double_t     fatimediff0;       // ADC time (HCAL-BBCal shower) for elastic events (mean of distribution) (ns)
+  Double_t     fatimediffsig;     // ADC time (HCAL-BBCal shower) for elastic events (sigma of distribution) (ns)
 };
 
 #endif
