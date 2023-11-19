@@ -20,15 +20,16 @@ typedef struct crun {
 
   // define an ostream operator to print to screen conveniently
   friend ostream& operator <<(ostream &out, const crun& corun) {
-    out << " ------------" << std::endl;
-    out << " Run number        : " << corun.runnum << std::endl;
-    out << " SBS config        : " << corun.sbsconf << std::endl;
-    out << " Target            : " << corun.target << std::endl;
-    out << " SBS mag. cur. (A) : " << corun.sbsmag << std::endl;
-    out << " BB mag. cur. (A)  : " << corun.bbmag << std::endl;
-    out << " Avg. ebeam (GeV)  : " << corun.ebeam << std::endl;
+    out << " -----------------------------------------" << std::endl;
+    out << " Run number             : " << corun.runnum << std::endl;
+    out << " SBS config             : " << corun.sbsconf << std::endl;
+    out << " Target                 : " << corun.target << std::endl;
+    out << " SBS mag. cur. (A)      : " << corun.sbsmag << std::endl;
+    out << " BB mag. cur. (A)       : " << corun.bbmag << std::endl;
+    out << " Avg. ebeam (GeV)       : " << corun.ebeam << std::endl;
     out << " Ebeam std. dev. (GeV)  : " << corun.ebeam_std << std::endl;
-    out << " ------------" << std::endl << std::endl;
+    out << " Charge (C)             : " << corun.charge << std::endl;
+    out << " -----------------------------------------" << std::endl << std::endl;
     return out;
   }
 
@@ -41,6 +42,7 @@ typedef struct crun {
     bbmag = stoi(data[4]);
     ebeam = stod(data[5]);
     ebeam_std = stod(data[6]);
+    charge = stod(data[7]);
   }
 
 } crun_t;  

@@ -1,7 +1,7 @@
 {
     "rootfiles"     : {
-	"proton"         : "/lustre19/expphy/volatile/halla/sbs/seeds/hcal/mc_hde/proton/replayed_gmn_sbs4_parp_0p_job*",
-	"neutron"        : "/lustre19/expphy/volatile/halla/sbs/seeds/hcal/mc_hde/neutron/replayed_gmn_sbs4_parn_0p_job*"
+	"proton"         : "/lustre19/expphy/volatile/halla/sbs/ewertz/Simulation/HCal_Eff/replayed_ew_gmn_SBS9_LD2_mag0_100uA_pGun_Px_2M_job_*.root",
+	"neutron"        : "/lustre19/expphy/volatile/halla/sbs/ewertz/Simulation/HCal_Eff/replayed_ew_gmn_SBS9_LD2_mag0_100uA_nGun_Px_2M_job_*.root"
     }, 
 
     "params"     : {
@@ -18,10 +18,23 @@
 	"proton"         : 0.114,
 	"neutron"        : 0.116
     },
-    
-    "threshold_fac" : {
-	"proton"         : 4,
-	"neutron"        : 4
-    }
+
+    "outfile_0"          : "/lustre19/expphy/volatile/halla/sbs/seeds/hde_analysis/hdemc_i0.root",
+
+    "outfile_1"          : "/lustre19/expphy/volatile/halla/sbs/seeds/hde_analysis/hdemc_i1.root",
+
+    "pmin"               : 1.0,
+
+    "pmax"               : 9.0,
+
+    "Emin"               : 0.0,
+
+    "Emax"               : 2.0,
+
+    "fit_fac"            : 0.06,
+
+    "tfac"               : 4.0,
+
+    "nbin"               : 150
 
 }

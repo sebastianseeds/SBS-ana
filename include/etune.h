@@ -76,7 +76,7 @@ class SBStune {
   friend ostream& operator <<(ostream &out, const SBStune& sbstune) {
     out  << " -------------------------- "                                                        << std::endl
 	 << Form(" SBS Tune Config: %d, "                         , sbstune.fSBStconf)            << std::endl
-	 << Form(" SBS Tune Magnet Settings: %d (p), "            , sbstune.fSBStmag)             << std::endl
+	 << Form(" SBS Tune Magnet Settings: %d (percent), "      , sbstune.fSBStmag)             << std::endl
     	 << Form(" Global Cut: %s,"                               , sbstune.fglobcut.c_str())     << std::endl
     	 << Form(" Global Cut Earm: %s,"                          , sbstune.fglobcut_earm.c_str())<< std::endl
     	 << Form(" W2 Elastic Peak Mean : %0.5f (GeV),"           , sbstune.fW2mean)              << std::endl

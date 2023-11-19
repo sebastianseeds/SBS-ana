@@ -13,8 +13,14 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
+const Double_t pmin = 1.0; //nucleon, GeV
+const Double_t pmax = 9.0; //nucleon, GeV
+const Double_t Emin = 0.; //hcal, GeV
+const Double_t Emax = 2.; //hcal, GeV
+const Int_t nbin = 150; //Number of bins for hcal E vs nucleon p fits obtained to ensure 1000 events per bin
+
 //Uses g4sbs replays of simulated data set containing pgun/ngun, zero field, SBS4 geometry
-void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mean values of hcalE vs nucleonp; 1 gets eff
+void mcreplayed_hde( Int_t iter = 0, Double_t tfac = 3. ) //iteration 0 gets mean values of hcalE vs nucleonp; 1 gets eff
 { //main  
   
   // Define a clock to check macro processing time
@@ -24,11 +30,6 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   std::string date = util::getDate();
 
   //general static parameters for this analysis
-  const Double_t pmin = 1.; //nucleon, GeV
-  const Double_t pmax = 9.; //nucleon, GeV
-  const Double_t Emin = 0.; //hcal, GeV
-  const Double_t Emax = 2.; //hcal, GeV
-  const Int_t nbin = 150; //Number of bins for hcal E vs nucleon p fits obtained to ensure 1000 events per bin
   Double_t p_step = (pmax-pmin)/nbin; //Amount of momentum traversed per bin
   Double_t oEmean_p[nbin] = {0.}; //hcal proton E mean values obtained from iter 0
   Double_t oEmean_n[nbin] = {0.}; //hcal neutron E mean values obtained from iter 0
@@ -144,6 +145,11 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
     }else
       break;
     
+    if( C->GetEntries()==0 ){
+      std::cout << "ERROR: Missing MC file or empty MC file." << std::endl;
+      return;
+    } 
+
     // setting up ROOT tree branch addresses
     C->SetBranchStatus("*",0);    
     
@@ -320,7 +326,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 	gausfit->SetParameter(2,setpar[2]);
 	gausfit->SetParLimits(2,Emin,Emax);
 
-	pbinslice[b]->Fit("gausfit","RBM");
+	pbinslice[b]->Fit("gausfit","RBMQ");
 	pbinslice[b]->Draw();
 	
 	binp[b] = p;
@@ -391,9 +397,8 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
       E_neut << Emean_n[b] << endl;
     }
     E_neut.close();
-  }
 
-  
+  } //end loop if iter == 0
 
   if( iter==1 ){
 
@@ -442,9 +447,10 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
     c1->Write();
 
-  }
+  } //endloop iter == 1
   
-  
+  cout << "1" << endl;
+
   TCanvas *c0 = new TCanvas("c0","HCal Efficiency Ratio (N/P)(E_{T}=1/4 E_{peak})",1600,1200);
   //c2->Divide(2,1);
   c0->SetGrid();
@@ -468,6 +474,9 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   c0->Modified();
 
   c0->Write();
+
+  cout << "2" << endl;
+
 
   TCanvas *c2 = new TCanvas("c2","HCal dx Sigma vs Nucleon p (MC)",1600,1200);
   //c2->Divide(2,1);
@@ -536,9 +545,9 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
       gausfitdy->SetParameter(2,fitp2exp);
       gausfitdy->SetParLimits(2,0,0.25);
 
-      pbindxslice[b]->Fit("gausfitdx","RBM");
+      pbindxslice[b]->Fit("gausfitdx","RBMQ");
       pbindxslice[b]->Draw();
-      pbindyslice[b]->Fit("gausfitdy","RBM");
+      pbindyslice[b]->Fit("gausfitdy","RBMQ");
       pbindyslice[b]->Draw();
 	
       dbinp[b] = p;
@@ -560,6 +569,7 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   } //end loop over nucleons
 
+  cout << "3" << endl;
 
   //Draw graphs
   auto dxgrp = new TGraph(nbin,binp,dxsig_p);
@@ -590,6 +600,9 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   c2->BuildLegend();
 
   c2->Write();
+
+  cout << "4" << endl;
+
 
   TCanvas *c3 = new TCanvas("c3","HCal dy Sigma vs Nucleon P (MC)",1600,1200);
   //c2->Divide(2,1);
@@ -627,6 +640,9 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
 
   c3->Write();
 
+  cout << "5" << endl;
+
+
   TCanvas *c4 = new TCanvas("c4","HCal dx and dy Sigma vs Nucleon P (MC)",1600,1200);
   //c2->Divide(2,1);
   c4->SetGrid();
@@ -646,6 +662,11 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   c4->BuildLegend();
 
   c4->Write();
+
+
+  cout << "6" << endl;
+
+
   fout->Write();
 
   // Send time efficiency report to console

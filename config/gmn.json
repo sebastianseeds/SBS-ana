@@ -13,8 +13,44 @@
 	"sbs7"        : "",
 	"sbs11"       : "",
 	"sbs14"       : "",
-	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/simc",
+	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/simc/SBS8",
+	"sbs9"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/simc/SBS9"
+    },
+
+    "rootfile_dir_mc_rc_30p" : {
+	"sbs4"        : "/volatile/halla/sbs/seeds/simc/sbs4_30p_simc/rootfiles/",
+	"sbs7"        : "",
+	"sbs11"       : "",
+	"sbs14"       : "",
+	"sbs8"        : "",
 	"sbs9"        : ""
+    },
+
+    "rootfile_dir_mc_rc_30p_alt" : {
+	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/msatnik/simc/sbs4_30p_simc/rootfiles",
+	"sbs7"        : "",
+	"sbs11"       : "",
+	"sbs14"       : "",
+	"sbs8"        : "",
+	"sbs9"        : ""
+    },
+
+    "rootfile_dir_mc_rc_hist" : {
+	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/sbs4_30p_simc/csv",
+	"sbs7"        : "",
+	"sbs11"       : "",
+	"sbs14"       : "",
+	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/hist",
+	"sbs9"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/hist"
+    },
+
+    "rootfile_dir_mc_rc_hist_alt" : {
+	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/msatnik/simc/sbs4_30p_simc/csv",
+	"sbs7"        : "",
+	"sbs11"       : "",
+	"sbs14"       : "",
+	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/hist",
+	"sbs9"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/hist"
     },
 
     "rootfile_dir_mc_inelastic_0p" : {
@@ -35,6 +71,24 @@
 	"sbs9" : [ 5620, 52.00, 1.57 ]
     },
 
+    "partial_name_p" : {
+	"sbs4" : "deep",
+	"sbs7" : "deep",
+	"sbs11" : "deep",
+	"sbs14" : "deep",
+	"sbs8" : "proton",
+	"sbs9" : "proton"
+    },
+
+    "partial_name_n" : {
+	"sbs4" : "deen",
+	"sbs7" : "deen",
+	"sbs11" : "deen",
+	"sbs14" : "deen",
+	"sbs8" : "neutron",
+	"sbs9" : "neutron"
+    },
+
     "cluster_idx"     : {
 	"sbs4"        : 4,
 	"sbs7"        : 4,
@@ -42,6 +96,15 @@
 	"sbs14"       : 4,
 	"sbs8"        : 4,
 	"sbs9"        : 4
+    },
+
+    "hcal_offset"     : {
+	"sbs4"        : -0.2897,
+	"sbs7"        : -0.2897,
+	"sbs11"       : -0.3334,
+	"sbs14"       : -0.3334,
+	"sbs8"        : -0.3334,
+	"sbs9"        : -0.3288
     },
 
     "epm"             : {

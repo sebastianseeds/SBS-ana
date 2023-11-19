@@ -16,13 +16,13 @@ namespace cut {
     return hcalaa;
   }
 
-  // Establish hcal active area excluding N blks from edge, Data DB
+  // Establish hcal active area excluding N blks from edge, Pass0/1 DB
   std::vector<Double_t> hcalaa_data (int exblkN_x=1, int exblkN_y=1) {
     std::vector<Double_t> hcalaa;
-    Double_t hcalaaXi = econst::hcalposXi + exblkN_x*econst::hcalblk_div_v;
-    Double_t hcalaaXf = econst::hcalposXf - exblkN_x*econst::hcalblk_div_v;
-    Double_t hcalaaYi = econst::hcalposYi + exblkN_y*econst::hcalblk_div_h;
-    Double_t hcalaaYf = econst::hcalposYf - exblkN_y*econst::hcalblk_div_h;
+    Double_t hcalaaXi = econst::hcalposXi_p0 + exblkN_x*econst::hcalblk_w_p0;
+    Double_t hcalaaXf = econst::hcalposXf_p0 - exblkN_x*econst::hcalblk_w_p0;
+    Double_t hcalaaYi = econst::hcalposYi_p0 + exblkN_y*econst::hcalblk_h_p0;
+    Double_t hcalaaYf = econst::hcalposYf_p0 - exblkN_y*econst::hcalblk_h_p0;
     hcalaa.push_back( hcalaaXi ); 
     hcalaa.push_back( hcalaaXf );
     hcalaa.push_back( hcalaaYi );

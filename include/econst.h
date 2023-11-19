@@ -26,19 +26,26 @@ namespace econst {
   static const Double_t hcal_hrange = 1.85928;    //m, total range in horizontal direction of HCal (end-to-end)
   static const Double_t hcal_vrange = 3.81;       //m, total range in vertical direction of HCal (end-to-end)
   static const Double_t hcaladc_binw = 4.;        //ns, width of each ADC bin
+  static const Double_t hcalblk_w_p0 = 0.15;      //m, width of a HCAL block, pass0/1
+  static const Double_t hcalblk_h_p0 = 0.15;      //m, height of a HCAL block, pass0/1 
   static const Double_t hcalblk_w = 0.1524;       //m, width of a HCAL block
   static const Double_t hcalblk_h = 0.1524;       //m, height of a HCAL block
   static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist.
   static const Double_t hcalblk_div_v = 0.15875;  //m, vertical center-to-center dist.
-  static const Double_t hcalblk_div_hyp = 0.15875;  //m, division corner-to-cornter dist.
+  static const Double_t hcalblk_div_hyp = 0.15875;//m, division corner-to-cornter dist.
   static const Double_t hcalblk_gap_h = 0.00254;  //m, horiz. gap bet. two blocks
   static const Double_t hcalblk_gap_v = 0.00635;  //m, vert. gap bet. two blocks
   // Positions (mc)
-  static const Double_t hcalposXi_mc = -2.655;   //m, distance from beam center to top of HCal w/75cm offset
-  static const Double_t hcalposXf_mc = 1.155;   //m, distance from beam center to bottom of HCal w/75cm offset
-  static const Double_t hcalposYi_mc = -0.92964; //m, distance from beam center to opposite-beam side of HCal
-  static const Double_t hcalposYf_mc = 0.92964;  //m, distance from beam center to beam side of HCal
-  // Positions (data)
+  static const Double_t hcalposXi_mc = -2.655;    //m, distance from beam center to top of HCal w/75cm offset
+  static const Double_t hcalposXf_mc = 1.155;     //m, distance from beam center to bottom of HCal w/75cm offset
+  static const Double_t hcalposYi_mc = -0.92964;  //m, distance from beam center to opposite-beam side of HCal
+  static const Double_t hcalposYf_mc = 0.92964;   //m, distance from beam center to beam side of HCal
+  // Pass0/1 (no block spacing)
+  static const Double_t hcalposXi_p0 = -2.16014;  //m, distance from beam center to top of HCal w/75cm offset
+  static const Double_t hcalposXf_p0 = 1.43826;   //m, distance from beam center to bottom of HCal w/75cm offset
+  static const Double_t hcalposYi_p0 = -0.9;      //m, distance from beam center to opposite-beam side of HCal
+  static const Double_t hcalposYf_p0 = 0.9;       //m, distance from beam center to beam side of HCal
+  // Positions (data fits)
   static const Double_t hcalposXi = -2.268095;    //m, distance from beam center to top of HCal (obsolete)
   static const Double_t hcalposXf = 1.538095;     //m, distance from beam center to bottom of HCal (obsolete)
   static const Double_t hcalposYi = -0.931545;    //m, distance from beam center to opposite-beam side of HCal (obsolete)

@@ -1,7 +1,6 @@
 //SSeeds 9.1.23 Script to extract the p/n yield ratio via data/MC comparison. Intent is to loop over all data from a given set/field setting, apply elastic cuts, and build a dx histogram. From this point, read in MC (with RC) distributions for quasi-elastic protons and neutrons (independently), fit these distributions with several distributions to get a best fit, then compose a sum of these fits allowing for a scaling parameter which maps to the total MC yields. Next, do the same with g4sbs inelastic generator and add this to the total fit function (sum) and apply the now three floating parameter fit to the data and check residuals and chi-square. Varying the fit function may yield better results, but the ratio will be extracted. See gmn_calc.C for application of this ratio to gmn extraction.
 //sseeds update 9.23.23 Parsed cluster sorting and e' momentum strategies. Renamed and refocused script to produce output histograms for later analysis.
 //sseeds update 9.24.23 Debug and prevent memory leaks
-//sseeds update 11.14.23 remove assignScore from here and add to util function list
 
 #include <vector>
 #include <iostream>
@@ -15,6 +14,39 @@
 #include "TMatrixD.h"
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
+
+//assign score to potential cluster based on probability density of gaussian fit to atime and maximum energy, exclude position info. Here, gfit is a vector with coin atime fit parameters, val_2 is the cluster coin atime, val_1 is the cluster energy, and max1 is the max cluster energy for the event
+double assignScore( double val_1, double val_2, double max1, const std::vector<double> &gfit ) {
+
+  if( gfit.size()!=3 ){
+    cout << "ERROR: size of dxfit vector not equal to expected number of gaussian parameters (3)." << endl;
+    return 0.;
+  }
+
+  // Build a TF1 with fit provided fit parameters
+  TF1 *gauss = new TF1("gauss", "gaus", 0, 100);
+  gauss->SetParameter(0,gfit[0]);
+  gauss->SetParameter(1,gfit[1]);
+  gauss->SetParameter(2,gfit[2]);
+    
+  double x_value = val_2;
+  double density = gauss->Eval(x_value);
+
+  // Compute the score based on val 2
+  double score = density / gauss->GetParameter(0);  // Normalize by the peak of the Gaussian
+
+  // Include a product component based on val 1 (linear weight)
+  score *= val_1 / max1;
+
+  if(score==0){
+    //cout << "WARNING: score is zero. val_1=" << val_1 << ", val_2= " << val_2 << " density= " << density << " 1 comp= " << val_1 / max1 << endl;
+    score=1e-38; //write very small number to score to exclude it without breaking the sorting later
+  }
+
+  delete gauss; //prevent memory leak
+
+  return score;
+}
 
 //MAIN
 void data_elastic( Int_t kine=9, Int_t magset=70 )
@@ -51,11 +83,6 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
   Int_t verb = 0; //Don't print diagnostic info by default
   Double_t hcalfit_l = econst::hcalposXi_mc; //lower fit/bin limit for hcal dx plots (m)
   Double_t hcalfit_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m)
-  //account for bad hcal positions in database for first passes
-  if(pass<2){
-    hcalfit_l = econst::hcalposXi_p0; //lower fit/bin limit for hcal dx plots (m)
-    hcalfit_h = econst::hcalposXf_p0; //upper fit/bin limit for hcal dx plots (m) 
-  } 
   Double_t harmrange = econst::hcal_vrange; //Full range of hcal dx plots (m)
 
   //read the run list to parse run numbers associated to input parameters and set up for loop over runs
@@ -64,19 +91,14 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
 
   //set up output files
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string fout_path = outdir_path + Form("/gmn_analysis/gmn_elastic_fid_out_sbs%d_mag%d_clusteridx%d_epm%d.root",kine,magset,cluster_idx,epm);
+  //std::string fout_path = outdir_path + Form("/gmn_analysis/gmn_elastic_fid_out_sbs%d_mag%d_clusteridx%d_epm%d.root",kine,magset,cluster_idx,epm);
   //std::string fout_path = "fieldtune.root";
-  //std::string fout_path = "cluster_test.root";
+  std::string fout_path = Form("parse_test_%d.root",use_parse);
 
   TFile *fout = new TFile( fout_path.c_str(), "RECREATE" );
 
   ////////////
   //HISTOGRAMS
-
-  //basic
-  TH2D *hxy_nocut = new TH2D("hxy_nocut","HCal x vs HCal y, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_aacut = new TH2D("hxy_aacut","HCal x vs HCal y, acceptance matching cut no sigma; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_acccut = new TH2D("hxy_acccut","HCal x vs HCal y, acceptance matching cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
 
   //E-arm
   TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
@@ -234,13 +256,6 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
     Double_t BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
     Double_t Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::lh2tarrho * econst::lh2dEdx;
 
-    //Set up hcal active area with bounds that match database on pass
-    vector<Double_t> hcalaa;
-    if(pass<2)
-      hcalaa = cut::hcalaa_mc(1,1);
-    else
-      hcalaa = cut::hcalaa_data(1,1);
-
     // set nucleon for LD2
     std::string nucleon = "np";
 
@@ -269,6 +284,10 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
 	cout << "Multiple tree numbers for a single run" << endl;
 	return;
       }
+
+      //if you want to skip the event where one or more of the globalcuts fail
+      // if(failedglobal)
+      // 	continue;
 
       ///////
       //E-arm physics calculations
@@ -362,9 +381,12 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
       // 	xyhcalexp[0] > (econst::hcalposXf_mc-econst::hcalblk_div_v) ||
       // 	xyhcalexp[0] < (econst::hcalposXi_mc+econst::hcalblk_div_v);
 
+      //Use class objects
+      vector<Double_t> hcalaa = cut::hcalaa_mc(1,1);
+
       //For offset corrections prior to pass 2
-      //hcalaa[0]-=hcal_v_offset;
-      //hcalaa[1]-=hcal_v_offset;
+      hcalaa[0]-=hcal_v_offset;
+      hcalaa[1]-=hcal_v_offset;
 
       //Fill for active area check
       hHcalXY->Fill(hcaly,hcalx);
@@ -399,7 +421,7 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
 	  clone_cluster_intime[c] = 0;
 	
 	//Get score (no position info). Will be sorted later
-	double cascore = util::assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile);
+	double cascore = assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile);
 	clone_cluster_score.push_back(cascore);
 	
       }//endloop over cluster elements
@@ -477,29 +499,6 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
       bool hcalON = cut::hcalaaON(hcalcx[cidx_best],hcalcy[cidx_best],hcalaa);
       vector<Double_t> fid = cut::hcalfid(dxsig_p,dysig,hcalaa);
       bool passed_fid = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid);
-
-      //quick check on acceptance
-      hxy_nocut->Fill(hcalcy[cidx_best],hcalcx[cidx_best]);
-      hxy_nocut->Fill(0.,0.);
-
-      bool aaregion = 
-	hcalcy[cidx_best] > (econst::hcalposYf_p0-econst::hcalblk_w_p0) ||
-	hcalcy[cidx_best] < (econst::hcalposYi_p0+econst::hcalblk_w_p0) ||
-	hcalcx[cidx_best] > (econst::hcalposXf_p0-econst::hcalblk_h_p0) ||
-	hcalcx[cidx_best] < (econst::hcalposXi_p0+econst::hcalblk_h_p0);
-
-      if(aaregion)
-	hxy_aacut->Fill(hcalcy[cidx_best],hcalcx[cidx_best]);
-
-      bool accregion = 
-      	hcalcy[cidx_best] > (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig) ||
-	hcalcy[cidx_best] < (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig) ||
-	hcalcx[cidx_best] > (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p) ||
-	hcalcx[cidx_best] < (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
-
-      if(accregion)
-	hxy_acccut->Fill(hcalcy[cidx_best],hcalcx[cidx_best]);
-
 
       if( !passed_fid || !hcalON || failedcoin || faileddy )
 	continue;

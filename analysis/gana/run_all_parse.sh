@@ -1,11 +1,14 @@
 #!/bin/sh
 
-# SSeeds - 4.23.23 - shell script to run all kinematics through parsing
+# SSeeds - 10.23.23 - shell script to run all kinematics through full parsing
 
 ## Usage
-#./run_all_parse.sh <int: e' momentum method>
+#./run_all_parse.sh <int: e' momentum method> <int: cluster selection method> <int: pass>
 
 epm=$1
+cluster_method=$2
+pass=$3
+verbose=$4
 
 nkine=6
 kine=(4 7 11 14 8 9)
@@ -13,7 +16,7 @@ kine=(4 7 11 14 8 9)
 for ((i=0; i<$nkine; i++))
 do
 
-    root -l -b -q 'parse_sh.C('${kine[i]}','$epm')'
+    root -l -b -q 'parse.C('${kine[i]}','$epm','$cluster_method','$pass','$verbose')'
 
 wait
 
