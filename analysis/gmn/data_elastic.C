@@ -322,6 +322,7 @@ void data_elastic( Int_t kine=9, Int_t magset=70 )
       }else if( epm==3 ){
 	//v3
 	nu = pbeam.E() - pcent;
+	//nu = pbeam.E() - precon;
 	pNexp = vars::pN_expect( nu, nucleon );
 	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
 	pNhat = vars::pNhat_track( thNexp, phNexp );

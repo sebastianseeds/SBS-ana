@@ -896,11 +896,11 @@ namespace util {
 
     // Iterate over the bins in the range
     for (Int_t i = binLow; i <= binHigh; ++i) {
-        Double_t content = hist->GetBinContent(i);
-        if (content > maxContent) {
-            maxContent = content;
-            maxBin = i;
-        }
+      Double_t content = hist->GetBinContent(i);
+      if (content > maxContent) {
+	maxContent = content;
+	maxBin = i;
+      }
     }
 
     Double_t xMax = hist->GetXaxis()->GetBinCenter(maxBin);
@@ -922,8 +922,8 @@ namespace util {
     delete gausFit;
 
     // Fit the histogram within the fine range
-    Double_t fit2Min = mean - 2*sigma;
-    Double_t fit2Max = mean + 2*sigma;
+    Double_t fit2Min = mean - 1*sigma;
+    Double_t fit2Max = mean + 1*sigma;
     TF1 *gausFit_fine = new TF1("gausFit_fine", "gaus", fit2Min, fit2Max);
     gausFit_fine->SetParameters(amplitude,mean,sigma);
     hist->Fit(gausFit_fine, "RQ"); // "R" for fit range, "Q" for quiet mode (no print)
@@ -932,6 +932,79 @@ namespace util {
     params[0] = gausFit_fine->GetParameter(0); // Amplitude
     params[1] = gausFit_fine->GetParameter(1); // Mean
     params[2] = gausFit_fine->GetParameter(2); // Sigma
+
+    return params;
+  }
+
+  //skewed gaussian fit
+  Double_t d_sgfit(Double_t *x, Double_t *par){
+    Double_t amp = par[0];
+    Double_t offset = par[1];
+    Double_t sigma = par[2];
+    Double_t alpha = par[3];
+    //return amp*exp(-0.5*pow((x[0]-offset)/sigma,2.))*0.5*(1+erf(alpha*((x[0]-offset)/sigma)));
+    return amp*exp( -pow( x[0]-offset,2. )/( 2.*pow(sigma,2.) ) )*( 1+erf( (x[0]-offset)*alpha/sigma*sqrt(2.) ) );
+  }
+
+//Fits a gaussian to a distribution twice, first course, then fine
+  std::vector<Double_t> fitSkewedGaussianAndGetFineParams(TH1D* hist, Double_t sig, Double_t low = -1e38, Double_t high = 1e38) {
+    
+    std::vector<Double_t> params(4); // Vector to store amplitude, mean, sigma, and alpha
+
+    if (!hist) {
+      std::cerr << "Histogram is null!" << std::endl;
+      return params;
+    }
+
+    // Find the bin numbers corresponding to the specified range. If default values are passed, real edge bins returned by FindBin().
+    Int_t binLow = hist->FindBin(low);
+    Int_t binHigh = hist->FindBin(high);
+
+    // Initial values for maximum content and bin
+    Double_t maxContent = 0;
+    Int_t maxBin = -1;
+
+    // Iterate over the bins in the range
+    for (Int_t i = binLow; i <= binHigh; ++i) {
+      Double_t content = hist->GetBinContent(i);
+      if (content > maxContent) {
+	maxContent = content;
+	maxBin = i;
+      }
+    }
+
+    Double_t xMax = hist->GetXaxis()->GetBinCenter(maxBin);
+
+    // Define the fit range
+    Double_t fitMin = xMax - sig;
+    Double_t fitMax = xMax + sig;
+
+    // Fit the histogram within the specified range
+    TF1 *gausFit = new TF1("gausFit", "gaus", fitMin, fitMax);
+    hist->Fit(gausFit, "RQ"); // "R" for fit range, "Q" for quiet mode (no print)
+
+    // Get the mean from the fit
+    Double_t amplitude = gausFit->GetParameter(0); // Parameter 0 is the amplitude of the Gaussian 
+    Double_t mean = gausFit->GetParameter(1); // Parameter 1 is the mean of the Gaussian
+    Double_t sigma = gausFit->GetParameter(2); // Parameter 2 is the std dev of the Gaussian
+
+    // Clean up
+    delete gausFit;
+
+    // Fit the histogram within the fine range
+    Double_t fit2Min = mean - 1*sigma;
+    Double_t fit2Max = mean + 1*sigma;
+    TF1 *sg_fine = new TF1("sg_fine", d_sgfit, fit2Min, fit2Max);
+    sg_fine->SetParameter(0,amplitude);
+    sg_fine->SetParameter(1,mean);
+    sg_fine->SetParameter(2,sigma);
+    hist->Fit(sg_fine, "RQ"); // "R" for fit range, "Q" for quiet mode (no print)
+
+    // Store the parameters in the vector
+    params[0] = sg_fine->GetParameter(0); // Amplitude
+    params[1] = sg_fine->GetParameter(1); // Mean
+    params[2] = sg_fine->GetParameter(2); // Sigma
+    params[3] = sg_fine->GetParameter(3); // Alpha
 
     return params;
   }
@@ -975,6 +1048,30 @@ namespace util {
     return std::make_pair(totalEvents, polyParams);
   }
 
+  //function that mirrors first half of a distribution onto the second half
+  TH1D* MirrorHistogram(TH1D* originalHist) {
+    if (!originalHist) {
+      std::cerr << "Null histogram passed!" << std::endl;
+      return nullptr;
+    }
+
+    // Get the number of bins and the maximum bin
+    int nBins = originalHist->GetNbinsX();
+    int maxBin = originalHist->GetMaximumBin();
+
+    // Create a new histogram
+    TH1D* mirroredHist = new TH1D(*originalHist); // Copy constructor
+    mirroredHist->SetNameTitle("mirroredHist", "Mirrored Histogram");
+
+    // Loop over the bins and mirror the first part onto the second part
+    for (int i = maxBin + 1; i <= nBins; ++i) {
+      int mirrorBinIndex = maxBin - (i - maxBin);
+      double mirroredValue = originalHist->GetBinContent(mirrorBinIndex);
+      mirroredHist->SetBinContent(i, mirroredValue);
+    }
+
+    return mirroredHist;
+  }
 
   //script to look through directory and return a vector of files matching a descriptor. If jboyd, alter file name
   void FindMatchingFiles(const std::string& directory1, //path to .csv/.hist

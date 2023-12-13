@@ -127,9 +127,14 @@ namespace util {
 			      const TString &filename);     // full path to name
 
   std::vector<Double_t> fitGaussianAndGetFineParams(TH1D* hist,       // 1D histo passed for fitting
-						    Double_t sig,     // Estimated sigma for course fitough
+						    Double_t sig,     // Estimated sigma for course fit
 						    Double_t low,     // Lower bound for first fit, default first bin
 						    Double_t high);   // Upper bound for first fit, default last bin
+
+  std::vector<Double_t> fitSkewedGaussianAndGetFineParams(TH1D* hist,       // 1D histo passed for fitting
+							  Double_t sig,     // Estimated sigma for course fit
+							  Double_t low,     // Lower bound for first fit, default first bin
+							  Double_t high);   // Upper bound for first fit, default last bin
   
   TH1D *makeResidualHisto(TString identifier,
 			  TH1D *histo_1,
@@ -140,6 +145,8 @@ namespace util {
   std::pair<double, std::vector<double>> performSideBandAnalysis(TH1D* hist,    //TH1D for sideband analysis
 								 double xLow,   //Low bound for band boundary
 								 double xHigh); //High bound for band boundary
+
+  TH1D *MirrorHistogram(TH1D *originalHist); //TH1D distribution to mirror
 
   void FindMatchingFiles(const std::string& directory1,      //path to .csv/.hist
 			 const std::string& directory2,      //path to .root

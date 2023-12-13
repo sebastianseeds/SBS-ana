@@ -14,42 +14,8 @@
 
 const Int_t maxClus = 35; //larger than max per tree
 const Int_t maxBlk = 25;
-const Double_t W2max = 1.4; //very large compared to nucleon mass
+const Double_t W2max = 2.8; //very large compared to nucleon mass
 const Double_t coin_sigma_factor = 5.; //Wide coincidence timing cut
-
-//assign score to potential cluster based on probability density of gaussian fit to atime and maximum energy, exclude position info. Here, gfit is a vector with coin atime fit parameters, val_2 is the cluster coin atime, val_1 is the cluster energy, and max1 is the max cluster energy for the event
-double assignScore( double val_1, double val_2, double max1, const std::vector<double> &gfit ) {
-
-  if( gfit.size()!=3 ){
-    cout << "ERROR: size of dxfit vector not equal to expected number of gaussian parameters (3)." << endl;
-    return 0.;
-  }
-
-  // Build a TF1 with fit provided fit parameters
-  TF1 *gauss = new TF1("gauss", "gaus", 0, 100);
-  gauss->SetParameter(0,gfit[0]);
-  gauss->SetParameter(1,gfit[1]);
-  gauss->SetParameter(2,gfit[2]);
-    
-  double x_value = val_2;
-  double density = gauss->Eval(x_value);
-
-  // Compute the score based on val 2
-  double score = density / gauss->GetParameter(0);  // Normalize by the peak of the Gaussian
-
-  // Include a product component based on val 1 (linear weight)
-  score *= val_1 / max1;
-
-  if(score==0){
-    //cout << "WARNING: score is zero. val_1=" << val_1 << ", val_2= " << val_2 << " density= " << density << " 1 comp= " << val_1 / max1 << endl;
-    score=1e-38; //write very small number to score to exclude it without breaking the sorting later
-  }
-
-  delete gauss; //prevent memory leak
-
-  return score;
-}
-
 
 //MAIN
 void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, bool verbose=false )
@@ -93,7 +59,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 
   // outfile path
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d.root",kine);
+  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d.root",kine,pass);
 
   //set up output files
   TFile *fout = new TFile( parse_path.c_str(), "RECREATE" );
@@ -147,7 +113,11 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   Double_t e_kine_W2_out;
   Double_t e_kine_nu_out;
   Double_t bb_ps_e_out;
+  Double_t bb_ps_rowblk_out;
+  Double_t bb_ps_colblk_out;
   Double_t bb_sh_e_out;
+  Double_t bb_sh_rowblk_out;
+  Double_t bb_sh_colblk_out;
   Double_t bb_sh_atimeblk_out;
   Double_t bb_sh_nclus_out;
   Double_t bb_hodotdc_clus_tmean_out;
@@ -156,6 +126,8 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   Double_t sbs_hcal_e_out;
   Double_t sbs_hcal_x_out;
   Double_t sbs_hcal_y_out;
+  Double_t sbs_hcal_rowblk_out;
+  Double_t sbs_hcal_colblk_out;
   Double_t sbs_hcal_atimeblk_out;
   Double_t sbs_hcal_tdctimeblk_out;
   Double_t sbs_hcal_clus_id_out[maxClus];
@@ -174,6 +146,12 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   Double_t sbs_hcal_clus_blk_tdctime_out[maxBlk];
   Int_t Ndata_sbs_hcal_clus_blk_id_out;
   Int_t Ndata_sbs_hcal_clus_id_out;
+  Double_t sbs_hcal_bclus_x_out;
+  Double_t sbs_hcal_bclus_y_out;
+  Double_t sbs_hcal_bclus_e_out;
+  Double_t sbs_hcal_bclus_row_out;
+  Double_t sbs_hcal_bclus_col_out;
+  Double_t sbs_hcal_bclus_atime_out;
 
   // set new output tree branches
   P->Branch( "dx", &dx_out, "dx/D" );
@@ -196,6 +174,12 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   P->Branch( "charge_avg", &charge_avg_out, "charge_avg/D" );
   P->Branch( "comp_event_frac", &comp_event_frac_out, "comp_event_frac/D" );
   P->Branch( "event_frac", &event_frac_out, "event_frac/D" );
+  P->Branch( "sbs.hcal.bclus.x", &sbs_hcal_bclus_x_out, "sbs.hcal.bclus.x/D" );
+  P->Branch( "sbs.hcal.bclus.y", &sbs_hcal_bclus_y_out, "sbs.hcal.bclus.y/D" );
+  P->Branch( "sbs.hcal.bclus.e", &sbs_hcal_bclus_e_out, "sbs.hcal.bclus.e/D" );
+  P->Branch( "sbs.hcal.bclus.row", &sbs_hcal_bclus_row_out, "sbs.hcal.bclus.row/D" );
+  P->Branch( "sbs.hcal.bclus.col", &sbs_hcal_bclus_col_out, "sbs.hcal.bclus.col/D" );
+  P->Branch( "sbs.hcal.bclus.atime", &sbs_hcal_bclus_atime_out, "sbs.hcal.bclus.atime/D" );
 
   // set relevant old output tree branches
   P->Branch( "bb.tr.vx", &bb_tr_vx_out, "bb.tr.vx/D" );
@@ -210,7 +194,11 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   P->Branch( "e.kine.W2", &e_kine_W2_out, "e.kine.W2/D" );
   P->Branch( "e.kine.nu", &e_kine_nu_out, "e.kine.nu/D" );
   P->Branch( "bb.ps.e", &bb_ps_e_out, "bb.ps.e/D" );
+  P->Branch( "bb.ps.rowblk", &bb_ps_rowblk_out, "bb.ps.rowblk/D" );
+  P->Branch( "bb.ps.colblk", &bb_ps_colblk_out, "bb.ps.colblk/D" );
   P->Branch( "bb.sh.e", &bb_sh_e_out, "bb.sh.e/D" );
+  P->Branch( "bb.sh.rowblk", &bb_sh_rowblk_out, "bb.sh.rowblk/D" );
+  P->Branch( "bb.sh.colblk", &bb_sh_colblk_out, "bb.sh.colblk/D" );
   P->Branch( "bb.sh.atimeblk", &bb_sh_atimeblk_out, "bb.sh.atimeblk/D" );
   P->Branch( "bb.sh.nclus", &bb_sh_nclus_out, "bb.sh.nclus/D" );
   P->Branch( "bb.hodotdc.clus.tmean", &bb_hodotdc_clus_tmean_out, "bb.hodotdc.clus.tmean/D" );
@@ -219,6 +207,8 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   P->Branch( "sbs.hcal.e", &sbs_hcal_e_out, "sbs.hcal.e/D" );
   P->Branch( "sbs.hcal.x", &sbs_hcal_x_out, "sbs.hcal.x/D" );
   P->Branch( "sbs.hcal.y", &sbs_hcal_y_out, "sbs.hcal.y/D" );
+  P->Branch( "sbs.hcal.rowblk", &sbs_hcal_rowblk_out, "sbs.hcal.rowblk/D" );
+  P->Branch( "sbs.hcal.colblk", &sbs_hcal_colblk_out, "sbs.hcal.colblk/D" );
   P->Branch( "sbs.hcal.atimeblk", &sbs_hcal_atimeblk_out, "sbs.hcal.atimeblk/D" );
   P->Branch( "sbs.hcal.clus.id", &sbs_hcal_clus_id_out, "sbs.hcal.clus.id/D" );
   P->Branch( "sbs.hcal.clus.e", &sbs_hcal_clus_e_out, "sbs.hcal.clus.e/D" );
@@ -397,18 +387,18 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
 
       // HCal cluster branches
-      Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus];
+      Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus], hcalcrow[econst::maxclus], hcalccol[econst::maxclus];
       Int_t Nhcalcid;
-      std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","id"};
-      std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&Nhcalcid};
-      rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink,6);
+      std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","row","col","id"};
+      std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&hcalcrow,&hcalccol,&Nhcalcid};
+      rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink, 8);
 
       // HCal cluster blk branches
       Double_t hcalcbid[econst::maxclus], hcalcbe[econst::maxclus], hcalcbx[econst::maxclus], hcalcby[econst::maxclus], hcalcbtdctime[econst::maxclus], hcalcbatime[econst::maxclus];
       Int_t Nhcalcbid;
       std::vector<std::string> hcalcbvar = {"id","e","x","y","tdctime","atime","id"};
       std::vector<void*> hcalcbvarlink = {&hcalcbid,&hcalcbe,&hcalcbx,&hcalcby,&hcalcbtdctime,&hcalcbatime,&Nhcalcbid};
-      rvars::setbranch(C, "sbs.hcal.clus_blk", hcalcbvar, hcalcbvarlink,6);
+      rvars::setbranch(C, "sbs.hcal.clus_blk", hcalcbvar, hcalcbvarlink, 6);
     
       // bbcal clus var
       Double_t eSH, xSH, ySH, rblkSH, cblkSH, idblkSH, atimeSH, nclusSH, ePS, rblkPS, cblkPS, idblkPS, atimePS;
@@ -586,7 +576,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	  pNhat = vars::pNhat_track( thNexp, phNexp );
 	  pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	}else if( epm==3 ){
-	  //v3
+	  //v3 (uses BB track angles, default)
 	  nu = pbeam.E() - pcent;
 	  pNexp = vars::pN_expect( nu, nucleon );
 	  thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
@@ -665,7 +655,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	    clone_cluster_intime[c] = 0;
 	
 	  //Get score (no position info). Will be sorted later
-	  double cascore = assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile);
+	  double cascore = util::assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile);
 	  clone_cluster_score.push_back(cascore);
 	
 	}//endloop over cluster elements
@@ -707,7 +697,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	case 3:
 	  cidx_best = cidx_intime;
 	  break;
-	case 4:
+	case 4:  //default, best elastic yield without bias
 	  cidx_best = cidx_score;
 	  break;
 	default:
@@ -720,6 +710,10 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	Double_t hatime_bestcluster = hcalcatime[cidx_best];
 	Double_t hcoin_bestcluster = hcalcatime[cidx_best] - atimeSH;
 	Double_t ce_bestcluster = hcalce[cidx_best];
+	Double_t x_bestcluster = hcalcx[cidx_best];
+	Double_t y_bestcluster = hcalcy[cidx_best];
+	Double_t row_bestcluster = hcalcrow[cidx_best];
+	Double_t col_bestcluster = hcalccol[cidx_best];
 
 	//Determine rough PID
 	bool in_p = util::Nspotcheck(dy_bestcluster,dx_bestcluster,dy0,dx0_p,dysig,dxsig_p,0);
@@ -765,6 +759,11 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	comp_event_frac_out = comp_ev_fraction;
 	event_frac_out = ev_fraction;
 	acc_charge_out = accumulated_charge;
+	sbs_hcal_bclus_x_out = x_bestcluster;
+	sbs_hcal_bclus_y_out = y_bestcluster;
+	sbs_hcal_bclus_e_out = ce_bestcluster;
+	sbs_hcal_bclus_row_out = row_bestcluster;
+	sbs_hcal_bclus_col_out = col_bestcluster;
 
 	//cout <<acc_charge_out<<"/"<<charge<< endl;
 
@@ -781,7 +780,11 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	e_kine_W2_out = ekineW2;
 	e_kine_nu_out = ekinenu;
 	bb_ps_e_out = ePS;
+	bb_ps_rowblk_out = rblkPS;
+	bb_ps_colblk_out = cblkPS;
 	bb_sh_e_out = eSH;
+	bb_sh_rowblk_out = rblkSH;
+	bb_sh_colblk_out = cblkSH;
 	bb_sh_atimeblk_out = atimeSH;
 	bb_sh_nclus_out = nclusSH;
 	bb_hodotdc_clus_tmean_out = hodotmean[0];
@@ -790,6 +793,8 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	sbs_hcal_e_out = hcale;
 	sbs_hcal_x_out = hcalx;
 	sbs_hcal_y_out = hcaly;
+	sbs_hcal_rowblk_out = hcalr;
+	sbs_hcal_colblk_out = hcalc;
 	sbs_hcal_atimeblk_out = hcalatime;
 	sbs_hcal_tdctimeblk_out = hcaltdc;
 	sbs_hcal_nclus_out = nclus;

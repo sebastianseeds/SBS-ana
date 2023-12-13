@@ -31,7 +31,7 @@ const Double_t dx_fithigh = 0.3;
 //// 5) Cluster which passes 5 sigma cut on adc time, then minimizes proton theta pq.
 //// 6) Cluster which passes 5 sigma cut on adc time, then maximizes energy.
 //// 7) Cluster which maximizes score (see algorithm in util.C)
-void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
+void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 { //main  
 
   // Define a clock to check macro processing time
@@ -97,7 +97,7 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
   TH2D *hdxdy_nocut = new TH2D("hdxdy_nocut","HCal dxdy, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH2D *hdxdy_spotcut = new TH2D("hdxdy_spotcut","HCal dxdy, cut on proton spot; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH2D *hdxdy_earm_cut = new TH2D("hdxdy_earm_cut","HCal dxdy, e-arm elastic cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH1D *hW2_earm_cut = new TH1D( "hW2_earm_cut", "W^{2}, global/dy/dx/thetapq cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_earm_cut = new TH1D( "hW2_earm_cut", "W^{2}, global/dy/dx cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   
 
   //set up diagnostic histograms
@@ -105,10 +105,13 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
   TH2D *hxyexp_aacut = new TH2D("hxyexp_aacut","HCal X vs Y Expected from BB, Acceptance Match Cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
 
   //set up detection efficiency histograms
-  TH1D *hW2_allcut = new TH1D( "hW2_allcut", "W^{2}, global/dy/dx/thetapq cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_allcut = new TH1D( "hW2_allcut", "W^{2}, global/dy/dx cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_allcut_dym = new TH1D( "hW2_allcut_dym", "W^{2}, global/dy cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_anticut = new TH1D( "hW2_anticut", "W^{2}, elastic anticut (global e-arm and hcal dy/dx);W^{2} (GeV^{2});", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_anticut_dym = new TH1D( "hW2_anticut_dym", "W^{2}, elastic anticut (global e-arm and hcal dy);W^{2} (GeV^{2});", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hdx_allcut = new TH1D( "hdx_allcut", "dx, W^{2} and dy cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_allcut_dym = new TH1D( "hdx_allcut_dym", "dx, W^{2} and dy cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_nocut = new TH1D( "hdx_nocut", "dx, no cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_anticut = new TH1D( "hdx_anticut", "dx, e-arm elastic anticut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
 
@@ -250,8 +253,8 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
     Double_t dymax = dy0 + 2*dysig;
     Double_t W2min = W2mean - 2*W2sig;
     Double_t W2max = W2mean + 2*W2sig;
-    Double_t atmin = atime0 - 6*atimesig;
-    Double_t atmax = atime0 + 6*atimesig;
+    Double_t atmin = atime0 - 5*atimesig;
+    Double_t atmax = atime0 + 5*atimesig;
 
     //Set minimum energy for expected recoil nucleon to be considered
     Double_t hminE = 0.0;  //0.05 GeV or nothing
@@ -262,10 +265,24 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
     // Double_t leftAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
     // Double_t rightAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
 
-    Double_t leftAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig);
-    Double_t rightAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig);
-    Double_t topAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
-    Double_t bottomAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
+    Double_t leftAcc;
+    Double_t rightAcc;
+    Double_t topAcc;
+    Double_t bottomAcc;
+
+    //SBS-4 SBS-7 (pass0)
+    if( kine==4 || kine==7 ){
+      leftAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig);
+      rightAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig);
+      topAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
+      bottomAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
+    }else{
+      //pass1 and >pass1
+      leftAcc = (econst::hcalposYi+econst::hcalblk_w-dysig);
+      rightAcc = (econst::hcalposYf-econst::hcalblk_w+dysig);
+      topAcc = (econst::hcalposXf-econst::hcalblk_h+dxsig_p-dx0_p);
+      bottomAcc = (econst::hcalposXi+econst::hcalblk_h-dxsig_p-dx0_p);
+    }
 
     std::string rfname = rootfile_dir + Form("/*%d*",corun[irun].runnum);
     //std::cout << "Switching to run " << rfname << ".." << std::endl;
@@ -634,6 +651,8 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
 					  spot_sigma*dxsig_p,
 					  0);
 
+      bool dycheck_p = dy_bestcluster<(dy0+spot_sigma*dysig) && dy_bestcluster>(dy0-spot_sigma*dysig);
+
       //check if best cluster passes wide coin cut
       bool passedcoin = abs( hatime_bestcluster - atime0 ) < atimeSigFac*atimesig;
 
@@ -681,7 +700,7 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
       P->Fill();
 
       ////////////////////////////////////////////////
-      //HCal detection efficiency - dx direct approach
+      //HCal detection efficiency - both approaches
       ////////////////////////////////////////////////
       if( !failedaccmatch ){ //cut on acceptance matching for all analysis
 	
@@ -689,43 +708,42 @@ void hde_dataloop( Int_t kine=4, Int_t magset=30, Int_t spot_sigma = 2)
 	hW2_nocut->Fill( W2 );
 	hdx_nocut->Fill( dx_bestcluster );
 	    
-	//Make tightest elastic cut possible for elastic SHAPE only (W2 and dx)
+	//Make tightest elastic cut possible for elastic SHAPE only (W2)
 	if( spotcheck_p &&
 	    passedcoin &&
 	    !failedglobal ){
 
-	  //if( thpq_bestcluster<thetapqcut ){
 	  hW2_allcut->Fill( W2 ); //Don't cut on W2 for W2 distribution
-	  //if( !failedW2 && ce_bestcluster>0.01 && ce_bestcluster<0.14 )
-	  //if( !failedW2 && ce_bestcluster>0.035 && ce_bestcluster<0.105)
 	  if( !failedW2 )	    
 	    hdx_allcut->Fill(dx_bestcluster); //Cut on dx in spotcheck may be too tight
-	  //}
-	  
+	}
+
+	//Make dy elastic cut for shape comparison
+	if( dycheck_p &&
+	    passedcoin &&
+	    !failedglobal ){
+
+	  hW2_allcut_dym->Fill( W2 ); //Don't cut on W2 for W2 distribution
+	  if( !failedW2 )	    
+	    hdx_allcut_dym->Fill(dx_bestcluster); //Cut on dx in spotcheck may be too tight
 	}
 
 	//Make cut on e-arm only for dx distribution
 	if( !failedglobal &&
 	    !failedW2 )
 	  hdxdy_earm_cut->Fill(dy_bestcluster,dx_bestcluster);
-	  
-	//Make hcal only elastic anticut
-	// if( thpq_bestcluster>thetapqcut &&
-	//     !spotcheck_p &&
-	//     !passedcoin )
-	//   hW2_anticut->Fill( W2 );
-
-	//make an anticut on W2 using the same set of cuts to select elastics
-	// if( !spotcheck_p ||
-	//     !passedcoin ||
-	//     failedglobal )
-	//   hW2_anticut->Fill( W2 );
 
 	//make an anticut for W2 on dx. These are events that the earm says are elastics, but hcal fails to detect.
 	if( !spotcheck_p &&
 	    passedcoin &&
 	    !failedglobal )
 	  hW2_anticut->Fill( W2 );
+
+	//make anticut for W2 using dy cut for comparison
+	if( !dycheck_p &&
+	    passedcoin &&
+	    !failedglobal )
+	  hW2_anticut_dym->Fill( W2 );
 	  
 	//Make e-arm only elastic anticut
 	if( failedglobal &&

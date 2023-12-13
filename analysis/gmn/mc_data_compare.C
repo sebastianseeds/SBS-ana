@@ -129,22 +129,20 @@ void mc_data_compare( Int_t kine=8, Int_t magset=70 )
 
   tfitdx->SetLineColor(kGreen);
   hdx_data->SetTitle("dx");
-  hdx_data->Fit("tfitdx","RBM");
   hdx_data->Draw();
 
-  double *tpar = tfitdx->GetParameters();
 
-  // hdx_p->Scale(tpar[0]);
-  // hdx_p->SetLineColor(kRed);
-  // hdx_p->SetFillColor(kRed);
-  // hdx_p->SetFillStyle(3005);
-  // hdx_p->Draw("same");
+  //hdx_p->Scale(tpar[0]);
+  hdx_p->SetLineColor(kRed);
+  //hdx_p->SetFillColor(kRed);
+  hdx_p->SetFillStyle(3005);
+  hdx_p->Draw("same");
 
   // hdx_n->Scale(tpar[1]);
-  // hdx_n->SetLineColor(kBlue);
-  // hdx_n->SetFillColor(kBlue);
-  // hdx_n->SetFillStyle(3003);
-  // hdx_n->Draw("same");
+  hdx_n->SetLineColor(kBlue);
+  //hdx_n->SetFillColor(kBlue);
+  hdx_n->SetFillStyle(3003);
+  hdx_n->Draw("same");
 
   // hdx_bg->Scale(tpar[2]);
   // hdx_bg->SetLineColor(kBlack);
@@ -155,6 +153,11 @@ void mc_data_compare( Int_t kine=8, Int_t magset=70 )
   c1->Update();
 
   c1->Write();
+
+  hdx_data->Fit("tfitdx","RBM0");
+
+  double *tpar = tfitdx->GetParameters();
+
 
   //Make canvas for interpolate fit with fourth order poly background
   TCanvas *c2 = new TCanvas("c2","Interpolate/4th Order Poly BG",1200,500);
@@ -170,15 +173,15 @@ void mc_data_compare( Int_t kine=8, Int_t magset=70 )
   hdx_p_clone2->Scale(tpar_clone[0]);
   hdx_p_clone2->SetLineColor(kOrange);
   hdx_p_clone2->SetLineWidth(2);
-  // hdx_p_clone->SetFillColor(kRed);
-  // hdx_p_clone->SetFillStyle(3005);
+  hdx_p_clone->SetFillColorAlpha(kOrange,0.3);
+  hdx_p_clone->SetFillStyle(3005);
   hdx_p_clone2->Draw("same");
 
   hdx_n_clone2->Scale(tpar_clone[1]);
   hdx_n_clone2->SetLineColor(kBlue);
   hdx_n_clone2->SetLineWidth(2);
-  // hdx_n_clone->SetFillColor(kBlue);
-  // hdx_n_clone->SetFillStyle(3003);
+  hdx_n_clone->SetFillColorAlpha(kBlue,0.3);
+  hdx_n_clone->SetFillStyle(3003);
   hdx_n_clone2->Draw("same");
 
   TF1 *bg = new TF1("bg",fits::g_p4fit,hcalfit_l,hcalfit_h,5);
@@ -208,18 +211,22 @@ void mc_data_compare( Int_t kine=8, Int_t magset=70 )
   //Add a legend to the canvas
   auto leg = new TLegend(0.1,0.6,0.5,0.9);
   leg->AddEntry( hdx_data_clone, "Tight Elastic Cut, Data", "l");
-  leg->AddEntry( hdx_p_clone2, "simc MC, proton", "l");
-  leg->AddEntry( hdx_n_clone2, "simc MC, neutron", "l");
-  leg->AddEntry( bg, "fourth order poly fit to BG", "l");
+  leg->AddEntry( hdx_p_clone2, "MC, proton", "l");
+  leg->AddEntry( hdx_n_clone2, "MC, neutron", "l");
+  leg->AddEntry( bg, "poly fit to BG", "l");
   leg->AddEntry( tfitdx_bgfit, "Total fit", "l");
   leg->AddEntry( (TObject*)0, "", "");
-  leg->AddEntry( (TObject*)0, Form("proton scale: %0.3f",pscale), "");
-  leg->AddEntry( (TObject*)0, Form("neutron scale: %0.3f",nscale), "");
-  leg->AddEntry( (TObject*)0, Form("n/p scale ratio: %0.3f",np_par_ratio), "");
+  //leg->AddEntry( (TObject*)0, Form("proton scale: %0.3f",pscale), "");
+  //leg->AddEntry( (TObject*)0, Form("neutron scale: %0.3f",nscale), "");
+  //leg->AddEntry( (TObject*)0, Form("n/p scale ratio: %0.3f",np_par_ratio), "");
+  leg->AddEntry( (TObject*)0, Form("proton/neutron ratio: %0.3f",0.), "");
   leg->Draw();
 
 
   c2->Update();
+
+  c2->SaveAs("/work/halla/sbs/seeds/HCal_replay/hcal/hcalCalibration/SBS/quality_plots/gmn_data_mc.pdf");
+
 
   c2->Write();
 
@@ -232,6 +239,9 @@ void mc_data_compare( Int_t kine=8, Int_t magset=70 )
   sumHistogram->Add(hdx_p_clone2, hdx_n_clone2);
 
   TH1D *hRes = util::makeResidualHisto("dx",hdx_data_clone,sumHistogram,true,false);
+
+  //hRes
+  hRes->Scale(0.1);
 
   hRes->SetLineColor(kRed);
   hRes->SetLineWidth(2);

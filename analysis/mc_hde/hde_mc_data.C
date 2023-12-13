@@ -32,7 +32,10 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
 				  double fitMax, 
 				  const vector<double>& N1_at_bin, 
 				  const vector<double>& N2_at_bin, 
-				  double tfac, 
+				  double tfac,
+				  vector<double> pN,
+				  vector<double> hde,
+				  vector<double> hdeerr,
 				  TFile *f1) {
   
   gStyle->SetOptStat(0);
@@ -93,20 +96,28 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   errorBand2->SetFillStyle(1001);
   errorBand2->SetFillColorAlpha(kBlue, 0.3);
 
-  //For now, just drop in the hde from data. Add into json later.
+  //Add data points
   //SBS4
   auto graph3 = new TGraphErrors();
-  graph3->SetPoint(0,2.38,96.9);
-  graph3->SetPointError(0,0,2.2);
-  graph3->SetMarkerColor(kOrange);
-  graph3->SetMarkerStyle(31);
-  graph3->SetMarkerSize(2);
+  graph3->SetPoint(0,pN[0],hde[0]);
+  graph3->SetPointError(0,0,hdeerr[0]);
+  graph3->SetMarkerColor(kBlack);
+  graph3->SetMarkerStyle(20);
+  graph3->SetMarkerSize(1);
+  graph3->SetLineWidth(2);
   //SBS8
   auto graph4 = new TGraphErrors();
-  graph4->SetPoint(0,3.2,98.8);
-  graph4->SetPointError(0,0,2.0);
-  graph4->SetMarkerColor(kYellow);
+  graph4->SetPoint(0,pN[1],hde[1]);
+  graph4->SetPointError(0,0,hdeerr[1]);
+  graph4->SetMarkerColor(kRed-5);
   graph4->SetMarkerStyle(42);
+  graph4->SetMarkerSize(2);
+  //SBS9
+  auto graph5 = new TGraphErrors();
+  graph4->SetPoint(0,pN[2],hde[2]);
+  graph4->SetPointError(0,0,hdeerr[2]);
+  graph4->SetMarkerColor(kRed-5);
+  graph4->SetMarkerStyle(58);
   graph4->SetMarkerSize(2);
 
   TMultiGraph* mg = new TMultiGraph();
@@ -114,7 +125,8 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   mg->Add(graph1, "AP");
   mg->Add(graph2, "AP");
   mg->Add(graph3, "AP");
-  mg->Add(graph4, "AP");
+  //mg->Add(graph4, "AP");
+  //mg->Add(graph5, "AP");
 
   mg->Add(errorBand1, "E3");
   mg->Add(errorBand2, "E3");
@@ -125,8 +137,8 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   //l1->SetTextSize( 0.03 );
   l1->AddEntry( graph1, Form("Proton, min ev/cell: %d",N1_min), "p");
   l1->AddEntry( graph2, Form("Neutron, min ev/cell: %d",N2_min), "p");
-  l1->AddEntry( graph3, "Data: LH2, SBS4, Anticut Method", "p");
-  l1->AddEntry( graph4, "Data: LH2, SBS8, Anticut Method", "p");
+  l1->AddEntry( graph3, "Data: LH2, SBS4, Signal Method", "p");
+  //l1->AddEntry( graph4, "Data: LH2, SBS8, Anticut Method", "p");
   l1->AddEntry( (TObject*)0, "", "");
   l1->AddEntry( (TObject*)0, "Binomial Error on MC Fits", "");
   //l1->AddEntry( errorBand1, "Total fit", "l");
@@ -153,7 +165,9 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   gPad->Modified();
   //mg->GetXaxis()->SetRange(0.,10.);
 
-  canvas->SaveAs("/work/halla/sbs/seeds/HCal_replay/hcal/hcalCalibration/SBS/quality_plots/hcal_de.png");
+  canvas->SaveAs("/work/halla/sbs/seeds/HCal_replay/hcal/hcalCalibration/SBS/quality_plots/hcal_de_new.png");
+  canvas->SaveAs("/work/halla/sbs/seeds/HCal_replay/hcal/hcalCalibration/SBS/quality_plots/hcal_de_new.pdf");
+  canvas->SaveAs("/work/halla/sbs/seeds/HCal_replay/hcal/hcalCalibration/SBS/quality_plots/hcal_de_new.jpeg");
 
   canvas->Write();
 }
@@ -209,6 +223,14 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
   double fit_fac = jmgr->GetValueFromKey<double>( "fit_fac" );
   double tfac = jmgr->GetValueFromKey<double>( "tfac" );
   int jmgr_nbin = jmgr->GetValueFromKey<int>( "nbin" );
+  // double pN_cent = jmgr->GetValueFromSubKey<Double_t>( "pN_cent", Form("sbs%d",kine) );
+  // double HDE_sb = jmgr->GetValueFromSubKey<Double_t>( "HDE_sb", Form("sbs%d",kine) );
+  // double HDE_sb_err = jmgr->GetValueFromSubKey<Double_t>( "HDE_sb_err", Form("sbs%d",kine) );
+  // double HDE_anticut = jmgr->GetValueFromSubKey<Double_t>( "HDE_anticut", Form("sbs%d",kine) );
+  // double HDE_anticut_err = jmgr->GetValueFromSubKey<Double_t>( "HDE_anticut_err", Form("sbs%d",kine) );
+  vector<double> pN; jmgr->GetVectorFromKey<double>( "pN", pN );
+  vector<double> hde; jmgr->GetVectorFromKey<double>( "hde", hde );
+  vector<double> hdeerr; jmgr->GetVectorFromKey<double>( "hdeerr", hdeerr );
 
   if( jmgr_nbin!=nbin ){
     cout << "ERROR: const int nbin not equal to common configuration json file value." << endl;
@@ -472,9 +494,9 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
 
   auto grr = new TGraph(nbin,binp,hde_npratio);
   grr->SetTitle("HCal Efficiency Ratio (N/P)(E_{T}=1/4 E_{peak})");
-  grr->SetMarkerColor(kMagenta);
+  grr->SetMarkerColor(kBlack);
   grr->SetMarkerStyle(20);
-  grr->SetMarkerSize(0.5);
+  grr->SetMarkerSize(2);
   grr->SetLineColor(kMagenta);
   grr->SetLineWidth(0);
   grr->GetXaxis()->SetTitle("Nucleon Momentum (GeV/c)");
@@ -493,7 +515,8 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
 
   //FitTwoGraphsWithPolynomial(grp,grn,c3);
   //FitAndDrawGraph(grp,c3,xmin1,xmin2);
-  FitAndDrawGraphWithErrorBand(grp,grn,c3,xmin1,xmin2,Nval_p,Nval_n,tfac,fout);
+  //FitAndDrawGraphWithErrorBand(grp,grn,c3,xmin1,xmin2,Nval_p,Nval_n,tfac,fout);
+  FitAndDrawGraphWithErrorBand(grp,grn,c3,xmin1,xmin2,Nval_p,Nval_n,tfac,pN,hde,hdeerr,fout);
 
   c3->Modified();
   c3->Write();

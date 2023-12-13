@@ -19,6 +19,57 @@
 	"neutron"        : 0.116
     },
 
+    "pN"               : [ 2.38, 3.2, 3.2 ],
+
+    "hde"              : [ 95.748, 98.80, 100 ],
+
+    "hdeerr"           : [ 0.427, 0.592, 0 ],
+
+    "pN_cent"     : {
+	"sbs4"        : 2.38,
+	"sbs7"        : 6.13,
+	"sbs11"       : 8.11,
+	"sbs14"       : 4.83,
+	"sbs8"        : 3.2,
+	"sbs9"        : 3.2
+    },
+
+    "HDE_sb"     : {
+	"sbs4"        : 95.748,
+	"sbs7"        : 1.4,
+	"sbs11"       : 1.4,
+	"sbs14"       : 1.4,
+	"sbs8"        : 1.4,
+	"sbs9"        : 1.4
+    },
+
+    "HDE_sb_err"     : {
+	"sbs4"        : 0.427,
+	"sbs7"        : 400,
+	"sbs11"       : 400,
+	"sbs14"       : 400,
+	"sbs8"        : 400,
+	"sbs9"        : 400
+    },
+
+    "HDE_anticut"     : {
+	"sbs4"        : 92.892,
+	"sbs7"        : 1.4,
+	"sbs11"       : 1.4,
+	"sbs14"       : 1.4,
+	"sbs8"        : 1.4,
+	"sbs9"        : 1.4
+    },
+
+    "HDE_anticut_err"     : {
+	"sbs4"        : 1.484,
+	"sbs7"        : 400,
+	"sbs11"       : 400,
+	"sbs14"       : 400,
+	"sbs8"        : 400,
+	"sbs9"        : 400
+    },
+
     "outfile_0"          : "/lustre19/expphy/volatile/halla/sbs/seeds/hde_analysis/hdemc_i0.root",
 
     "outfile_1"          : "/lustre19/expphy/volatile/halla/sbs/seeds/hde_analysis/hdemc_i1.root",

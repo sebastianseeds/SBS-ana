@@ -5,19 +5,19 @@ namespace etune {
   //Wide cuts using all subsystems
   std::string globcut(Int_t config) {
     if(config==1)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==4)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==7)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==11)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==14)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>1.6&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>2&&bb.tr.p[0]>1.6&&sbs.hcal.e>0.01&&bb.ps.e>0.2&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==8)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0"; 
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0"; 
     else if(config==9)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else if(config==4363)
       return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&sbs.hcal.e>0.01&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
     else{
@@ -29,21 +29,21 @@ namespace etune {
   //Wide cuts using Bigbite subsystems
   std::string globcut_earm(Int_t config) {
     if(config==1)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&bb.ps.e+bb.sh.e>1.7";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&bb.sh.nclus>0";
     else if(config==4)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&bb.ps.e+bb.sh.e>1.7";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&bb.sh.nclus>0";
     else if(config==7)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&bb.ps.e>0.2";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>2&&bb.ps.e>0.2&&bb.sh.nclus>0";
     else if(config==11)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>2.0&&bb.ps.e>0.2";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>2&&bb.ps.e>0.2&&bb.sh.nclus>0";
     else if(config==14)
-      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>2&&bb.tr.p[0]>1.6&&bb.ps.e>0.2";
+      return "bb.tr.n>0&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>2&&bb.tr.p[0]>1.6&&bb.ps.e>0.2&&bb.sh.nclus>0";
     else if(config==8)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3"; 
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3&&bb.sh.nclus>0"; 
     else if(config==9)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.tr.tg_th[0])<0.15&&abs(bb.tr.tg_ph[0])<0.3&&bb.sh.nclus>0";
     else if(config==4363)
-      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.08&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&bb.ps.e+bb.sh.e>1.7";
+      return "bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz[0])<0.075&&bb.gem.track.nhits>3&&abs(bb.etot_over_p-0.92)<0.2&&bb.ps.e+bb.sh.e>1.7&&bb.sh.nclus>0";
     else{
       std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
       return "";
@@ -275,14 +275,14 @@ namespace etune {
     }else if(config==8){
       if(mag==0) return 0.0;
       else if(mag==50) return -0.5881;
-      else if(mag==70) return -0.8342;
+      else if(mag==70) return -0.819396;
       else if(mag==100) return -1.1973;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
       return -1;
       }
     }else if(config==9){
-      if(mag==70) return -0.8862;
+      if(mag==70) return -0.841747;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
       return -1;
@@ -330,14 +330,14 @@ namespace etune {
     }else if(config==8){
       if(mag==0) return -0.0190;
       else if(mag==50) return -0.0171;
-      else if(mag==70) return -0.0172;
+      else if(mag==70) return -0.0534955;
       else if(mag==100) return -0.00988;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
       return -1;
       }
     }else if(config==9){
-      if(mag==70) return -0.0281;
+      if(mag==70) return -0.0334186;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
       return -1;
@@ -440,14 +440,14 @@ namespace etune {
     }else if(config==8){
       if(mag==0) return 0.196;
       else if(mag==50) return 0.220;
-      else if(mag==70) return 0.218;
+      else if(mag==70) return 0.123952;
       else if(mag==100) return 0.246;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
       return -1;
       }
     }else if(config==9){
-      if(mag==70) return 0.201;
+      if(mag==70) return 0.0826679;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
       return -1;
@@ -495,14 +495,14 @@ namespace etune {
     }else if(config==8){
       if(mag==0) return 0.402;
       else if(mag==50) return 0.375;
-      else if(mag==70) return 0.338;
+      else if(mag==70) return 0.0736878;
       else if(mag==100) return 0.314;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
       return -1;
       }
     }else if(config==9){
-      if(mag==70) return 0.268;
+      if(mag==70) return 0.0584762;
       else{
       std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
       return -1;
