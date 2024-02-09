@@ -41,6 +41,7 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   gStyle->SetOptStat(0);
   gStyle->SetOptFit(0);
   gStyle->SetCanvasPreferGL(kTRUE);
+  gStyle->SetEndErrorSize(0);
 
   // Create and set up the fit function
   TF1* fitFunc = new TF1("fitFunc", "pol4", fitMin, fitMax);
@@ -93,40 +94,59 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   // Set fill colors for the error bands
   errorBand1->SetFillStyle(1001);
   errorBand1->SetFillColorAlpha(kRed, 0.3);
+  errorBand1->SetLineWidth(1);
   errorBand2->SetFillStyle(1001);
   errorBand2->SetFillColorAlpha(kBlue, 0.3);
+  errorBand2->SetLineWidth(1);
 
   //Add data points
-  //SBS4
+  //SBS4 dx sideband
   auto graph3 = new TGraphErrors();
   graph3->SetPoint(0,pN[0],hde[0]);
   graph3->SetPointError(0,0,hdeerr[0]);
-  graph3->SetMarkerColor(kBlack);
+  graph3->SetMarkerColor(kGreen-3);
   graph3->SetMarkerStyle(20);
   graph3->SetMarkerSize(1);
+  graph3->SetLineColor(kGreen-3);
   graph3->SetLineWidth(2);
-  //SBS8
+  //SBS4 W2 anticut
   auto graph4 = new TGraphErrors();
   graph4->SetPoint(0,pN[1],hde[1]);
   graph4->SetPointError(0,0,hdeerr[1]);
-  graph4->SetMarkerColor(kRed-5);
-  graph4->SetMarkerStyle(42);
-  graph4->SetMarkerSize(2);
-  //SBS9
+  graph4->SetMarkerColor(kGreen-3);
+  graph4->SetMarkerStyle(21);
+  graph4->SetMarkerSize(1);
+  graph4->SetLineColor(kGreen-3);
+  graph4->SetLineWidth(2);
+
+  //SBS8 dx sideband
   auto graph5 = new TGraphErrors();
-  graph4->SetPoint(0,pN[2],hde[2]);
-  graph4->SetPointError(0,0,hdeerr[2]);
-  graph4->SetMarkerColor(kRed-5);
-  graph4->SetMarkerStyle(58);
-  graph4->SetMarkerSize(2);
+  graph5->SetPoint(0,pN[2],hde[2]);
+  graph5->SetPointError(0,0,hdeerr[2]);
+  graph5->SetMarkerColor(kGreen-1);
+  graph5->SetMarkerStyle(20);
+  graph5->SetMarkerSize(1);
+  graph5->SetLineColor(kGreen-1);
+  graph5->SetLineWidth(2);
+
+  //SBS8 W2 anticut
+  auto graph6 = new TGraphErrors();
+  graph6->SetPoint(0,pN[3],hde[3]);
+  graph6->SetPointError(0,0,hdeerr[3]);
+  graph6->SetMarkerColor(kGreen-1);
+  graph6->SetMarkerStyle(21);
+  graph6->SetMarkerSize(1);
+  graph6->SetLineColor(kGreen-1);
+  graph6->SetLineWidth(2);
 
   TMultiGraph* mg = new TMultiGraph();
   mg->SetTitle(Form("HCAL Efficiency (E_{T}=1/%0.0f E_{Peak}) (4x4 cluster)",tfac));
   mg->Add(graph1, "AP");
   mg->Add(graph2, "AP");
   mg->Add(graph3, "AP");
-  //mg->Add(graph4, "AP");
-  //mg->Add(graph5, "AP");
+  mg->Add(graph4, "AP");
+  mg->Add(graph5, "AP");
+  mg->Add(graph6, "AP");
 
   mg->Add(errorBand1, "E3");
   mg->Add(errorBand2, "E3");
@@ -137,7 +157,10 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   //l1->SetTextSize( 0.03 );
   l1->AddEntry( graph1, Form("Proton, min ev/cell: %d",N1_min), "p");
   l1->AddEntry( graph2, Form("Neutron, min ev/cell: %d",N2_min), "p");
-  l1->AddEntry( graph3, "Data: LH2, SBS4, Signal Method", "p");
+  l1->AddEntry( graph3, "Data: LH2, SBS4, dx sideband", "p");
+  l1->AddEntry( graph4, "Data: LH2, SBS4, W^{2} anticut", "p");
+  l1->AddEntry( graph5, "Data: LH2, SBS8, dx sideband", "p");
+  l1->AddEntry( graph6, "Data: LH2, SBS8, W^{2} anticut", "p");
   //l1->AddEntry( graph4, "Data: LH2, SBS8, Anticut Method", "p");
   l1->AddEntry( (TObject*)0, "", "");
   l1->AddEntry( (TObject*)0, "Binomial Error on MC Fits", "");
@@ -203,6 +226,8 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
   
   std::string date = util::getDate();
 
+  gStyle->SetEndErrorSize(0);
+
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/smchde.json");
   
@@ -231,6 +256,7 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
   vector<double> pN; jmgr->GetVectorFromKey<double>( "pN", pN );
   vector<double> hde; jmgr->GetVectorFromKey<double>( "hde", hde );
   vector<double> hdeerr; jmgr->GetVectorFromKey<double>( "hdeerr", hdeerr );
+  vector<double> hdeerr_b; jmgr->GetVectorFromKey<double>( "hdeerr_b", hdeerr_b );
 
   if( jmgr_nbin!=nbin ){
     cout << "ERROR: const int nbin not equal to common configuration json file value." << endl;
@@ -516,7 +542,7 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
   //FitTwoGraphsWithPolynomial(grp,grn,c3);
   //FitAndDrawGraph(grp,c3,xmin1,xmin2);
   //FitAndDrawGraphWithErrorBand(grp,grn,c3,xmin1,xmin2,Nval_p,Nval_n,tfac,fout);
-  FitAndDrawGraphWithErrorBand(grp,grn,c3,xmin1,xmin2,Nval_p,Nval_n,tfac,pN,hde,hdeerr,fout);
+  FitAndDrawGraphWithErrorBand(grp,grn,c3,xmin1,xmin2,Nval_p,Nval_n,tfac,pN,hde,hdeerr_b,fout);
 
   c3->Modified();
   c3->Write();

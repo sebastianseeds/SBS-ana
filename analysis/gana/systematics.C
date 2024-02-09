@@ -1,8 +1,4 @@
-//SSeeds 9.1.23 Script to extract the p/n yield ratio via data/MC comparison. Intent is to loop over all data from a given set/field setting, apply elastic cuts, and build a dx histogram. From this point, read in MC (with RC) distributions for quasi-elastic protons and neutrons (independently), fit these distributions with several distributions to get a best fit, then compose a sum of these fits allowing for a scaling parameter which maps to the total MC yields. Next, do the same with g4sbs inelastic generator and add this to the total fit function (sum) and apply the now three floating parameter fit to the data and check residuals and chi-square. Varying the fit function may yield better results, but the ratio will be extracted. See gmn_calc.C for application of this ratio to gmn extraction.
-//sseeds update 9.23.23 Parsed cluster sorting and e' momentum strategies. Renamed and refocused script to produce output histograms for later analysis.
-//sseeds update 9.24.23 Debug and prevent memory leaks
-//sseeds update 11.14.23 remove assignScore from here and add to util function list
-//sseeds update 12.19.23 added option to parse globalcuts and output analysis tree to examine effects of cuts on dx
+//SSeeds 1.22.23
 
 #include <vector>
 #include <iostream>
@@ -17,25 +13,46 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-//Manual override info
-bool debug = false;
+const Int_t maxClus = 35; //larger than max per tree
+const Int_t maxBlk = 25;
+
+//Side-band pol4 fit requires beginning and end of rejection region declared here updated later
+double SBpol4rej_b = -1.7; //Central-band fit begin
+double SBpol4rej_e = 0.7; //Central-band fit end
+
+//Side-band background fit, pol4 with RejectPoint()
+double BGfit(double *x, double *par){
+  double yint = par[0];
+  double p1 = par[1];
+  double p2 = par[2];
+  double p3 = par[3];
+  double p4 = par[4];
+
+  //TF1::RejectPoint() for sideband analysis
+  if(x[0]>SBpol4rej_b && x[0]<SBpol4rej_e) { 
+    TF1::RejectPoint();
+    return 0;
+  }
+
+  return yint+p1*x[0]+p2*pow(x[0],2)+p3*pow(x[0],3)+p4*pow(x[0],4);
+}
 
 //MAIN
-void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicInfo=true )
+void systematics( Int_t kine=4, Int_t magset=30, Int_t pass=1 )
 {
 
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();
   st->Start( kTRUE );
 
+  // Catch first set together for consistency
+  if(pass==0)
+    pass=1;
+
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/gmn.json");
 
-  std::string rootfile_word = "";
-  if(pass>1)
-    rootfile_word = Form("_pass%d",pass);
-
-  std::string rootfile_dir = jmgr->GetValueFromSubKey_str( Form("rootfile_dir%s",rootfile_word.c_str()), Form("sbs%d",kine) );
+  std::string rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("sbs%d",kine) );
   Double_t W2fitmax = jmgr->GetValueFromSubKey<Double_t>( "W2fitmax", Form("sbs%d",kine) );
   Double_t binfac = jmgr->GetValueFromSubKey<Double_t>( "binfac", Form("sbs%d",kine) );
   Double_t hbinfac = jmgr->GetValueFromSubKey<Double_t>( "hbinfac", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
@@ -43,7 +60,7 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   Int_t epm = jmgr->GetValueFromSubKey<Int_t>( "epm", Form("sbs%d",kine) );
   Double_t minE = jmgr->GetValueFromSubKey<Double_t>( "minE", Form("sbs%d",kine) );
   Int_t cluster_idx = jmgr->GetValueFromSubKey<Int_t>( "cluster_idx", Form("sbs%d",kine) );
-  //Int_t pass = jmgr->GetValueFromSubKey<Int_t>( "pass", Form("sbs%d",kine) );
+  Int_t pass = jmgr->GetValueFromSubKey<Int_t>( "pass", Form("sbs%d",kine) );
   Double_t ebound_l = jmgr->GetValueFromSubKey<Double_t>( "ebound_l", Form("sbs%d",kine) );
   Double_t ebound_h = jmgr->GetValueFromSubKey<Double_t>( "ebound_h", Form("sbs%d",kine) );
   Double_t coin_sigma_factor = jmgr->GetValueFromSubKey<Double_t>( "coin_sigma_factor", Form("sbs%d",kine) );
@@ -51,7 +68,7 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   jmgr->GetVectorFromSubKey<Double_t>("coin_profile",Form("sbs%d",kine),coin_profile);
   Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( "hcal_offset", Form("sbs%d",kine) );
 
-  std::cout << "Loaded HCal vertical offset: " << hcal_v_offset << std::endl;
+  std::cout << "Loaded HCal vertical offset prior to pass2: " << hcal_v_offset << std::endl;
 
   //set up configuration and tune objects to load analysis parameters
   SBSconfig config(kine,magset);
@@ -64,7 +81,7 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
 
   //Set up hcal active area with bounds that match database on pass
   vector<Double_t> hcalaa;
-  if(pass<1)
+  if(pass<2)
     hcalaa = cut::hcalaa_data_alt(1,1);
   else
     hcalaa = cut::hcalaa_data(1,1);
@@ -95,159 +112,28 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   Double_t W2min = W2mean - 3*W2sig;
   Double_t W2max = W2mean + 3*W2sig;
 
-  //set up default parameters for all analysis
-  std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
-  Int_t nruns = -1; //Always analyze all available runs
-  Int_t verb = 0; //Don't print diagnostic info by default
   Double_t hcalfit_l = econst::hcalposXi_mc; //lower fit/bin limit for hcal dx plots (m)
   Double_t hcalfit_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m) 
   Double_t harmrange = econst::hcal_vrange; //Full range of hcal dx plots (m)
 
-  //read the run list to parse run numbers associated to input parameters and set up for loop over runs
-  vector<crun> corun; 
-  util::ReadRunList(runsheet_dir,nruns,kine,target.c_str(),pass,verb,corun); //modifies nruns to be very large when -1
-
-  //set up output files
+  //set up files and paths
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string fout_path;
-  if(systematicInfo)
-    fout_path = outdir_path + Form("/gmn_analysis/gmn_elastic_fid_sys_out_sbs%d_mag%d_clusteridx%d_epm%d.root",kine,magset,cluster_idx,epm);
-  else
-    fout_path = outdir_path + Form("/gmn_analysis/gmn_elastic_fid_out_sbs%d_mag%d_clusteridx%d_epm%d.root",kine,magset,cluster_idx,epm);
+  std::string fout_path = outdir_path + Form("/gmn_analysis/systematics_sbs%d_mag_%d.root",kine,magset);
+  std::string fin_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_update.root",kine,pass);
+
+  if(!util::checkFile){
+    cerr << "ERROR: Input file does not exist." << endl;
+    return;
+  }
 
   TFile *fout = new TFile( fout_path.c_str(), "RECREATE" );
 
   ////////////
   //HISTOGRAMS
 
-  //basic H-arm
-  TH2D *hxy_nocut = new TH2D("hxy_nocut","HCal x vs HCal y, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_aacut = new TH2D("hxy_aacut","HCal x vs HCal y, acceptance matching cut no sigma; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_acccut = new TH2D("hxy_acccut","HCal x vs HCal y, acceptance matching cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  
 
-  //E-arm
-  TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
-  TH1D *hW2_cut = new TH1D( "hW2_cut", "W^{2}, accmatch/global/atime cuts; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
-  TH2D *hxy_exp_n = new TH2D("hxy_exp_n","HCal x vs y expected from e', elastic cuts neutron; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_exp_p = new TH2D("hxy_exp_p","HCal x vs y expected from e', elastic cuts proton; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_exp_n_fid = new TH2D("hxy_exp_n_fid","HCal x vs y expected from e', all cuts neutron; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxy_exp_p_fid = new TH2D("hxy_exp_p_fid","HCal x vs y expected from e', all cuts proton; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
 
-  //Both arms
-  TH2D *hdxdy_nocut = new TH2D("hdxdy_nocut","dxdy, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hdxdy_cut = new TH2D("hdxdy_cut","dxdy, all cuts; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hdxdy_cut_nofid = new TH2D("hdxdy_cut_nofid","dxdy, all cuts sans fiducial; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hdxvE = new TH2D("hdxvE","HCal dx vs HCal E, all cuts; E_{HCAL} (GeV); dx_{HCAL} (m)", 400, 0.0, 4.0, 600, -3.0, 3.0 );
-  TH1D *hdx_nocut = new TH1D( "hdx_nocut", "dx, earm cut only (W2 and global);x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-  TH1D *hdx_cut = new TH1D( "hdx_cut", "dx, all cuts;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-  TH1D *hdx_cut_nofid = new TH1D( "hdx_cut_nofid", "dx, all cuts sans fiducial;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-  TH1D *hdx_cut_failfid = new TH1D( "hdx_cut_failfid", "dx, all cuts fail fiducial;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-  TH1D *hdx_cut_globalonly = new TH1D( "hdx_cut_globalonly", "dx, global cuts only;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-  TH1D *hdx_cut_W2only = new TH1D( "hdx_cut_W2only", "dx, W2 cuts only;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-  TH1D *hdx_cut_earm = new TH1D( "hdx_cut_earm", "dx, earm cuts only;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
-
-  TH1D *hcoin_pclus = new TH1D( "hcoin_pclus", "HCal ADCt - BBCal ADCt, pclus, no cut; ns", 200, 0, 100 );
-  TH1D *hcoin_pclus_cut = new TH1D( "hcoin_pclus_cut", "HCal ADCt - BBCal ADCt, pclus; ns", 200, 0, 100 );
-  TH1D *hcoin = new TH1D( "hcoin", "HCal ADCt - BBCal ADCt, no cut; ns", 200, 0, 100 );
-  TH1D *hcoin_cut = new TH1D( "hcoin_cut", "HCal ADCt - BBCal ADCt; ns", 200, 0, 100 );
-
-  TH2D *hHcalXY = new TH2D( "hHcalXY", "HCal X vs HCal Y; Y (m); X (m)",600,-3,3,600,-3,3);
-  TH2D *hHcalXY_allcuts = new TH2D( "hHcalXY_allcuts", "HCal X vs HCal Y, all cuts, best cluster; Y (m); X (m)",600,-3,3,600,-3,3);
-
-  //general
-  TH1D *hMott_cs = new TH1D( "hMott_cs", "Mott Cross Section, no cut; (GeV/c)^{-2}", 200, 0, 0.0001 );
-
-  // re-allocate memory at each run to load different cuts/parameters
-  TChain *C = nullptr;
-
-  // create output tree
-  TTree *P = new TTree("P","Analysis Tree"); 
-
-  // uncut output tree vars
-  Double_t dx_out;
-  Double_t dy_out;
-  Double_t xexp_out;
-  Double_t yexp_out;
-  Double_t hcalx_out;
-  Double_t hcaly_out;
-  Double_t W2_out;
-  Double_t Q2_out;
-  Double_t mott_out;
-  Double_t hcalE_out;
-  Double_t bbEtot_out;
-  Double_t bbshE_out;
-  Double_t bbpsE_out;
-  Double_t hcalatime_out;
-  Double_t bbshatime_out;
-  Double_t bbpsatime_out;
-  Double_t bbgemNhits_out;
-  Double_t bbtrx_out;
-  Double_t bbtry_out;
-  Double_t bbtrp_out;
-  Double_t coinP1_out;
-  Double_t coinP2_out;
-  Double_t dy0_out;
-  Double_t dx0_p_out;
-  Double_t dx0_n_out;
-  Double_t dysig_out;
-  Double_t dxsig_p_out;
-  Double_t dxsig_n_out;
-  Double_t W2mean_out;
-  Double_t W2sig_out;
-
-  Int_t hcalnclus_out;
-  Int_t hcalnblk_out;
-  Int_t bbshnclus_out;
-  Int_t bbshnblk_out;
-  Int_t bbpsnclus_out;
-  Int_t bbpsnblk_out;
-  Int_t bbtrN_out;
-  Int_t passedfid_out;  
-  Int_t run_out;
-  Int_t mag_out;
-
-  // set new output tree branches
-  P->Branch( "dx", &dx_out, "dx/D" );
-  P->Branch( "dy", &dy_out, "dy/D" );
-  P->Branch( "xexp", &xexp_out, "xexp/D" );
-  P->Branch( "yexp", &yexp_out, "yexp/D" );
-  P->Branch( "hcalx", &hcalx_out, "hcalx/D" );
-  P->Branch( "hcaly", &hcaly_out, "hcaly/D" );
-  P->Branch( "W2", &W2_out, "W2/D" );
-  P->Branch( "Q2", &Q2_out, "Q2/D" );
-  P->Branch( "mott", &mott_out, "mott/D" );
-  P->Branch( "hcalE", &hcalE_out, "hcalE/D" );
-  P->Branch( "bbEtot", &bbEtot_out, "bbEtot/D" );
-  P->Branch( "bbshE", &bbshE_out, "bbshE/D" );
-  P->Branch( "bbpsE", &bbpsE_out, "bbpsE/D" );
-  P->Branch( "hcalatime", &hcalatime_out, "hcalatime/D" );
-  P->Branch( "bbshatime", &bbshatime_out, "bbshatime/D" );
-  P->Branch( "bbpsatime", &bbpsatime_out, "bbpsatime/D" );
-  P->Branch( "bbgemNhits", &bbgemNhits_out, "bbgemNhits/D" );
-  P->Branch( "bbtrx", &bbtrx_out, "bbtrx/D" );
-  P->Branch( "bbtry", &bbtry_out, "bbtry/D" );
-  P->Branch( "bbtrp", &bbtrp_out, "bbtrp/D" );
-  P->Branch( "coinP1", &coinP1_out, "coinP1/D" );
-  P->Branch( "coinP2", &coinP2_out, "coinP2/D" );
-  P->Branch( "dy0", &dy0_out, "dy0/D" );
-  P->Branch( "dx0_p", &dx0_p_out, "dx0_p/D" );
-  P->Branch( "dx0_n", &dx0_n_out, "dx0_n/D" );
-  P->Branch( "dysig", &dysig_out, "dysig/D" );
-  P->Branch( "dxsig_p", &dxsig_p_out, "dxsig_p/D" );
-  P->Branch( "dxsig_n", &dxsig_n_out, "dxsig_n/D" );
-  P->Branch( "W2mean", &W2mean_out, "W2mean/D" );
-  P->Branch( "W2sig", &W2sig_out, "W2sig/D" );
-
-  P->Branch( "hcalnclus", &hcalnclus_out, "hcalnclus/I" );
-  P->Branch( "hcalnblk", &hcalnblk_out, "hcalnblk/I" );
-  P->Branch( "bbshnclus", &bbshnclus_out, "bbshnclus/I" );
-  P->Branch( "bbpsnclus", &bbpsnclus_out, "bbpsnclus/I" );
-  P->Branch( "bbshnblk", &bbshnblk_out, "bbshnblk/I" );
-  P->Branch( "bbpsnblk", &bbpsnblk_out, "bbpsnblk/I" );
-  P->Branch( "bbtrN", &bbtrN_out, "bbtrN/I" );
-  P->Branch( "passedfid", &passedfid_out, "passedfid/I" );
-  P->Branch( "run", &run_out, "run/I" );
-  P->Branch( "mag", &mag_out, "mag/I" );
 
   //HCal edge boundaries
   Double_t left;
@@ -256,7 +142,7 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   Double_t bottom;
 
   //SBS-4 SBS-7 (pass0)
-  if( pass==0 && (kine==4 || kine==7) ){
+  if( kine==4 || kine==7 ){
     left = econst::hcalposYi_p0;
     right = econst::hcalposYf_p0;
     top = econst::hcalposXf_p0;
@@ -276,17 +162,17 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   Double_t bottomAA;
 
   //SBS-4 SBS-7 (pass0)
-  if( pass==0 && (kine==4 || kine==7) ){
+  if( kine==4 || kine==7 ){
     leftAA = (econst::hcalposYi_p0+econst::hcalblk_w_p0);
     rightAA = (econst::hcalposYf_p0-econst::hcalblk_w_p0);
     topAA = (econst::hcalposXf_p0-econst::hcalblk_h_p0);
     bottomAA = (econst::hcalposXi_p0+econst::hcalblk_h_p0);
   }else{
     //pass1 and >pass1
-    leftAA = (econst::hcalposYi+econst::hcalblk_div_h);
-    rightAA = (econst::hcalposYf-econst::hcalblk_div_h);
-    topAA = (econst::hcalposXf-econst::hcalblk_div_v);
-    bottomAA = (econst::hcalposXi+econst::hcalblk_div_v);
+    leftAA = (econst::hcalposYi+econst::hcalblk_w);
+    rightAA = (econst::hcalposYf-econst::hcalblk_w);
+    topAA = (econst::hcalposXf-econst::hcalblk_h);
+    bottomAA = (econst::hcalposXi+econst::hcalblk_h);
   }
   
   //Safety Margin boundaries
@@ -299,130 +185,36 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   //Add 3sigma proton peak safety margin (x and y) to ensure no expected detections lie one boundary of HCal
 
   //SBS-4 SBS-7 (pass0)
-  if( pass==0 && (kine==4 || kine==7) ){
+  if( kine==4 || kine==7 ){
     leftSM = (econst::hcalposYi_p0+econst::hcalblk_w_p0+3*dysig);
     rightSM = (econst::hcalposYf_p0-econst::hcalblk_w_p0-3*dysig);
     topSM = (econst::hcalposXf_p0-econst::hcalblk_h_p0-3*dxsig_p-dx0_p);
     bottomSM = (econst::hcalposXi_p0+econst::hcalblk_h_p0+3*dxsig_p-dx0_p);
   }else{
     //pass1 and >pass1
-    leftSM = (econst::hcalposYi+econst::hcalblk_div_h+3*dysig);
-    rightSM = (econst::hcalposYf-econst::hcalblk_div_h-3*dysig);
-    topSM = (econst::hcalposXf-econst::hcalblk_div_v-3*dxsig_p-dx0_p);
-    bottomSM = (econst::hcalposXi+econst::hcalblk_div_v+3*dxsig_p-dx0_p);
+    leftSM = (econst::hcalposYi+econst::hcalblk_w+3*dysig);
+    rightSM = (econst::hcalposYf-econst::hcalblk_w-3*dysig);
+    topSM = (econst::hcalposXf-econst::hcalblk_h-3*dxsig_p-dx0_p);
+    bottomSM = (econst::hcalposXi+econst::hcalblk_h+3*dxsig_p-dx0_p);
   }
 
-  // setup reporting indices
-  std::cout << std::endl << std::endl;
 
-  for (Int_t irun=0; irun<nruns; irun++) {
-
-    //DEBUG
-    if(debug&&irun>5) continue;
-
-    // accessing run info
-    Int_t runnum = corun[irun].runnum;
-    Int_t mag = corun[irun].sbsmag / 21; //convert to percent
-    Double_t ebeam = corun[irun].ebeam; //get beam energy per run
-    std::string tar = corun[irun].target;
-
-    //Only proceed for deuterium at desired field setting
-    if( mag!=magset || tar.compare("LD2")!=0 ) 
-      continue;
-
-    std::cout << "Analyzing run " << runnum << ".." << std::endl;
-
-    std::string rfname = rootfile_dir + Form("/*%d*",corun[irun].runnum);
-
-    //first attempt to resolve segmentation fault on large data sets
-    if (C != nullptr) {
-      delete C;
-    }
-
-    C = new TChain("T");
-    C->Add(rfname.c_str());
-
-    // setting up ROOT tree branch addresses
-    C->SetBranchStatus("*",0);    
-
-    // HCal general
-    Double_t hcalid, hcale, hcalx, hcaly, hcalr, hcalc, hcaltdc, hcalatime, hcalidx, hcalnclus;
-    std::vector<std::string> hcalvar = {"idblk","e","x","y","rowblk","colblk","tdctimeblk","atimeblk","index","nclus"};
-    std::vector<void*> hcalvarlink = {&hcalid,&hcale,&hcalx,&hcaly,&hcalr,&hcalc,&hcaltdc,&hcalatime,&hcalidx,&hcalnclus};
-    rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
-
-    // HCal cluster branches (primary block information for id, tdc, and atime)
-    Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus], hcalcnblk[econst::maxclus];
-    //Double_t hcalcnblk;
-    Int_t Nhcalcid;
-    std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","nblk","id"};
-    std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&hcalcnblk,&Nhcalcid};
-    rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink, 7);
-    
-    // // HCal cluster branches (primary block information for id, tdc, and atime)
-    // Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus];
-    // Int_t Nhcalcid;
-    // std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","id"};
-    // std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&Nhcalcid};
-    // rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink,6);
-
-    // hodoscope cluster mean time
-    Int_t Nhodotmean; 
-    Double_t hodotmean[econst::maxclus];
-    std::vector<std::string> hodovar = {"clus.tmean","clus.tmean"};
-    std::vector<void*> hodovarlink = {&Nhodotmean,&hodotmean};
-    rvars::setbranch(C, "bb.hodotdc", hodovar, hodovarlink, 0); 
-
-    // BBCal shower timing
-    Double_t atime_sh, e_sh, nclus_sh, nblk_sh;
-    std::vector<std::string> shvar = {"atimeblk","e","nclus","nblk"};
-    std::vector<void*> shvarlink = {&atime_sh,&e_sh,&nclus_sh,&nblk_sh};
-    rvars::setbranch(C, "bb.sh", shvar, shvarlink);  
-
-    // BBCal preshower timing
-    Double_t atime_ps, e_ps, nclus_ps, nblk_ps;
-    std::vector<std::string> psvar = {"atimeblk","e","nclus","nblk"};
-    std::vector<void*> psvarlink = {&atime_ps,&e_ps,&nclus_ps,&nblk_ps};
-    rvars::setbranch(C, "bb.ps", psvar, psvarlink); 
-
-    // BB GEM hits
-    Double_t gem_hits[econst::maxtrack];
-    std::vector<std::string> gemvar = {"track.nhits"};
-    std::vector<void*> gemvarlink = {&gem_hits};
-    rvars::setbranch(C, "bb.gem", gemvar, gemvarlink);      
-
-    // track branches
-    Double_t ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
-    Double_t vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
-    Double_t xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
-    std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph"};
-    std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt};
-    rvars::setbranch(C,"bb.tr",trvar,trvarlink);
-    
-    // tdctrig branches
-    Int_t Ntdctrigid;
-    Double_t tdctrig[econst::maxtrack], tdctrigid[econst::maxtrack];
-    std::vector<std::string> tdcvar = {"tdcelemID","tdcelemID","tdc"};
-    std::vector<void*> tdcvarlink = {&tdctrigid,&Ntdctrigid,&tdctrig};
-    rvars::setbranch(C,"bb.tdctrig",tdcvar,tdcvarlink,1);
+  TChain *C = new TChain("P");
+  C->Add(fin_path.c_str());
   
-    // ekine branches
-    Double_t ekineQ2, ekineW2, ekineeps, ekinenu, ekineqx, ekineqy, ekineqz;
-    std::vector<std::string> ekinevar = {"Q2","W2","epsilon","nu","q_x","q_y","q_z"};
-    std::vector<void*> ekinevarlink = {&ekineQ2,&ekineW2,&ekineeps,&ekinenu,&ekineqx,&ekineqy,&ekineqz};
-    rvars::setbranch(C, "e.kine", ekinevar, ekinevarlink);
+  // set up branch variables
+  double hcalx, hcaly, hcale;
+  double hcalcx[maxClus], hcalcy[maxClus], hcalce[maxClus], hcalcid[maxClus], hcalctdc[maxClus], hcalcatime[maxClus];
+  double hcalnclus, hcalnblk;
+  double hcalcbid[maxBlk], hcalcbe[maxBlk], hcalcbx[maxBlk], hcalcby[maxBlk], 
+
+  // setting up ROOT tree branch addresses
+  C->SetBranchStatus("*",1);    
+
+  C->SetBranchAddress("sbs.hcal.x", &hcalx);
+  C->SetBranchAddress("sbs.hcal.y", &hcaly);
+  C->SetBranchAddress("sbs.hcal.e", &hcale);
     
-    // fEvtHdr branches
-    UInt_t rnum, gevnum, trigbits;
-    std::vector<std::string> evhdrvar = {"fRun","fEvtNum","fTrigBits"};
-    std::vector<void*> evhdrlink = {&rnum,&gevnum,&trigbits};
-    rvars::setbranch(C,"fEvtHdr",evhdrvar,evhdrlink);
-    
-    // globalcut branches
-    //C->SetBranchStatus("bb.gem.track.nhits", 1);
-    C->SetBranchStatus("bb.etot_over_p", 1);
-    C->SetBranchStatus("bb.tr.n", 1);
-    //C->SetBranchStatus("bb.ps.e", 1);
 
     //set up the global cut formula
     TCut GCut = gcut.c_str();

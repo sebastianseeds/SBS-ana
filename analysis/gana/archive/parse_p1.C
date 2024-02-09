@@ -39,6 +39,11 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   jmgr->GetVectorFromSubKey<Double_t>(Form("coin_profile_p%d",pass),Form("sbs%d",kine),coin_profile);
   Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset_p%d",pass), Form("sbs%d",kine) );
 
+  // if( pass>1 ){
+  //   std::cout << "As of 10.31.23, the highest GMn replay pass is 1. Enter a valid pass." << endl;
+  //   return;
+  // }
+
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
   Int_t nhruns = -1; //Always analyze all available runs
@@ -272,7 +277,9 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 
     for (Int_t irun=0; irun<nruns; irun++) {
       
-      cout << "irun/nruns " << irun << "/" << nruns << endl;
+      
+
+      cout << "here 1 with irun/nruns " << irun << "/" << nruns << endl;
 
       // accessing run info
       Int_t runnum;
@@ -302,6 +309,9 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
      
       std::string label = Form("Run: %d",runnum);
 
+      cout << "here 2" << endl;
+
+
       // if(!verbose)
       // 	util::updateProgress(irun + 1, nruns, label);
 
@@ -315,14 +325,23 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 
       vector<SCALARAGG> Sagg;
 
+      cout << "here 3" << endl;
+
+
       //first attempt to resolve segmentation fault on large data sets
       if (TS != nullptr) {
 	delete TS;
       }
 
+      cout << "here 4" << endl;
+
+
       //Create chain for epics/scalar tree
       TS = new TChain("TSsbs");
       TS->Add( rfname.c_str() );
+
+      cout << "here 5" << endl;
+
 
       //Declare dummies and counters for needed vars
       Double_t Sevnum = 0., Sdnew = 0., Sclk = 0., clkLast = 0., curLast = 0., curAvg = 0., clkDiff = 0.;
@@ -366,7 +385,12 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	SCALARAGG thisSCALAR = { Sevnum, clkDiff, curAvg, chargeLast };
 	Sagg.push_back( thisSCALAR );
 
+	//cout << "SCALARAGG vals on CurEv " << CurEv << ": " << Sagg.back().enumber << " " << Sagg.back().aggcharge << " " << Sagg.back().clock << endl;
+
       }
+
+      cout << "here 6" << endl;
+
 
       //set up configuration and tune objects to load analysis parameters
       SBSconfig config(kine,mag);
@@ -379,6 +403,9 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 
       //SBStune *tune = new SBStune(kine,mag);
       SBStune tune(kine,mag);
+    
+      cout << "here 7" << endl;
+
 
       //Reporting. tar should always equal curtar as categorized by good run list
       if( targ.compare(curtar)!=0 || mag!=curmag ){
@@ -390,9 +417,12 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	curtar = targ;
 	curmag = mag;
       }
+      
+      cout << "here 7" << endl;
+
 
       //Obtain cuts from tune class
-      std::string gcut   = tune.Getglobcut_wide();
+      std:string gcut   = tune.Getglobcut_wide();
       Double_t W2mean   = tune.GetW2mean();
       Double_t W2sig    = tune.GetW2sig();
       Double_t dx0_n    = tune.Getdx0_n();
@@ -406,10 +436,16 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       Double_t atimediff0   = tune.Getatimediff0();
       Double_t atimediffsig = tune.Getatimediffsig();
 
+      cout << "here 8" << endl;
+
+
       //first attempt to resolve segmentation fault on large data sets
       if (C != nullptr) {
 	delete C;
       }
+
+      cout << "here 9" << endl;
+
 
       C = new TChain("T");
       C->Add(rfname.c_str());
@@ -417,12 +453,15 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       // setting up ROOT tree branch addresses
       C->SetBranchStatus("*",0);    
 
+      cout << "here 10" << endl;
+
+
       // HCal general
       Double_t hcalid, hcale, hcalx, hcaly, hcalr, hcalc, hcaltdc, hcalatime, hcalidx, nclus, nblk;
       std::vector<std::string> hcalvar = {"idblk","e","x","y","rowblk","colblk","tdctimeblk","atimeblk","index","nclus","nblk"};
       std::vector<void*> hcalvarlink = {&hcalid,&hcale,&hcalx,&hcaly,&hcalr,&hcalc,&hcaltdc,&hcalatime,&hcalidx,&nclus,&nblk};
       rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
-      
+
       // HCal cluster branches
       Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus], hcalcrow[econst::maxclus], hcalccol[econst::maxclus];
       Int_t Nhcalcid;
@@ -436,7 +475,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       std::vector<std::string> hcalcbvar = {"id","e","x","y","tdctime","atime","id"};
       std::vector<void*> hcalcbvarlink = {&hcalcbid,&hcalcbe,&hcalcbx,&hcalcby,&hcalcbtdctime,&hcalcbatime,&Nhcalcbid};
       rvars::setbranch(C, "sbs.hcal.clus_blk", hcalcbvar, hcalcbvarlink, 6);
-
+    
       // bbcal clus var
       Double_t eSH, xSH, ySH, rblkSH, cblkSH, idblkSH, atimeSH, nclusSH, ePS, rblkPS, cblkPS, idblkPS, atimePS;
       std::vector<std::string> bbcalclvar = {"sh.e","sh.x","sh.y","sh.rowblk","sh.colblk","sh.idblk","sh.atimeblk","sh.nclus","ps.e","ps.rowblk","ps.colblk","ps.idblk","ps.atimeblk"};
@@ -449,7 +488,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       std::vector<std::string> hodovar = {"clus.tmean","clus.tmean"};
       std::vector<void*> hodovarlink = {&Nhodotmean,&hodotmean};
       rvars::setbranch(C, "bb.hodotdc", hodovar, hodovarlink, 0);  
-
+    
       // track branches
       Double_t ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
       Double_t vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
@@ -457,14 +496,14 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph"};
       std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt};
       rvars::setbranch(C,"bb.tr",trvar,trvarlink);
-
+    
       // tdctrig branches
       Int_t Ntdctrigid;
       Double_t tdctrig[econst::maxtrack], tdctrigid[econst::maxtrack];
       std::vector<std::string> tdcvar = {"tdcelemID","tdcelemID","tdc"};
       std::vector<void*> tdcvarlink = {&tdctrigid,&Ntdctrigid,&tdctrig};
       rvars::setbranch(C,"bb.tdctrig",tdcvar,tdcvarlink,1);
-
+  
       // ekine branches
       Double_t ekineQ2, ekineW2, ekineeps, ekinenu, ekineqx, ekineqy, ekineqz;
       std::vector<std::string> ekinevar = {"Q2","W2","epsilon","nu","q_x","q_y","q_z"};
@@ -477,27 +516,27 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       std::vector<void*> evhdrlink = {&rnum,&gevnum,&trigbits};
       rvars::setbranch(C,"fEvtHdr",evhdrvar,evhdrlink);
     
+      // other bb branches
+      Double_t gemNhits, eop;
+      std::vector<std::string> miscbbvar = {"gem.track.nhits","etot_over_p"};
+      std::vector<void*> miscbbvarlink = {&gemNhits,&eop};
+      rvars::setbranch(C, "bb", miscbbvar, miscbbvarlink);
 
-      //C->SetBranchStatus("bb.gem.track.nhits",1);
-      //C->SetBranchStatus("bb.etot_over_p",1);
+
+      cout << "here 11" << endl;
 
 
-      // // other bb branches
-      // Double_t gemNhits, eop;
-      // std::vector<std::string> miscbbvar = {"gem.track.nhits","etot_over_p"};
-      // std::vector<void*> miscbbvarlink = {&gemNhits,&eop};
-      // rvars::setbranch(C, "bb", miscbbvar, miscbbvarlink);
+      // globalcut branches
+      //C->SetBranchStatus("bb.gem.track.nhits", 1);
+      //C->SetBranchStatus("bb.etot_over_p", 1);
+      //C->SetBranchStatus("bb.tr.n", 1);
 
-      //TCut GCut = gcut.c_str();
-      //TCut GCut = "bb.tr.n>0&&bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
-
-      //cout << "Loaded global cut: " << gcut << endl;
-
-      TCut GCut = "sbs.hcal.e>0.005";
+      TCut GCut = gcut.c_str();
 
       TTreeFormula *GlobalCut = new TTreeFormula( "GlobalCut", GCut, C );
 
       // get experimental quantities by run
+      //std::cout << "Uncorrected average beam energy on " << targ << " for run: " << ebeam << std::endl;
       //set up hcal coordinate system with hcal angle wrt exit beamline
       vector<TVector3> hcalaxes; vars::sethcalaxes( hcaltheta, hcalaxes );
       //TVector3 hcalorigin = hcaldist*hcalaxes[2] + econst::hcalvoff*hcalaxes[0];
@@ -538,26 +577,32 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
       Double_t TSlastC = chargeAvgLast; //Just use last average for first few events wherever necessary.
       Double_t TSstructidx=-1;
 
-      Int_t failedglobalcut = 0;
-
       if(verbose)
 	std::cout << "Beginning analysis of run " << runnum << ", target " << targ << ", magnetic field " << mag << "%, total accumulated charge " << charge << " C." << std::endl;
-      
+
+      cout << "here 12" << endl;
+
+      //cout << "N events " << nevents << endl;
+
       while (C->GetEntry(nevent++)) {
 	
-	std::cout << "Processing run " << runnum << " event " << nevent << " / " << nevents << ", total failed global " << failedglobalcut << "\r";
-	std::cout.flush();
+	//cout << "processing event " << nevent << endl;
+
+	//std::cout << "Processing run " << runnum << " event " << nevent << " / " << nevents << "\r";
+	//std::cout.flush();
+	
+	//std::cout << "Processing run " << runnum << " event " << nevent << " / " << nevents << endl;
+
+	// if((Int_t)hcalidx>9){
+	//   if(t==0)
+	//     hcidxfail_h->Fill(irun);
+	//   if(t==1)
+	//     hcidxfail_d->Fill(irun);
+	//   continue;
+	// }
 
 	// if(!verbose)
 	//   util::updateProgress(irun + 1, nevent +1, nruns, nevents, label);
-
-	if((Int_t)hcalidx>9){
-	  if(t==0)
-	    hcidxfail_h->Fill(irun);
-	  if(t==1)
-	    hcidxfail_d->Fill(irun);
-	  continue;
-	}
 
 	//Access TS charge struct members
 	if( gevnum>=TSnextEv ){
@@ -581,10 +626,9 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	  //cout << "Updating formula leaves and switching segment at event: " << nevent << endl;
 	}
 	failedglobal = GlobalCut->EvalInstance(0) == 0;
-	if( failedglobal ){
-	  failedglobalcut++;
+	if( failedglobal )
 	  continue;
-	}
+
 
 	///////
 	//Physics calculations
@@ -617,11 +661,11 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	Double_t Q2, W2, nu, thNexp, pNexp, ebeam_o;
 	ebeam_o = vars::ebeam_o( ebeam_c, etheta, targ ); //Second energy correction accounting for energy loss leaving target
        
-	// Can reconstruct e' momentum for downstream calculations differently:
-	//   v1 - Use four-momentum member functions
-	//   v2 - Use all available ekine (tree) vars and calculate vectors (should be the same as v1)
-	//   v3 - Use reconstructed angles as independent qty (usually preferable given GEM precision at most kinematics)
-	//   v4 - Use reconstructed momentum as independent qty
+	/* Can reconstruct e' momentum for downstream calculations differently:
+	   v1 - Use four-momentum member functions
+	   v2 - Use all available ekine (tree) vars and calculate vectors (should be the same as v1)
+	   v3 - Use reconstructed angles as independent qty (usually preferable given GEM precision at most kinematics)
+	   v4 - Use reconstructed momentum as independent qty */
       
 	if( epm==1 ){
 	  //v1
@@ -680,6 +724,8 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	Double_t comp_ev_fraction = (Double_t)npassed/(Double_t)nevent;
 	Double_t ev_fraction = (Double_t)npassed/(Double_t)nevents;
 	Double_t accumulated_charge = charge*ev_fraction;
+
+	//cout << npassed << " " << nevent << " " << nevents << " " << ev_fraction << " " << comp_ev_fraction << " " << accumulated_charge << endl;
 
 
 	//Calculate h-arm quantities
@@ -750,6 +796,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	Int_t cidx_intime = intime_idx;
 	Int_t cidx_score = score_idx;
 
+
 	//Switch between best clusters for systematic analysis
 	Int_t cidx_best;
       
@@ -770,6 +817,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	  cidx_best = 3;
 	}
       
+
 	//Calculations from the best cluster
 	Double_t dx_bestcluster = hcalcx[cidx_best] - xyhcalexp[0];
 	Double_t dy_bestcluster = hcalcy[cidx_best] - xyhcalexp[1];
@@ -780,6 +828,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	Double_t y_bestcluster = hcalcy[cidx_best];
 	Double_t row_bestcluster = hcalcrow[cidx_best];
 	Double_t col_bestcluster = hcalccol[cidx_best];
+
 
 	//Determine rough PID
 	bool in_p = util::Nspotcheck(dy_bestcluster,dx_bestcluster,dy0,dx0_p,dysig,dxsig_p,0);
@@ -906,8 +955,8 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	bb_sh_atimeblk_out = atimeSH;
 	bb_sh_nclus_out = nclusSH;
 	bb_hodotdc_clus_tmean_out = hodotmean[0];
-	//bb_gem_track_nhits_out = gemNhits;
-	//bb_etot_over_p_out = eop;
+	bb_gem_track_nhits_out = gemNhits;
+	bb_etot_over_p_out = eop;
 	sbs_hcal_e_out = hcale;
 	sbs_hcal_x_out = hcalx;
 	sbs_hcal_y_out = hcaly;
@@ -951,12 +1000,16 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 
 	}
 
-	P->Fill();	
-	
+	P->Fill();
+
       }//end event loop
+
+      cout << "Here 01" << endl;
 
       // getting ready for the next run
       C->Reset();
+
+      cout << "Here 02" << endl;
 
     }//end run loop
 

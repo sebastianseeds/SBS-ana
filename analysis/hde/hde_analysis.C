@@ -24,7 +24,7 @@ const Double_t dx_fithigh = 0.3;
 
 double gmean, gsigma;
 
-bool verbose = true;
+bool verbose = false;
 
 //Total fits using Interpolate with elastic signal histo and 6th order poly fit to bg
 TH1D *hW2elas;
@@ -36,12 +36,13 @@ Double_t W2total(Double_t *x, Double_t *par){
 }
 
 std::vector<Double_t> W2elas_fitpars;
+std::vector<Double_t> W2elas_sgfitpars;
 Double_t W2total_sgfit(Double_t *x, Double_t *par){
   Double_t W2 = x[0];
   Double_t amp = par[0];
-  Double_t offset = W2elas_fitpars[0];
-  Double_t sigma = W2elas_fitpars[1];
-  Double_t alpha = W2elas_fitpars[3];
+  Double_t offset = W2elas_sgfitpars[0];
+  Double_t sigma = W2elas_sgfitpars[1];
+  Double_t alpha = W2elas_sgfitpars[3];
 
   return amp*exp( -pow( x[0]-offset,2. )/( 2.*pow(sigma,2.) ) )*( 1+erf( (x[0]-offset)*alpha/sigma*sqrt(2.) ) ) + fits::g_p6fit(x,&par[1]);
 }
@@ -57,12 +58,16 @@ Double_t W2total_sgfit(Double_t *x, Double_t *par){
 
 Double_t W2total_gfit(Double_t *x, Double_t *par){
   double gauss = par[0] * TMath::Gaus(x[0], gmean, gsigma);
-  double poly = par[1] + par[2] * x[0] + par[3] * x[0] * x[0] + 
-    par[4] * x[0] * x[0] * x[0] + par[5] * x[0] * x[0] * x[0] * x[0] + par[6] * x[0] * x[0] * x[0] * x[0] * x[0] + par[7] * x[0] * x[0] * x[0] * x[0] * x[0] * x[0];
+  double poly = par[1] + 
+    par[2] * x[0] + 
+    par[3] * x[0] * x[0] + 
+    par[4] * x[0] * x[0] * x[0] + 
+    par[5] * x[0] * x[0] * x[0] * x[0] + 
+    par[6] * x[0] * x[0] * x[0] * x[0] * x[0] + 
+    par[7] * x[0] * x[0] * x[0] * x[0] * x[0] * x[0];
 
   return gauss + poly;
 }
-
 
 TH1D *hW2elasres;
 Double_t W2totalres(Double_t *x, Double_t *par){
@@ -250,7 +255,7 @@ void subtractFunctionAndGetTotalAndError(TH1D* hist, TF1* func, double xMin, dou
   return;
 }
 
-void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt = false, bool gfitopt = false)
+void hde_analysis( Int_t kine=4, Int_t magset=30, Double_t det_spot_sigma=3, Double_t exp_spot_sigma=1, bool dyopt = false, bool gfitopt = false)
 { //main  
 
   // Define a clock to check macro processing time
@@ -262,7 +267,7 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
 
   std::string rootfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir", Form("sbs%d",kine) );
   //Double_t W2fitmax = jmgr->GetValueFromSubKey<Double_t>( "W2fitmax", Form("sbs%d",kine) );
-  Double_t W2fitmax = 1.6;  //TEMP
+  Double_t W2fitmax = 1.7;  //TEMP
   Double_t binfac = jmgr->GetValueFromSubKey<Double_t>( "binfac", Form("sbs%d",kine) );
   Double_t hbinfac = jmgr->GetValueFromSubKey<Double_t>( "hbinfac", Form("sbs%d",kine) );
   Double_t thetapqcut = jmgr->GetValueFromSubKey<Double_t>( "thetapqcut", Form("sbs%d",kine) );
@@ -272,7 +277,7 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   Int_t pass = jmgr->GetValueFromSubKey<Int_t>( "pass", Form("sbs%d",kine) );
   Double_t ebound_l = jmgr->GetValueFromSubKey<Double_t>( "ebound_l", Form("sbs%d",kine) );
   //Double_t ebound_h = jmgr->GetValueFromSubKey<Double_t>( "ebound_h", Form("sbs%d",kine) );
-  Double_t ebound_h = 1.6; //TEMP
+  Double_t ebound_h = 1.7; //TEMP
   vector<Double_t> coin_profile;
   jmgr->GetVectorFromSubKey<Double_t>("coin_profile",Form("sbs%d",kine),coin_profile);
   Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( "hcal_offset", Form("sbs%d",kine) );
@@ -286,8 +291,9 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   Double_t hcalfit_h = econst::hcalposXf_p0+2*econst::hcalblk_h_p0; //upper fit/bin limit for hcal dx plots (m)
   Double_t harmrange = (hcalfit_h) - (hcalfit_l); //Full range of hcal dx plots (m)
 
-  string infilename = Form("outfiles/hde_dataloop_sbs%d_magset%d_spotsig%d.root",kine,magset,spot_sigma);
-  string outfilename = Form("outfiles/hde_analysis_sbs%d_magset%d_spotsig%d.root",kine,magset,spot_sigma);
+  //get file names
+  string infilename = Form("outfiles/hde_dataloop_sbs%d_magset%d_dspotsig%0.1f_espotsig%0.1f.root",kine,magset,det_spot_sigma,exp_spot_sigma);
+  string outfilename = Form("outfiles/hde_analysis_sbs%d_magset%d_dspotsig%0.1f_espotsig%0.1f.root",kine,magset,det_spot_sigma,exp_spot_sigma);
 
   // Open file
   TFile *f1 = TFile::Open(infilename.c_str(), "READ");
@@ -329,7 +335,7 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
     return;
   }
 
-  TH1D *hW2elas_gfit = (TH1D*)(hW2_allcut->Clone("hW2elas2_gfit"));
+  TH1D *hW2elas_gfit = (TH1D*)(hW2_allcut->Clone("hW2elas_gfit"));
   W2elas_fitpars = util::fitGaussianAndGetFineParams(hW2elas_gfit,0.1,0.75,1.0);
   gmean = W2elas_fitpars[1];
   gsigma = W2elas_fitpars[2];
@@ -426,9 +432,9 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   c1->cd(2);
   
   //HCal anticut to obtain missed elastics
-  //hW2elasres = (TH1D*)(hW2_allcut->Clone("hW2elasres"));
-  TH1D *hW2elasres_temp = (TH1D*)(hW2_allcut->Clone("hW2elasres_temp"));
-  hW2elasres = util::MirrorHistogram(hW2elasres_temp);
+  hW2elasres = (TH1D*)(hW2_allcut->Clone("hW2elasres"));
+  //TH1D *hW2elasres_temp = (TH1D*)(hW2_allcut->Clone("hW2elasres_temp"));
+  //hW2elasres = util::MirrorHistogram(hW2elasres_temp);
   
   TF1 *tfitres = new TF1("tfitres",W2totalres,0,W2fitmax,8);
   tfitres->SetNpx(10000);  // Default is usually 100
@@ -493,7 +499,7 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   reslegend->AddEntry( bgres, "Background (polynomial)", "l");
   reslegend->AddEntry( tfitres, "Total interpolated fit", "l");
   reslegend->AddEntry( (TObject*)0, "", "");
-  reslegend->AddEntry( (TObject*)0, Form("Proton spot cut: %d sigma",spot_sigma), "" );
+  reslegend->AddEntry( (TObject*)0, Form("Proton spot elastic shape: %0.1f sigma",exp_spot_sigma), "" );
   reslegend->AddEntry( (TObject*)0, Form("Number of Elastics Detected: %d",(Int_t)(W2elas-W2elasres)), "");
   reslegend->AddEntry( (TObject*)0, Form("Detection Efficiency: %0.3f%% +/- %0.3f%%",effres,effreserr), "");
   reslegend->Draw();
@@ -652,13 +658,13 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   hdx_4->Draw("same E");
 
   //get total between bg and dx total
-  double totalEvents, bgrperr; subtractFunctionAndGetTotalAndError(hdx_4,bgrp,
-								   lowdxcut,
-								   highdxcut,
-								   totalEvents,
-								   lowdxrange,
-								   highdxrange,
-								   bgrperr);
+  double totalEvents, bgrperr; util::subtractFunctionAndGetTotalAndError(hdx_4,bgrp,
+									 lowdxcut,
+									 highdxcut,
+									 totalEvents,
+									 lowdxrange,
+									 highdxrange,
+									 bgrperr);
 
   //Total the error for quadrature sum
   Double_t miss_error_dx = bgrperr;
@@ -695,7 +701,8 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   sblegend->AddEntry( bgrpfit, "Background Fit", "l" );
   sblegend->AddEntry( lineLow, "Sideband Limits", "l" );
   sblegend->AddEntry( (TObject*)0, "", "" );
-  sblegend->AddEntry( (TObject*)0, Form("Proton spot cut: %d sigma",spot_sigma), "" );
+  sblegend->AddEntry( (TObject*)0, Form("Proton spot elastic shape: %0.1f sigma",exp_spot_sigma), "" );
+  sblegend->AddEntry( (TObject*)0, Form("Sideband limits: low %0.2f, high %0.2f",lowdxcut,highdxcut), "" );
   sblegend->AddEntry( (TObject*)0, Form("Number of elastics detected: %d",(Int_t)totalEvents), "" );
   sblegend->AddEntry( (TObject*)0, Form("Detection efficiency: %0.3f%% +/- %0.3f%%",hde_sb,hde_sb_err), "" );
 
@@ -718,6 +725,7 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   TF1 *bg_gfit = new TF1("bg_gfit",fits::g_p6fit,0.,W2fitmax,7);
   TF1 *signal_gfit = new TF1("signal_gfit","gaus",0.,W2fitmax);
   tfit_gfit->SetLineColor(kGreen);
+  hW2_2->GetXaxis()->SetRangeUser(ebound_l,ebound_h);
   hW2_2->SetTitle("W^{2}, Acceptance Cut Only");
   hW2_2->Fit("tfit_gfit","RBM");
 
@@ -825,12 +833,145 @@ void hde_analysis( Int_t kine=8, Int_t magset=70, Int_t spot_sigma=1, bool dyopt
   reslegend_gfit->AddEntry( bgres_gfit, "Background (polynomial)", "l");
   reslegend_gfit->AddEntry( tfitres_gfit, "Total fit", "l");
   reslegend_gfit->AddEntry( (TObject*)0, "", "");
-  reslegend_gfit->AddEntry( (TObject*)0, Form("Proton spot cut: %d sigma",spot_sigma), "" );
+  reslegend_gfit->AddEntry( (TObject*)0, Form("Proton spot elastic shape: %0.1f sigma",exp_spot_sigma), "" );
+  reslegend_gfit->AddEntry( (TObject*)0, Form("Proton spot anticut: %0.1f sigma",det_spot_sigma), "" );
   reslegend_gfit->AddEntry( (TObject*)0, Form("Number of Elastics Detected: %d",(Int_t)(W2elas_gfit-W2elasres_gfit)), "");
   reslegend_gfit->AddEntry( (TObject*)0, Form("Detection Efficiency: %0.3f%% +/- %0.3f%%",effres_gfit,effreserr_gfit), "");
   reslegend_gfit->Draw();
 
   c4->Write();
+
+  //////////////////////////////////////
+  //W2 INCLUSIVE ANTICUT W2 SG FIT METHOD
+
+  //Make canvas for (expected-residuals)/expected
+  TCanvas *c5 = new TCanvas("c5",Form("HDE W2 Elastic Fit sbs%d mag%d",kine,magset),1200,500);
+  gStyle->SetPalette(53);
+  c5->SetGridx();
+  c5->Divide(2,1);
+  c5->cd(1);
+
+  //set up fit functions
+  TF1 *tfit_sgfit = new TF1("tfit_sgfit",W2total_sgfit,0,W2fitmax,8); //tfit npar = 1+pNfit_npar+1
+  tfit_gfit->FixParameter(0,10000);
+  TF1 *bg_sgfit = new TF1("bg_sgfit",fits::g_p6fit,0.,W2fitmax,7);
+  TF1 *signal_sgfit = new TF1("signal_sgfit",fits::g_sgfit,0.,W2fitmax);
+  tfit_gfit->SetLineColor(kGreen);
+  hW2_2->GetXaxis()->SetRangeUser(ebound_l,ebound_h);
+  hW2_2->SetTitle("W^{2}, Acceptance Cut Only");
+  hW2_2->Fit("tfit_gfit","RBM");
+
+  Double_t *tpar_gfit = tfit_gfit->GetParameters();
+  
+  //Get fit parameters for bg function and draw identical function on canvas
+  bg_gfit->SetParameters(&tpar_gfit[1]);
+  bg_gfit->SetLineColor(kRed);
+  bg_gfit->SetFillColor(kRed);
+  bg_gfit->SetFillStyle(3005);
+  bg_gfit->Draw("same");
+  // signal_gfit->SetParameter(0,tpar_gfit[0]);
+  // signal_gfit->SetParameter(1,W2elas_fitpars[0]);
+  // signal_gfit->SetParameter(2,W2elas_fitpars[1]);
+  signal_gfit->SetParameters(tpar_gfit[0],W2elas_fitpars[1],W2elas_fitpars[2]);
+  signal_gfit->SetLineColor(kBlue);
+  signal_gfit->SetFillColor(kBlue);
+  signal_gfit->SetFillStyle(3003);
+  signal_gfit->Draw("same");
+  
+  //get integral error from fits to total W2
+  TFitResultPtr s_gfit = hW2_2->Fit("tfit_gfit","S");
+  Double_t tfiterr_gfit = tfit_gfit->IntegralError(ebound_l,ebound_h,s_gfit->GetParams(),s_gfit->GetCovarianceMatrix().GetMatrixArray())*binfac;
+  
+  Double_t signal_error_gfit = GetTotalQuadratureError(hW2elas_gfit);
+  
+  Double_t tot_error_gfit = sqrt(pow(tfiterr_gfit,2)+pow(signal_error_gfit,2));
+
+  //get expected elastics (elastic divergence from bg begin: ebound_l, end: ebound_h)
+  Double_t bgint_gfit = bg_gfit->Integral(ebound_l,ebound_h)*binfac;
+  Double_t W2nocutint_gfit = hW2_2->Integral(W2elasb,W2elase);
+  Double_t W2elas_gfit = W2nocutint - bgint;
+  
+  //Add a legend to the canvas
+  auto nocutlegend_gfit = new TLegend(0.1,0.6,0.5,0.9);
+  //nocutlegend->SetTextSize( 0.03 );
+  nocutlegend_gfit->AddEntry( hW2elas_gfit, "Tight elastic cut (raw)", "l");
+  nocutlegend_gfit->AddEntry( bg_gfit, "Background (polynomial)", "l");
+  nocutlegend_gfit->AddEntry( tfit_gfit, "Total interpolated fit", "l");
+  nocutlegend_gfit->AddEntry( (TObject*)0, "", "");
+  nocutlegend_gfit->AddEntry( (TObject*)0, Form("Number of Elastics Expected: %d",(Int_t)W2elas_gfit), "");
+  nocutlegend_gfit->Draw();
+  
+  c5->cd(2);
+  
+  //HCal anticut to obtain missed elastics
+  //TH1D *hW2elasres_gfit = (TH1D*)(hW2_allcut->Clone("hW2elasres_gfit"));
+  
+  TF1 *tfitres_gfit = new TF1("tfitres_gfit",W2totalres_gfit,0,W2fitmax,8);
+  tfitres_gfit->SetNpx(10000);  // Default is usually 100
+  TF1 *bgres_gfit = new TF1("bgres_gfit",fits::g_p6fit,0.,W2fitmax,7);
+  TF1 *signalres_gfit = new TF1("signalres_gfit",fits::g_gfit,0.,W2fitmax,3);
+  tfitres_gfit->SetLineColor(kGreen);
+  hW2res_2->SetTitle("W^{2}, Acceptance Cut and HCal best cluster elastic anticut");
+  hW2res_2->Fit("tfitres_gfit","RBM");
+
+  Double_t *tparres_gfit = tfitres_gfit->GetParameters();
+
+  //Get fit parameters for bg function and draw identical function on canvas
+  bgres_gfit->SetParameters(&tparres_gfit[1]);
+  bgres_gfit->SetLineColor(kRed);
+  bgres_gfit->SetFillColor(kRed);
+  bgres_gfit->SetFillStyle(3005);
+  bgres_gfit->Draw("same");
+  signalres_gfit->SetParameter(0,tparres_gfit[0]);
+  signalres_gfit->SetParameter(1,W2elas_fitpars[0]);
+  signalres_gfit->SetParameter(2,W2elas_fitpars[1]);
+  signalres_gfit->SetLineColor(kBlue);
+  signalres_gfit->SetFillColorAlpha(kBlue,0.35);
+  signalres_gfit->SetFillStyle(3003);
+  signalres_gfit->Draw("same");
+
+  //get integral error from fits to anticut W2
+  //TFitResultPtr q = hW2res->Fit("bgres","S");
+  TFitResultPtr r_gfit = hW2res->Fit("tfitres_gfit","S");
+  Double_t tfitreserr_gfit = tfitres_gfit->IntegralError(ebound_l,ebound_h,r_gfit->GetParams(),r_gfit->GetCovarianceMatrix().GetMatrixArray())*binfac;
+
+  //Total the error for quadrature sum
+  Double_t miss_error_gfit = sqrt(pow(tfitreserr_gfit,2)+pow(signal_error_gfit,2));
+  Double_t num_error_gfit = sqrt(pow(tot_error_gfit,2)+pow(miss_error_gfit,2));
+
+  //get elastics missing from hcal
+  Double_t bgresint_gfit = bgres_gfit->Integral(ebound_l,ebound_h)*binfac; //from fit
+  Double_t W2resint_gfit = hW2res_2->Integral(W2elasb,W2elase); //from histo
+  Double_t W2elasres_gfit = W2resint_gfit - bgresint_gfit;
+  
+  //Calculate efficiency and final error
+
+  double Nerr_hist_gfit = GetTotalQuadratureError(hW2res_2);
+  double Derr_hist_gfit = GetTotalQuadratureError(hW2_2);
+  double Nerr_fit_gfit = GetGrossFitError(hW2res_2,tfitres_gfit);
+  double Derr_fit_gfit = GetGrossFitError(hW2_2,tfit_gfit);
+
+  double Nerr_gfit = sqrt(pow(Nerr_hist_gfit,2)+pow(Nerr_fit_gfit,2)); 
+  double Derr_gfit = sqrt(pow(Derr_hist_gfit,2)+pow(Derr_fit_gfit,2));
+
+  Double_t effres_gfit = ( (W2elas_gfit-W2elasres_gfit) / W2elas_gfit )*100.;
+
+  Double_t effreserr_gfit = effres_gfit*sqrt(pow(Derr_fit_gfit/W2elas_gfit,2)+pow(Nerr_fit_gfit/W2elasres_gfit,2));
+
+  //Add a legend to the canvas
+  auto reslegend_gfit = new TLegend(0.1,0.6,0.5,0.9);
+  //reslegend->SetTextSize( 0.03 );
+  reslegend_gfit->AddEntry( signalres_gfit, "Elastic Fit (scaled)", "l");
+  reslegend_gfit->AddEntry( bgres_gfit, "Background (polynomial)", "l");
+  reslegend_gfit->AddEntry( tfitres_gfit, "Total fit", "l");
+  reslegend_gfit->AddEntry( (TObject*)0, "", "");
+  reslegend_gfit->AddEntry( (TObject*)0, Form("Proton spot elastic shape: %0.1f sigma",exp_spot_sigma), "" );
+  reslegend_gfit->AddEntry( (TObject*)0, Form("Proton spot anticut: %0.1f sigma",det_spot_sigma), "" );
+  reslegend_gfit->AddEntry( (TObject*)0, Form("Number of Elastics Detected: %d",(Int_t)(W2elas_gfit-W2elasres_gfit)), "");
+  reslegend_gfit->AddEntry( (TObject*)0, Form("Detection Efficiency: %0.3f%% +/- %0.3f%%",effres_gfit,effreserr_gfit), "");
+  reslegend_gfit->Draw();
+
+  c5->Write();
 
 
   fout->Write();

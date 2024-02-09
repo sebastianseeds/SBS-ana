@@ -13,8 +13,15 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-//main (type should either be "hpc" for jlab-HPC or "jboyd" for John Boyd's personal replays
-void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const char *nucleon = "both" ){ 
+//////////////////////////////
+//Manual override data options
+bool norm_override = false;
+Double_t Ntried_override = 100000;
+Double_t luminosity_override = 3.8475e+36;
+Double_t genvol_override = 12.566;
+
+//main (type should either be "hpc" for jlab-HPC or "jboyd" for John Boyd's personal replays or "pdatta" for Provakar Datta's personal replays
+void mc_rc( Int_t kine=9, Int_t mag=70, const char *replay_type = "jboyd", const char *nucleon = "both", bool alt_infile = false, bool sync_jobs=true ){
 
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();
@@ -26,12 +33,12 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
   std::string rootfile_dir = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_mc_rc_%dp",mag), Form("sbs%d",kine) );
 
   std::string rootfile_dir_alt = "null";
-  if(kine==4&&mag==30)
+  if(kine==4&&mag==30&&alt_infile)
     rootfile_dir_alt = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_mc_rc_%dp_alt",mag), Form("sbs%d",kine) );
 
-  std::string histfile_dir = jmgr->GetValueFromSubKey_str( "rootfile_dir_mc_rc_hist", Form("sbs%d",kine) );
+  std::string histfile_dir = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_mc_rc_%dp_hist",mag), Form("sbs%d",kine) );
   std::string histfile_dir_alt = "null";
-  if(kine==4&&mag==30)
+  if(kine==4&&mag==30&&alt_infile)
     histfile_dir_alt = jmgr->GetValueFromSubKey_str( "rootfile_dir_mc_rc_hist_alt", Form("sbs%d",kine) );
 
   Double_t W2fitmax = jmgr->GetValueFromSubKey<Double_t>( "W2fitmax", Form("sbs%d",kine) );
@@ -55,8 +62,6 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
   Int_t nruns = -1; //Always analyze all available runs
   Int_t verb = 0; //Don't print diagnostic info by default
-  // Double_t hcalfit_l = econst::hcalposXi_mc-2*econst::hcalblk_div_v; //lower fit/bin limit for hcal dx plots (m)
-  // Double_t hcalfit_h = econst::hcalposXf_mc+2*econst::hcalblk_div_v; //upper fit/bin limit for hcal dx plots (m)
   Double_t hcalfit_l = econst::hcalposXi_mc; //lower fit/bin limit for hcal dx plots (m)
   Double_t hcalfit_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m)
   Double_t harmrange = econst::hcal_vrange; //Full range of hcal dx plots (m)
@@ -71,22 +76,26 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
   //file search on .root and .csv/.hist, get extensions. Proton first
   std::vector<std::string> rootFileNames_p, histFileNames_p; 
   std::vector<std::string> rootFileNames_p_alt, histFileNames_p_alt; 
-
+  std::string histfile_dir_p;
+  std::string rootfile_dir_p;
+ 
   std::string rtype = replay_type;
   if( rtype.compare("jboyd")==0 )
     util::FindMatchingFiles(histfile_dir,rootfile_dir,partialName_p,histFileNames_p,rootFileNames_p,true);
-  else{
+  else if( rtype.compare("pdatta")==0 ){
+    util::FindMatchingFiles(histfile_dir,rootfile_dir,partialName_p,histFileNames_p,rootFileNames_p,false);
+  }else{
 
-    std::string histfile_dir_p = histfile_dir + "/deep";
-    std::string rootfile_dir_p = rootfile_dir + "deep";
+    histfile_dir_p = histfile_dir + "deep";
+    rootfile_dir_p = rootfile_dir + "deep";
 
     util::FindMatchingFiles(histfile_dir_p,rootfile_dir_p,partialName_p,histFileNames_p,rootFileNames_p,false);
 
   }
   
-  if(kine==4&&mag==30){
-    std::string histfile_dir_p = histfile_dir_alt + "/deep";
-    std::string rootfile_dir_p = rootfile_dir_alt + "deep";
+  if(kine==4&&mag==30&&alt_infile){
+    histfile_dir_p = histfile_dir_alt + "deep";
+    rootfile_dir_p = rootfile_dir_alt + "deep";
     util::FindMatchingFiles(histfile_dir_p,rootfile_dir_p,partialName_p,histFileNames_p_alt,rootFileNames_p_alt,false);
 
   }
@@ -95,23 +104,28 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
 
   std::vector<std::string> rootFileNames_n, histFileNames_n;
   std::vector<std::string> rootFileNames_n_alt, histFileNames_n_alt;
+  std::string histfile_dir_n;
+  std::string rootfile_dir_n;
 
   if( rtype.compare("jboyd")==0 )
     util::FindMatchingFiles(histfile_dir,rootfile_dir,partialName_n,histFileNames_n,rootFileNames_n,true);
-  else{
-    std::string histfile_dir_n = histfile_dir + "/deen";
-    std::string rootfile_dir_n = rootfile_dir + "deen";
+  else if( rtype.compare("pdatta")==0 ){
+    util::FindMatchingFiles(histfile_dir,rootfile_dir,partialName_n,histFileNames_n,rootFileNames_n,false);
+  }else{
+    histfile_dir_n = histfile_dir + "deen";
+    rootfile_dir_n = rootfile_dir + "deen";
     util::FindMatchingFiles(histfile_dir_n,rootfile_dir_n,partialName_n,histFileNames_n,rootFileNames_n,false);
 
   }
 
-  if(kine==4&&mag==30){
-    std::string histfile_dir_n = histfile_dir_alt + "/deen";
-    std::string rootfile_dir_n = rootfile_dir_alt + "deen";
+  if(kine==4&&mag==30&&alt_infile){
+    histfile_dir_n = histfile_dir_alt + "deen";
+    rootfile_dir_n = rootfile_dir_alt + "deen";
     util::FindMatchingFiles(histfile_dir_n,rootfile_dir_n,partialName_n,histFileNames_n_alt,rootFileNames_n_alt,false);
 
   }
 
+  //Check to make sure the number of rootfiles and number of histfiles match on protons and neutrons
   if( rootFileNames_p.size() != histFileNames_p.size() || 
       rootFileNames_n.size() != histFileNames_n.size() ||
       rootFileNames_p_alt.size() != histFileNames_p_alt.size() || 
@@ -119,13 +133,27 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
     cerr << "ERROR: FindMatchingFiles() failure, vector sizes mismatch" << endl;
 
   //if two sets, add together
+  if(kine==4&&mag==30&&alt_infile){
 
-  if(kine==4&&mag==30){
     rootFileNames_p.insert(rootFileNames_p.end(), rootFileNames_p_alt.begin(), rootFileNames_p_alt.end());
     rootFileNames_n.insert(rootFileNames_n.end(), rootFileNames_n_alt.begin(), rootFileNames_n_alt.end());
     histFileNames_p.insert(histFileNames_p.end(), histFileNames_p_alt.begin(), histFileNames_p_alt.end());
     histFileNames_n.insert(histFileNames_n.end(), histFileNames_n_alt.begin(), histFileNames_n_alt.end());
 
+  }
+
+  //Throw away jobs for which there does not exist both a proton and neutron rootfile
+  if(sync_jobs)
+    util::synchronizeJobNumbers(rootFileNames_p,rootFileNames_n);
+
+  //Check to be sure same number of stats between p and n
+  int pNfiles = rootFileNames_p.size();
+  int nNfiles = rootFileNames_n.size();
+  cout << endl << "Number of proton files: " << pNfiles << ", Number of neutron files: " << nNfiles << endl;
+  if(rootFileNames_p.size() != rootFileNames_n.size()){
+    cout << endl << "WARNING: Number of proton and neutron files loaded do not match. Check MC file directory" << endl << endl;
+    if(sync_jobs)
+      return;
   }
 
   cout << endl << endl << "CHECKING ROOTFILE PATHS..." << endl;
@@ -145,6 +173,11 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
   
   TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_cut = new TH1D( "hW2_cut", "W^{2}, accmatch/global/atime cuts; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+  TH2D *hxy_exp_n = new TH2D("hxy_exp_n","HCal x vs y expected from e', elastic cuts neutron; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hxy_exp_p = new TH2D("hxy_exp_p","HCal x vs y expected from e', elastic cuts proton; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hxy_exp_n_fid = new TH2D("hxy_exp_n_fid","HCal x vs y expected from e', all cuts neutron; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hxy_exp_p_fid = new TH2D("hxy_exp_p_fid","HCal x vs y expected from e', all cuts proton; y_{HCAL} (m); x_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+
 
   //H-arm
   TH2D *hdxdy_nocut = new TH2D("hdxdy_nocut","HCal dxdy, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
@@ -158,6 +191,8 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
 
   TH1D *hdx_nocut = new TH1D( "hdx_nocut", "dx, no cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_cut = new TH1D( "hdx_cut", "dx, e-arm cut, no dy;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_cut_nofid = new TH1D( "hdx_cut_nofid", "dx, all cuts sans fiducial;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_cut_failfid = new TH1D( "hdx_cut_failfid", "dx, all cuts fail fiducial;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
 
   TH1D *hdx_nocut_p = new TH1D( "hdx_nocut_p", "proton dx, no cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_cut_p = new TH1D( "hdx_cut_p", "proton dx, e-arm cut, no dy;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
@@ -176,6 +211,9 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
   Double_t sbsdist = config.GetSBSdist();
   Double_t bbthr = config.GetBBtheta_rad(); //in radians
   Double_t ebeam = config.GetEbeam();
+
+  //Set up hcal active area with bounds that match database on pass
+  vector<Double_t> hcalaa = cut::hcalaa_data(1,1);
 
   //SBStune *tune = new SBStune(kine,mag);
   SBStune tune(kine,mag);
@@ -256,7 +294,12 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
       Int_t Ntried;
       Double_t luminosity;
       Double_t genvol;
-      if( rtype.compare("jboyd")==0 ){
+      if( norm_override ){
+	cout << "Normalization override enabled. ";
+	Ntried = (Int_t)Ntried_override;
+	luminosity = luminosity_override;
+	genvol = genvol_override;
+      }else if( rtype.compare("jboyd")==0 ){
 	Ntried = (Int_t)util::searchSimcHistFile("Ntried", hist_file);
 	luminosity = util::searchSimcHistFile("luminosity", hist_file);
 	genvol = util::searchSimcHistFile("genvol", hist_file);
@@ -267,9 +310,18 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
       }
 
       std::cout << "For this run: Ntried=" << Ntried << " luminosity=" << luminosity << " genvol=" << genvol << endl; 
+      
+      if( !norm_override && (Ntried==-1 || luminosity==-1 || genvol==-1) ){
+	cout << "Failed to read normalization data, skipping file.." << endl;
+	continue;
+      }
 
-      //build the chain
-      C = new TChain("T");
+      //first attempt to resolve segmentation fault on large data sets
+      if (C != nullptr) {
+	delete C;
+      }
+
+      C = new TChain("T"); 
       
       //add the right replayed mc output file
       C->Add(load_file.c_str());
@@ -280,6 +332,8 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
 
       // setting up ROOT tree branch addresses
       C->SetBranchStatus("*",0);    
+
+      C->SetBranchStatus("bb.sh.nclus",1);
 
       // HCal general
       Double_t hcalid, hcale, hcalx, hcaly, hcalr, hcalc, hcaltdc, hcalatime;
@@ -345,7 +399,8 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
       TVector3 hcalorigin = hcaldist*hcalaxes[2];
       Double_t BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
       Double_t Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::lh2tarrho * econst::lh2dEdx;
-      vector<Double_t> hcalaa = cut::hcalaa_mc(1,1);
+      //vector<Double_t> hcalaa = cut::hcalaa_data(1,1);
+      //vector<Double_t> hcalaa = cut::hcalaa_data_alt(1,1); //ostensibly for pass 0
 
       // event indices
       long nevent = 0; 
@@ -422,9 +477,6 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
 	//Primary cluster atime cut
 	bool failedpclusatime =  abs( hcalcatime[0] - atime0 ) > coin_sigma_factor*atimesig;
 
-	//dy cut
-	bool faileddy = abs(dy-dy0)>dysig;
-
 	//caculate final weight for this event
 	Double_t final_mc_weight = mcweight*luminosity*genvol/Ntried;
 
@@ -443,16 +495,33 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
 	  hdx_nocut_n->Fill(dx,final_mc_weight);
 	}
 
-	//E-arm cuts
-	if( failedglobal || failedW2 || faileddy )
-	  continue;
-    
 	//H-arm fiducial cuts
 	bool hcalON = cut::hcalaaON(hcalx,hcaly,hcalaa);
 	vector<Double_t> fid = cut::hcalfid(dxsig_p,dysig,hcalaa);
 	bool passed_fid = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid);
 
-	if( !passed_fid || !hcalON )
+	//E-arm cuts
+	if( failedglobal || failedW2 )
+	  continue;
+    
+	hxy_exp_n->Fill(xyhcalexp[1],xyhcalexp[0]);
+	hxy_exp_p->Fill(xyhcalexp[1],xyhcalexp[0]+dx0_p); //expected proton position from average difference between dxdy neutron and proton spots
+
+	if(passed_fid){
+	  hxy_exp_n_fid->Fill(xyhcalexp[1],xyhcalexp[0]);
+	  hxy_exp_p_fid->Fill(xyhcalexp[1],xyhcalexp[0]+dx0_p); //expected proton position from average difference between dxdy neutron and proton spots
+	}
+
+	//dy cut
+	bool faileddy = abs( dy - dy0 ) > 3*dysig;
+	
+	if( !faileddy && hcalON ){
+	  hdx_cut_nofid->Fill(dx,final_mc_weight); //primary dx histo, no fiducial cut
+	  if(!passed_fid)
+	    hdx_cut_failfid->Fill(dx,final_mc_weight); //primary dx histo, 
+	}
+
+	if( !passed_fid || !hcalON || faileddy)
 	  continue;
 
 	//Fill cut histograms for both
@@ -475,7 +544,97 @@ void mc_rc( Int_t kine=4, Int_t mag=30, const char *replay_type = "hpc", const c
     } //end file loop
 
   } //end nucleon loop
-    
+   
+   //Make fiducial check on neutron hypothesis
+  vector<Double_t> fid = cut::hcalfid(dxsig_p,dysig,hcalaa);
+  Double_t hcalx_ft = fid[2];
+  Double_t hcalx_fb = fid[3];
+  Double_t hcaly_fr = fid[0];
+  Double_t hcaly_fl = fid[1];
+
+  //Make Fiducial Safety Margin TLines
+  TLine* l1_f = new TLine(hcalx_ft, hcaly_fr, hcalx_ft, hcaly_fl);
+  l1_f->SetLineColor(kGreen);
+  TLine* l2_f = new TLine(hcalx_fb, hcaly_fr, hcalx_fb, hcaly_fl);
+  l2_f->SetLineColor(kGreen);
+  TLine* l3_f = new TLine(hcalx_ft, hcaly_fr, hcalx_fb, hcaly_fr);
+  l3_f->SetLineColor(kGreen);
+  TLine* l4_f = new TLine(hcalx_ft, hcaly_fl, hcalx_fb, hcaly_fl);
+  l4_f->SetLineColor(kGreen);
+
+  //Make Fiducial Line
+  // TLine* l1_fl = new TLine(hcalx_t-2*dysig, hcaly_fl, hcalx_t-2*dysig, hcaly_fl+dx0_p);
+  // l1_fl->SetLineColor(kMagenta);
+
+  TCanvas *c0 = new TCanvas("c0","HCal Fiducial cuts, neutron hypothesis",1200,500);
+  c0->Divide(2,1);
+
+  c0->cd(1);
+  c0->SetLogz();
+  hxy_exp_n->Draw("colz");
+  l1_f->Draw();
+  l2_f->Draw();
+  l3_f->Draw();
+  l4_f->Draw();
+
+  auto leg0a = new TLegend(0.1,0.8,0.5,0.9);
+  leg0a->AddEntry( l1_f, "HCal Safety Margin", "l");
+  leg0a->Draw();
+
+  c0->Update();
+
+  c0->cd(2);
+  c0->SetLogz();
+  hxy_exp_n_fid->Draw("colz");
+  l1_f->Draw();
+  l2_f->Draw();
+  l3_f->Draw();
+  l4_f->Draw();
+  //l1_fl->Draw();
+
+  auto leg0b = new TLegend(0.1,0.8,0.5,0.9);
+  leg0b->AddEntry( l1_f, "HCal Safety Margin", "l");
+  leg0b->Draw();
+
+  c0->Update();
+  c0->Write();
+
+  //Make fiducial check on proton hypothesis
+
+  TCanvas *c1 = new TCanvas("c1","HCal Fiducial cuts, proton hypothesis",1200,500);
+  gStyle->SetPalette(53);
+  c1->Divide(2,1);
+
+  c1->cd(1);
+  c1->SetLogz();
+  hxy_exp_p->Draw("colz");
+  l1_f->Draw();
+  l2_f->Draw();
+  l3_f->Draw();
+  l4_f->Draw();
+
+  auto leg1a = new TLegend(0.1,0.8,0.5,0.9);
+  leg1a->AddEntry( l1_f, "HCal Safety Margin", "l");
+  leg1a->Draw();
+
+  c1->Update();
+
+  c1->cd(2);
+  c1->SetLogz();
+  hxy_exp_p_fid->Draw("colz");
+  l1_f->Draw();
+  l2_f->Draw();
+  l3_f->Draw();
+  l4_f->Draw();
+  //l1_fl->Draw();
+
+  auto leg1b = new TLegend(0.1,0.8,0.5,0.9);
+  leg1b->AddEntry( l1_f, "HCal Safety Margin", "l");
+  leg1b->Draw();
+
+  c1->Update();
+  c1->Write();
+
   fout->Write();
   
   cout << endl << "Analysis complete. Outfile located at " << fout_path << endl;

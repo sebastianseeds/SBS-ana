@@ -107,10 +107,10 @@ void GMnElasPeak( Double_t E_beam, Double_t BB_angle, Double_t BB_distance, Doub
   cout << endl << endl << "Suggested hcal threshold with estimated smearing: " << (hcal_ms - hcal_ms*ff)/hcal_threshconv << "." << endl;
 
   cout << endl << endl << "Lowest energy sampled in HCal (MeV): " << hcal_ms << "." << endl;
-  cout << endl << endl << "Suggested hcal threshold: " << hcal_ms/hcal_threshconv << "." << endl << endl << endl;
-
+  cout << endl << endl << "Suggested hcal threshold: " << hcal_ms/hcal_threshconv << "." << endl << endl;
   cout << endl << endl << "Central proton momentum: " << p_p[3] << endl;
   cout << endl << endl << "Central neutron momentum: " << p_n[3] << endl;
+  cout << endl << endl << "Q^2: " << Q2 << endl << endl << endl;
 
 }
 

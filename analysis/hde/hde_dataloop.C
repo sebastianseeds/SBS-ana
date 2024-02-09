@@ -31,7 +31,7 @@ const Double_t dx_fithigh = 0.3;
 //// 5) Cluster which passes 5 sigma cut on adc time, then minimizes proton theta pq.
 //// 6) Cluster which passes 5 sigma cut on adc time, then maximizes energy.
 //// 7) Cluster which maximizes score (see algorithm in util.C)
-void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
+void hde_dataloop( Int_t kine=8, Int_t magset=70, Double_t det_spot_sigma = 3, Double_t exp_spot_sigma = 1)
 { //main  
 
   // Define a clock to check macro processing time
@@ -70,6 +70,22 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
     return;
   }
 
+  //Get tuned kinematical variables by kine/field
+  SBStune tune(kine,magset);
+
+  //Obtain cuts from tune class
+ std:string gcut   = tune.Getglobcut_earm();
+  Double_t W2mean   = tune.GetW2mean();
+  Double_t W2sig    = tune.GetW2sig();
+  Double_t dx0_n    = tune.Getdx0_n();
+  Double_t dx0_p    = tune.Getdx0_p();
+  Double_t dy0      = tune.Getdy0();
+  Double_t dxsig_n  = tune.Getdxsig_n();
+  Double_t dxsig_p  = tune.Getdxsig_p();
+  Double_t dysig    = tune.Getdysig();
+  Double_t atime0   = tune.Getatime0();
+  Double_t atimesig = tune.Getatimesig();
+
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
   Int_t nruns = -1; //Always analyze all available runs
@@ -83,7 +99,7 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   util::ReadRunList(runsheet_dir,nruns,kine,target.c_str(),pass,verb,corun); //modifies nruns to be very large when -1. Select run list for LH2 only for hde
 
   //set up output files
-  string outfilename = Form("outfiles/hde_dataloop_sbs%d_magset%d_spotsig%d.root",kine,magset,spot_sigma);
+  string outfilename = Form("outfiles/hde_dataloop_sbs%d_magset%d_dspotsig%0.1f_espotsig%0.1f.root",kine,magset,det_spot_sigma,exp_spot_sigma);
   TFile *fout = new TFile( outfilename.c_str(), "RECREATE" );
 
   ////////////
@@ -94,25 +110,35 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   TH2D *hxy_aacut = new TH2D("hxy_aacut","HCal x vs HCal y, acceptance matching cut no sigma; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH2D *hxy_acccut = new TH2D("hxy_acccut","HCal x vs HCal y, acceptance matching cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
 
-  TH2D *hdxdy_nocut = new TH2D("hdxdy_nocut","HCal dxdy, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hdxdy_spotcut = new TH2D("hdxdy_spotcut","HCal dxdy, cut on proton spot; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_nocut = new TH2D("hdxdy_nocut","HCal dxdy, no cut, close clus; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_nocut_scoop = new TH2D("hdxdy_nocut_scoop","HCal dxdy, no cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_detspotcut = new TH2D("hdxdy_detspotcut","HCal dxdy, detector cut on proton spot; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_expspotcut = new TH2D("hdxdy_expspotcut","HCal dxdy, expected cut on proton spot; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_detspotcut_scoop = new TH2D("hdxdy_detspotcut_scoop","HCal dxdy, detector cut on proton spot, close clus; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hdxdy_expspotcut_scoop = new TH2D("hdxdy_expspotcut_scoop","HCal dxdy, expected cut on proton spot, close clus; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH2D *hdxdy_earm_cut = new TH2D("hdxdy_earm_cut","HCal dxdy, e-arm elastic cut; dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
   TH1D *hW2_earm_cut = new TH1D( "hW2_earm_cut", "W^{2}, global/dy/dx cut; W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   
-
   //set up diagnostic histograms
   TH2D *hxyexp_nocut = new TH2D("hxyexp_nocut","HCal X vs Y Expected from BB, No Cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
-  TH2D *hxyexp_aacut = new TH2D("hxyexp_aacut","HCal X vs Y Expected from BB, Acceptance Match Cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
+  TH2D *hxyexp_acccut = new TH2D("hxyexp_acccut","HCal X vs Y Expected from BB, Acceptance Match Cut;dy_{HCAL} (m); dx_{HCAL} (m)", 400, -2.0, 2.0, 600, -3.0, 3.0 );
 
   //set up detection efficiency histograms
   TH1D *hW2_allcut = new TH1D( "hW2_allcut", "W^{2}, global/dy/dx cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_allcut_scoop = new TH1D( "hW2_allcut_scoop", "W^{2}, global/dy/dx cut, close clus;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_allcut_dym = new TH1D( "hW2_allcut_dym", "W^{2}, global/dy cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_anticut = new TH1D( "hW2_anticut", "W^{2}, elastic anticut (global e-arm and hcal dy/dx);W^{2} (GeV^{2});", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_anticut_dym = new TH1D( "hW2_anticut_dym", "W^{2}, elastic anticut (global e-arm and hcal dy);W^{2} (GeV^{2});", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_anticut_scoop = new TH1D( "hW2_anticut_scoop", "W^{2}, elastic anticut (global e-arm and hcal dy/dx), close clus; W^{2} (GeV^{2});", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hW2_nocut = new TH1D( "hW2_nocut", "W^{2}, no cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
+  TH1D *hW2_gcut = new TH1D( "hW2_gcut", "W^{2}, global cut;W^{2} (GeV^{2})", binfac*W2fitmax, 0.0, W2fitmax );
   TH1D *hdx_allcut = new TH1D( "hdx_allcut", "dx, W^{2} and dy cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_allcut_scoop = new TH1D( "hdx_allcut_scoop", "dx, W^{2} and dy cut, close clus;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_allcut_dym = new TH1D( "hdx_allcut_dym", "dx, W^{2} and dy cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_nocut = new TH1D( "hdx_nocut", "dx, no cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_nocut_scoop = new TH1D( "hdx_nocut_scoop", "dx, no cut, close clus; x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_gcut = new TH1D( "hdx_gcut", "dx, global cut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
+  TH1D *hdx_gcut_scoop = new TH1D( "hdx_gcut_scoop", "dx, global cut, close clus; x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
   TH1D *hdx_anticut = new TH1D( "hdx_anticut", "dx, e-arm elastic anticut;x_{HCAL}-x_{expect} (m)", hbinfac*harmrange, hcalfit_l, hcalfit_h);
 
   // re-allocate memory at each run to load different cuts/parameters
@@ -188,14 +214,75 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   Int_t curmag = -1;
   std::string curtar = "";
   std::cout << std::endl << std::endl;
-  Double_t dxmean;
-  Double_t dxsigma;
 
-  Double_t dy0;
-  Double_t dysig;
-  Double_t dx0_p;
-  Double_t dxsig_p;
+  //HCal edge boundaries
+  Double_t left;
+  Double_t right;
+  Double_t top;
+  Double_t bottom;
 
+  //SBS-4 SBS-7 (pass0)
+  if( kine==4 || kine==7 ){
+    left = econst::hcalposYi_p0;
+    right = econst::hcalposYf_p0;
+    top = econst::hcalposXf_p0;
+    bottom = econst::hcalposXi_p0;
+  }else{
+    //pass1 and >pass1
+    left = econst::hcalposYi;
+    right = econst::hcalposYf;
+    top = econst::hcalposXf;
+    bottom = econst::hcalposXi;
+  }
+
+  //Active area boundaries
+  Double_t leftAA;
+  Double_t rightAA;
+  Double_t topAA;
+  Double_t bottomAA;
+
+  //SBS-4 SBS-7 (pass0)
+  if( kine==4 || kine==7 ){
+    leftAA = (econst::hcalposYi_p0+econst::hcalblk_w_p0);
+    rightAA = (econst::hcalposYf_p0-econst::hcalblk_w_p0);
+    topAA = (econst::hcalposXf_p0-econst::hcalblk_h_p0);
+    bottomAA = (econst::hcalposXi_p0+econst::hcalblk_h_p0);
+  }else{
+    //pass1 and >pass1
+    leftAA = (econst::hcalposYi+econst::hcalblk_w);
+    rightAA = (econst::hcalposYf-econst::hcalblk_w);
+    topAA = (econst::hcalposXf-econst::hcalblk_h);
+    bottomAA = (econst::hcalposXi+econst::hcalblk_h);
+  }
+  
+  //Acceptance matching boundaries
+  Double_t leftAcc;
+  Double_t rightAcc;
+  Double_t topAcc;
+  Double_t bottomAcc;
+
+  //Cut all events that are projected to outermost edge of HCal
+  //Add 3sigma proton peak safety margin (x and y) to ensure no expected detections lie one boundary of HCal
+
+  //SBS-4 SBS-7 (pass0)
+  if( kine==4 || kine==7 ){
+    leftAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0+3*dysig);
+    rightAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0-3*dysig);
+    topAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0-3*dxsig_p-dx0_p);
+    bottomAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0+3*dxsig_p-dx0_p);
+  }else{
+    //pass1 and >pass1
+    leftAcc = (econst::hcalposYi+econst::hcalblk_w+3*dysig);
+    rightAcc = (econst::hcalposYf-econst::hcalblk_w-3*dysig);
+    topAcc = (econst::hcalposXf-econst::hcalblk_h-3*dxsig_p-dx0_p);
+    bottomAcc = (econst::hcalposXi+econst::hcalblk_h+3*dxsig_p-dx0_p);
+  }
+
+  int loop_hde_numerator = 0;
+  int loop_hde_numerator_scoop = 0;
+  int loop_hde_denominator = 0;
+
+  //loop over runs
   for (Int_t irun=0; irun<nruns; irun++) {
     // accessing run info
     Int_t runnum = corun[irun].runnum;
@@ -217,9 +304,6 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
     Double_t sbsdist = config.GetSBSdist();
     Double_t bbthr = config.GetBBtheta_rad(); //in radians
     
-    //SBStune *tune = new SBStune(kine,mag);
-    SBStune tune(kine,mag);
-    
     //Reporting. tar should always equal curtar as categorized by good run list
     if( tar.compare(curtar)!=0 || mag!=curmag ){
       std::cout << "Settings change.." << endl;
@@ -228,23 +312,6 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
       curtar = tar;
       curmag = mag;
     }
-
-    //Obtain cuts from tune class
-    std:string gcut   = tune.Getglobcut_earm();
-    Double_t W2mean   = tune.GetW2mean();
-    Double_t W2sig    = tune.GetW2sig();
-    Double_t dx0_n    = tune.Getdx0_n();
-    dx0_p    = tune.Getdx0_p();
-    dy0      = tune.Getdy0();
-    Double_t dxsig_n  = tune.Getdxsig_n();
-    dxsig_p  = tune.Getdxsig_p();
-    dysig    = tune.Getdysig();
-    Double_t atime0   = tune.Getatime0();
-    Double_t atimesig = tune.Getatimesig();
-
-    //For this analysis, only one magnetic field
-    dxmean = dx0_p;
-    dxsigma = dxsig_p;
 
     //Set cut/anticut limits for proton
     Double_t dxmin = dx0_p - 3*dxsig_p; //Obtain 99.73% of elastic sample
@@ -258,31 +325,6 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 
     //Set minimum energy for expected recoil nucleon to be considered
     Double_t hminE = 0.0;  //0.05 GeV or nothing
-
-    //Acceptance matching limits for analysis
-    // Double_t topAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig);
-    // Double_t bottomAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig);
-    // Double_t leftAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
-    // Double_t rightAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
-
-    Double_t leftAcc;
-    Double_t rightAcc;
-    Double_t topAcc;
-    Double_t bottomAcc;
-
-    //SBS-4 SBS-7 (pass0)
-    if( kine==4 || kine==7 ){
-      leftAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig);
-      rightAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig);
-      topAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
-      bottomAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
-    }else{
-      //pass1 and >pass1
-      leftAcc = (econst::hcalposYi+econst::hcalblk_w-dysig);
-      rightAcc = (econst::hcalposYf-econst::hcalblk_w+dysig);
-      topAcc = (econst::hcalposXf-econst::hcalblk_h+dxsig_p-dx0_p);
-      bottomAcc = (econst::hcalposXi+econst::hcalblk_h-dxsig_p-dx0_p);
-    }
 
     std::string rfname = rootfile_dir + Form("/*%d*",corun[irun].runnum);
     //std::cout << "Switching to run " << rfname << ".." << std::endl;
@@ -495,7 +537,7 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 
       hxyexp_nocut->Fill( xyhcalexp[1], xyhcalexp[0] );
       if( !failedaccmatch )
-	hxyexp_aacut->Fill( xyhcalexp[1], xyhcalexp[0] );
+	hxyexp_acccut->Fill( xyhcalexp[1], xyhcalexp[0] );
      
       //Get expected proton deflection for thetapq (zero field, so this shouldn't matter)
       Double_t protdeflect = tan( 0.3 * BdL / qv.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
@@ -642,29 +684,66 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
       Double_t thpq_bestcluster = tpq_p[cidx_best];
       Double_t ce_bestcluster = hcalce[cidx_best];
 
-      //check if best cluster position is within the proton spot
-      bool spotcheck_p = util::Nspotcheck(dy_bestcluster,
+      //Calculations from scoop cluster for alter use
+      Double_t dx_scoopcluster = hcalcx[cidx_dxdy] - xyhcalexp[0];
+      Double_t dy_scoopcluster = hcalcy[cidx_dxdy] - xyhcalexp[1];
+      Double_t hatime_scoopcluster = hcalcatime[cidx_dxdy];
+      Double_t thpq_scoopcluster = tpq_p[cidx_dxdy];
+      Double_t ce_scoopcluster = hcalce[cidx_dxdy];
+
+      //check if best cluster position is within the proton spot, intended for elastic shape
+      bool exp_spotcheck_p = util::Nspotcheck(dy_bestcluster,
 					  dx_bestcluster,
 					  dy0,
 					  dx0_p,
-					  spot_sigma*dysig,
-					  spot_sigma*dxsig_p,
+					  exp_spot_sigma*dysig,
+					  exp_spot_sigma*dxsig_p,
 					  0);
 
-      bool dycheck_p = dy_bestcluster<(dy0+spot_sigma*dysig) && dy_bestcluster>(dy0-spot_sigma*dysig);
+      bool exp_spotcheck_p_scoop = util::Nspotcheck(dy_scoopcluster,
+						    dx_scoopcluster,
+						    dy0,
+						    dx0_p,
+						    exp_spot_sigma*dysig,
+						    exp_spot_sigma*dxsig_p,
+						    0);
+
+      //check if best cluster position is within the proton spot, open for all elastic events
+      bool det_spotcheck_p = util::Nspotcheck(dy_bestcluster,
+					  dx_bestcluster,
+					  dy0,
+					  dx0_p,
+					  det_spot_sigma*dysig,
+					  det_spot_sigma*dxsig_p,
+					  0);
+
+      bool det_spotcheck_p_scoop = util::Nspotcheck(dy_scoopcluster,
+						    dx_scoopcluster,
+						    dy0,
+						    dx0_p,
+						    det_spot_sigma*dysig,
+						    det_spot_sigma*dxsig_p,
+						    0);
+
+      //check if cluster is within dy only for comparison
+      bool dycheck_p = dy_bestcluster<(dy0+det_spot_sigma*dysig) && dy_bestcluster>(dy0-det_spot_sigma*dysig);
 
       //check if best cluster passes wide coin cut
       bool passedcoin = abs( hatime_bestcluster - atime0 ) < atimeSigFac*atimesig;
+
+      //check if best cluster passes wide coin cut
+      bool passedcoin_scoop = abs( hatime_scoopcluster - atime0 ) < atimeSigFac*atimesig;
 
       //quick check on acceptance
       hxy_nocut->Fill(hcalcy[cidx_best],hcalcx[cidx_best]);
       hxy_nocut->Fill(0.,0.);
 
+      //check if best cluster is in active area
       bool aaregion = 
-	hcalcy[cidx_best] > (econst::hcalposYf_p0-econst::hcalblk_w_p0) ||
-	hcalcy[cidx_best] < (econst::hcalposYi_p0+econst::hcalblk_w_p0) ||
-	hcalcx[cidx_best] > (econst::hcalposXf_p0-econst::hcalblk_h_p0) ||
-	hcalcx[cidx_best] < (econst::hcalposXi_p0+econst::hcalblk_h_p0);
+	hcalcy[cidx_best] > rightAA ||
+	hcalcy[cidx_best] < leftAA ||
+	hcalcx[cidx_best] > topAA ||
+	hcalcx[cidx_best] < bottomAA;
 
       if(aaregion)
 	hxy_aacut->Fill(hcalcy[cidx_best],hcalcx[cidx_best]);
@@ -679,8 +758,16 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 	hxy_acccut->Fill(hcalcy[cidx_best],hcalcx[cidx_best]);
 
       hdxdy_nocut->Fill(dy_bestcluster,dx_bestcluster);
-      if( spotcheck_p )
-	hdxdy_spotcut->Fill(dy_bestcluster,dx_bestcluster);
+      hdxdy_nocut_scoop->Fill(dy_scoopcluster,dx_scoopcluster);
+
+      if( det_spotcheck_p )
+	hdxdy_detspotcut->Fill(dy_bestcluster,dx_bestcluster);
+      if( exp_spotcheck_p )
+	hdxdy_expspotcut->Fill(dy_bestcluster,dx_bestcluster);
+      if( det_spotcheck_p_scoop )
+	hdxdy_detspotcut_scoop->Fill(dy_scoopcluster,dx_scoopcluster);
+      if( exp_spotcheck_p_scoop )
+	hdxdy_expspotcut_scoop->Fill(dy_scoopcluster,dx_scoopcluster);
 
       //Fill final output tree variables    
       mag_out = mag;
@@ -704,18 +791,45 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
       ////////////////////////////////////////////////
       if( !failedaccmatch ){ //cut on acceptance matching for all analysis
 	
+	//Get loop hde first
+	if( !failedglobal && !failedW2 ){ //Check if electron arm expects an elastic
+	  loop_hde_denominator++; //increment expected
+	  if( det_spotcheck_p ) //check if best cluster saw event in proton spot
+	    loop_hde_numerator++; //increment detected for best cluster
+	  if( det_spotcheck_p_scoop ) //check if scoop cluster saw event in proton spot
+	    loop_hde_numerator_scoop++; //increment detected for scoop cluster
+
+	}
+
 	//Obtain distributions with only acceptance matching
 	hW2_nocut->Fill( W2 );
 	hdx_nocut->Fill( dx_bestcluster );
+	hdx_nocut_scoop->Fill( dx_scoopcluster );
 	    
+	//Get dx distributions with only acc match and globalcuts applied
+	if( !failedglobal ){
+	  hdx_gcut->Fill( dx_bestcluster );
+	  hdx_gcut_scoop->Fill( dx_scoopcluster );
+	}
+	
 	//Make tightest elastic cut possible for elastic SHAPE only (W2)
-	if( spotcheck_p &&
+	if( exp_spotcheck_p &&
 	    passedcoin &&
 	    !failedglobal ){
 
 	  hW2_allcut->Fill( W2 ); //Don't cut on W2 for W2 distribution
 	  if( !failedW2 )	    
 	    hdx_allcut->Fill(dx_bestcluster); //Cut on dx in spotcheck may be too tight
+	}
+
+	//Make tightest elastic cut possible for elastic SHAPE only (W2) with scoop cluster
+	if( exp_spotcheck_p_scoop &&
+	    passedcoin_scoop &&
+	    !failedglobal ){
+
+	  hW2_allcut_scoop->Fill( W2 ); //Don't cut on W2 for W2 distribution
+	  if( !failedW2 )	    
+	    hdx_allcut->Fill(dx_scoopcluster); //Cut on dx in spotcheck may be too tight
 	}
 
 	//Make dy elastic cut for shape comparison
@@ -733,11 +847,17 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 	    !failedW2 )
 	  hdxdy_earm_cut->Fill(dy_bestcluster,dx_bestcluster);
 
+	//Make cut only on global electron arm variables and populate W2
+	if( !failedglobal )
+	  hW2_gcut->Fill( W2 );
+
 	//make an anticut for W2 on dx. These are events that the earm says are elastics, but hcal fails to detect.
-	if( !spotcheck_p &&
-	    passedcoin &&
-	    !failedglobal )
+	if(!det_spotcheck_p && !failedglobal)
 	  hW2_anticut->Fill( W2 );
+
+	//make an anticut for W2 on dx. These are events that the earm says are elastics, but hcal fails to detect. Scoop cluster.
+	if(!det_spotcheck_p_scoop && !failedglobal)
+	  hW2_anticut_scoop->Fill( W2 );
 
 	//make anticut for W2 using dy cut for comparison
 	if( !dycheck_p &&
@@ -750,7 +870,7 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 	    failedW2 )
 	  hdx_anticut->Fill( dx_bestcluster );
 
-      }
+      }//end passed acceptance matching
 	 
     } //end event loop
 
@@ -759,25 +879,14 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
 
   } //end run loop
 
-  ///////////////////////////
-  //ACCEPTANCE MATCHING CHECK
+  //////////////////////////////
+  //HCAL GEOMETRY MATCHING CHECK
 
   //Make canvas for hcal dx detected / expected 
-  TCanvas *c1 = new TCanvas("c1",Form("HDE acc match sbs%d mag%d",kine,magset),1200,500);
-  gStyle->SetPalette(53);
-  c1->Divide(2,1);
-  c1->cd(1);
-
-  // Create lines for hcal boundary
-  // Double_t top = (econst::hcalposYi_p0+econst::hcalblk_w_p0);
-  // Double_t bottom = (econst::hcalposYf_p0-econst::hcalblk_w_p0);
-  // Double_t left = (econst::hcalposXf_p0-econst::hcalblk_h_p0);
-  // Double_t right = (econst::hcalposXi_p0+econst::hcalblk_h_p0); 
-
-  Double_t left = (econst::hcalposYi_p0);
-  Double_t right = (econst::hcalposYf_p0);
-  Double_t top = (econst::hcalposXf_p0);
-  Double_t bottom = (econst::hcalposXi_p0);  
+  TCanvas *c0 = new TCanvas("c0",Form("HCal Detections sbs%d mag%d",kine,magset),1200,500);
+  gStyle->SetPalette(55);
+  c0->Divide(2,1);
+  c0->cd(1); 
 
   TLine* lineTop = new TLine(left, top, right, top);
   lineTop->SetLineColor(kGray);
@@ -788,16 +897,40 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   TLine* lineRight = new TLine(right, bottom, right, top);
   lineRight->SetLineColor(kGray);
 
-  // Create lines for acceptance to match
-  // Double_t topAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig);
-  // Double_t bottomAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig);
-  // Double_t leftAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
-  // Double_t rightAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
+  // Draw the histogram
+  hxy_nocut->Draw("colz");
 
-  Double_t leftAcc = (econst::hcalposYi_p0+econst::hcalblk_w_p0-dysig);
-  Double_t rightAcc = (econst::hcalposYf_p0-econst::hcalblk_w_p0+dysig);
-  Double_t topAcc = (econst::hcalposXf_p0-econst::hcalblk_h_p0+dxsig_p-dx0_p);
-  Double_t bottomAcc = (econst::hcalposXi_p0+econst::hcalblk_h_p0-dxsig_p-dx0_p);
+  // Draw the lines on top of the histogram
+  lineTop->Draw("SAME");
+  lineBottom->Draw("SAME");
+  lineLeft->Draw("SAME");
+  lineRight->Draw("SAME");
+
+  auto leg = new TLegend(0.1,0.7,0.5,0.9);
+  leg->AddEntry( hxy_nocut, "HCal No Cut", "l");
+  leg->AddEntry( lineTop, "HCal Boundary", "l");
+  leg->Draw("colz");
+
+  c0->cd(2);
+
+  // Draw the histogram
+  hxy_aacut->Draw();
+
+  // Draw the lines on top of the histogram
+  lineTop->Draw("SAME");
+  lineBottom->Draw("SAME");
+  lineLeft->Draw("SAME");
+  lineRight->Draw("SAME");
+
+  auto legcut = new TLegend(0.1,0.7,0.5,0.9);
+  legcut->AddEntry( hxy_nocut, "HCal Active Area Cut", "l");
+  legcut->AddEntry( lineTop, "HCal Boundary", "l");
+  legcut->Draw("colz");
+
+  c0->Write();
+
+  ///////////////////////////
+  //ACCEPTANCE MATCHING CHECK
 
   TLine* lineTopAcc = new TLine(leftAcc, topAcc, rightAcc, topAcc);
   lineTopAcc->SetLineColor(kGreen);
@@ -808,8 +941,14 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   TLine* lineRightAcc = new TLine(rightAcc, bottomAcc, rightAcc, topAcc);
   lineRightAcc->SetLineColor(kGreen);
 
+  //Make canvas for hcal dx detected / expected 
+  TCanvas *c1 = new TCanvas("c1",Form("HDE acc match sbs%d mag%d",kine,magset),1200,500);
+  gStyle->SetPalette(53);
+  c1->Divide(2,1);
+  c1->cd(1);
+
   // Draw the histogram
-  hxyexp_nocut->Draw();
+  hxyexp_nocut->Draw("colz");
 
   // Draw the lines on top of the histogram
   lineTop->Draw("SAME");
@@ -824,11 +963,11 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   auto accleg = new TLegend(0.1,0.7,0.5,0.9);
   accleg->AddEntry( lineTop, "HCal Boundary", "l");
   accleg->AddEntry( lineTopAcc, "Projected Acceptance", "l");
-  accleg->Draw();
+  accleg->Draw("colz");
 
   c1->cd(2);
 
-  hxyexp_aacut->Draw("colz");
+  hxyexp_acccut->Draw("colz");
 
   // Draw the lines on top of the histogram
   lineTop->Draw("SAME");
@@ -846,6 +985,26 @@ void hde_dataloop( Int_t kine=8, Int_t magset=70, Int_t spot_sigma = 1)
   acclegcut->Draw("colz");
 
   c1->Write();
+
+  //Calculate loop HDE
+  double loop_hde = (double)loop_hde_numerator / (double)loop_hde_denominator;
+  double loop_hde_error = sqrt( ( loop_hde*(1-loop_hde) )/(double)loop_hde_denominator);
+
+  double loop_hde_scoop = (double)loop_hde_numerator_scoop / (double)loop_hde_denominator;
+  double loop_hde_error_scoop = sqrt( ( loop_hde_scoop*(1-loop_hde_scoop) )/(double)loop_hde_denominator);
+
+  cout << endl << endl << "Loop HDE, best cluster: " << loop_hde << " +/- " << loop_hde_error << endl;
+  cout << endl << endl << "Loop HDE, scoop cluster: " << loop_hde_scoop << " +/- " << loop_hde_error_scoop << endl;
+
+  //Make canvas for loop hde
+  TCanvas *c2 = new TCanvas("c1",Form("Loop HDE sbs%d mag%d",kine,magset),600,500);
+  
+  TPaveText *pt = new TPaveText(0.1, 0.6, 0.9, 0.9, "brNDC"); // brNDC sets coordinates in NDC
+  pt->AddText(Form("Loop HDE Best Cluster: %0.2f +/- %0.2f", loop_hde, loop_hde_error));
+  pt->AddText(Form("Loop HDE Scoop Cluster: %0.2f +/- %0.2f", loop_hde_scoop, loop_hde_error_scoop));
+
+  pt->Draw();
+  c2->Write();
 
   fout->Write();
 
