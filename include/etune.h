@@ -13,6 +13,7 @@ namespace etune {
 
   // Following quantities vary with configuration
   std::string  globcut(Int_t config);      //List of wide elastic cuts over all subsystems
+  std::string  globcut_wide(Int_t config); //List of wide elastic cuts over all subsystems for systematics
   std::string  globcut_earm(Int_t config); //List of wide elastic cuts over BigBite subsystems
   std::string  globcut_hexp(Int_t config); //List of wide elastic cuts using hcal expert replay
   Double_t     W2mean(Int_t config,Int_t mag);
@@ -36,6 +37,7 @@ class SBStune {
   Int_t        GetSBStconf()       const { return fSBStconf; }
   Int_t        GetSBStmag()        const { return fSBStmag; }
   std::string  Getglobcut()        const { return fglobcut; }
+  std::string  Getglobcut_wide()   const { return fglobcut_wide; }
   std::string  Getglobcut_earm()   const { return fglobcut_earm; }
   std::string  Getglobcut_hexp()   const { return fglobcut_hexp; }
   Double_t     GetW2mean()         const { return fW2mean; }
@@ -56,6 +58,7 @@ class SBStune {
     fSBStconf       = conf;
     fSBStmag        = sbsmag;
     fglobcut        = etune::globcut(conf);
+    fglobcut_wide   = etune::globcut_wide(conf);
     fglobcut_earm   = etune::globcut_earm(conf);
     fglobcut_hexp   = etune::globcut_hexp(conf);
     fW2mean         = etune::W2mean(conf,sbsmag);
@@ -99,6 +102,7 @@ class SBStune {
   Int_t        fSBStconf;         // SBS configuration number
   Int_t        fSBStmag;          // SBS magnet settings (%)
   std::string  fglobcut;          // wide elastic global cut using all subsystems
+  std::string  fglobcut_wide;     // wide elastic global cut using all subsystems for parsing (even wider)
   std::string  fglobcut_earm;     // wide elastic global cut using BigBite subsystems only
   std::string  fglobcut_hexp;     // wide elastic global cut using branches available to hcal expert replays
   Double_t     fW2mean;           // Location of elastic peak in invariant mass distribution (GeV)

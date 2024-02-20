@@ -13,6 +13,8 @@ namespace fits{
   
   Double_t g_sgfit( Double_t *x, Double_t *par ); //skewed gaussian fit
 
+  Double_t g_doubleGausPlusPol( Double_t *x, Double_t *par); //two gaussians plus 4th order bg fit
+
   Double_t g_expofit( Double_t *x, Double_t *par ); //exponential fit
 
   Double_t g_scexpofit( Double_t *x, Double_t *par ); //exponetial fit with offset

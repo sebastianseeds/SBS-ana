@@ -1,4 +1,5 @@
 #include "../include/util.h"
+#include "../include/fits.h"
 
 namespace util {
 
@@ -121,6 +122,46 @@ namespace util {
     std::cout.flush();
   }
 
+  TString FindFileInDirectories(const TString& pattern, const std::vector<TString>& directories) {
+    TRegexp re(pattern, kTRUE);
+
+    // Loop over the list of directories
+    for (const auto& dir : directories) {
+      void* dirp = gSystem->OpenDirectory(dir);
+      const char* entry;
+        
+      // Iterate over all files in the directory
+      while ((entry = gSystem->GetDirEntry(dirp))) {
+	TString file = entry;
+	// Check if the current file name matches the pattern
+	if (file.Contains(re)) {
+	  gSystem->FreeDirectory(dirp);
+	  return dir; // Return the directory where the file is found
+	}
+      }
+      gSystem->FreeDirectory(dirp);
+    }
+    // File not found in any of the directories; return empty string
+    return "";
+  }
+
+  //parse global cut string delimited by && into individual cut strings
+  std::vector<std::string> parseCuts(const std::string& cutsString) {
+    std::vector<std::string> cuts;
+    std::string delimiter = "&&";
+    size_t pos = 0;
+    std::string token;
+    std::string s = cutsString + delimiter; // Ensure the string ends with delimiter to catch the last condition
+
+    while ((pos = s.find(delimiter)) != std::string::npos) {
+      token = s.substr(0, pos);
+      cuts.push_back(token);
+      s.erase(0, pos + delimiter.length());
+    }
+
+    return cuts;
+  }
+
   // reads a set of parameters into a vector from a txt file at <const_path>. Assumes endl delimiter
   void readParam( std::string const_path, vector<Double_t> &param ) {
 
@@ -186,6 +227,63 @@ namespace util {
     const_file.close();
   }
 
+  //Generates random number with passkey intended for blinding yields/scale-factors
+  Double_t generateRandomNumber(const std::string& passkey) {
+    if (passkey.length() != 4) {
+      throw std::invalid_argument("Passkey must be a four-letter string");
+    }
+
+    // Seed the random number generator
+    unsigned int seed = 0;
+    for (char ch : passkey) {
+      seed += static_cast<unsigned int>(ch);
+    }
+    srand(seed);
+
+    // Generate a random number between 0.95 and 1.05
+    Double_t randomFraction = static_cast<Double_t>(rand()) / RAND_MAX; // Range [0, 1)
+    return 0.95 + randomFraction * 0.1; // Scale to range [0.95, 1.05)
+  }
+
+  std::vector<std::string> parseGlobalCut(const std::string& input) {
+    std::vector<std::string> elements;
+    std::string token;
+    std::istringstream tokenStream(input);
+
+    while (std::getline(tokenStream, token, '&')) {
+      if (!token.empty() && token.back() != '>' && token.back() != '<' && token.back() != '=') {
+	// Remove any leading '&' left from splitting
+	if (token.front() == '&') {
+	  token.erase(0, 1);
+	}
+	elements.push_back(token);
+      } else {
+	// Handle case where '&&' is part of a comparison
+	std::string nextToken;
+	std::getline(tokenStream, nextToken, '&');
+	token += "&" + nextToken;
+	elements.push_back(token);
+      }
+    }
+
+    return elements;
+  }
+
+  //Function to see if file exists at path
+  bool checkFile(const std::string& filePath) {
+    std::ifstream file(filePath.c_str());
+    return file.good();
+  }
+
+  //Function to check TH1D histogram loaded from dataloop script output and return those that don't exist
+  bool checkTH1D(TH1D* histogram, const std::string& name) {
+    if (!histogram) {
+        std::cerr << "Failed to load histogram: " << name << std::endl;
+        return false;
+    }
+    return true;
+  }
+  
   ////HCal
 
   // checks if a point is within proton or neutron spot. rotation angle in rad, if ever applicable
@@ -930,83 +1028,236 @@ namespace util {
 
     // Store the parameters in the vector
     params[0] = gausFit_fine->GetParameter(0); // Amplitude
+    //cout << gausFit_fine->GetParameter(0) << endl;
     params[1] = gausFit_fine->GetParameter(1); // Mean
+    //cout << gausFit_fine->GetParameter(1) << endl;
     params[2] = gausFit_fine->GetParameter(2); // Sigma
+    //cout << gausFit_fine->GetParameter(2) << endl;
 
     return params;
   }
 
-  //skewed gaussian fit
+  //Get Pearson correlation factor via covariance analysis on constrained range of TH2D
+  double CalculateCorrelationFactor(TH2D* hist, double xmin, double xmax, double ymin, double ymax) {
+    if (!hist) {
+      std::cerr << "Histogram is null." << std::endl;
+      return 0; // Error indication
+    }
+
+    double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0, n = 0;
+    double x, y, binContent;
+
+    // First, compute the means of x and y within the specified bounds
+    for (int ix = 1; ix <= hist->GetNbinsX(); ++ix) {
+      x = hist->GetXaxis()->GetBinCenter(ix);
+      if (x < xmin || x > xmax) continue;
+
+      for (int iy = 1; iy <= hist->GetNbinsY(); ++iy) {
+	y = hist->GetYaxis()->GetBinCenter(iy);
+	if (y < ymin || y > ymax) continue;
+
+	binContent = hist->GetBinContent(ix, iy);
+	sumX += x * binContent;
+	sumY += y * binContent;
+	n += binContent;
+      }
+    }
+
+    double meanX = sumX / n;
+    double meanY = sumY / n;
+
+    // Reset sums for the correlation calculation
+    sumX = sumY = sumXY = sumX2 = sumY2 = 0;
+
+    // Now, compute the components of the correlation formula
+    for (int ix = 1; ix <= hist->GetNbinsX(); ++ix) {
+      x = hist->GetXaxis()->GetBinCenter(ix);
+      if (x < xmin || x > xmax) continue;
+
+      for (int iy = 1; iy <= hist->GetNbinsY(); ++iy) {
+	y = hist->GetYaxis()->GetBinCenter(iy);
+	if (y < ymin || y > ymax) continue;
+
+	binContent = hist->GetBinContent(ix, iy);
+	double deltaX = x - meanX;
+	double deltaY = y - meanY;
+	sumXY += deltaX * deltaY * binContent;
+	sumX2 += deltaX * deltaX * binContent;
+	sumY2 += deltaY * deltaY * binContent;
+      }
+    }
+
+    // Finally, calculate and return the correlation coefficient
+    return sumXY / (sqrt(sumX2) * sqrt(sumY2));
+  }
+
+
+  Double_t d_doubleGausPlusPol( Double_t *x, Double_t *par ) {
+    // First Gaussian
+    Double_t gauss1 = par[0] * exp(-0.5 * pow((x[0] - par[1]) / par[2], 2));
+
+    // Second Gaussian
+    Double_t gauss2 = par[3] * exp(-0.5 * pow((x[0] - par[4]) / par[5], 2));
+
+    // Fourth-order polynomial
+    Double_t poly = par[6] + par[7] * x[0] + par[8] * pow(x[0], 2) + par[9] * pow(x[0], 3) + par[10] * pow(x[0], 4);
+
+    return gauss1 + gauss2 + poly;
+  }
+
+  // Function to perform 2x gaus + pol4 fit, calculate the gaus event ratio, and show the fit on a canvas
+  void fitAndCalculateRatio(TH1D* hist, TCanvas* canvas, double& ratio, std::vector<double>& params, std::vector<double>& fitRange, bool fixpol=false) {
+    if (!hist || !canvas) {
+      std::cerr << "Error on fitAndCalculateRatio: Null pointer passed to the function." << std::endl;
+      ratio = -1.0; // Indicate error
+      return;
+    }
+
+    if (params.size() != 11) {
+      std::cerr << "Error on fitAndCalculateRatio: Parameter vector must have 11 elements." << std::endl;
+      ratio = -1.0; // Indicate error
+      return;
+    }
+
+    if (fitRange.size() != 2) {
+      std::cerr << "Error on fitAndCalculateRatio: Fit range vector must have 2 elements." << std::endl;
+      ratio = -1.0; // Indicate error
+      return;
+    }
+
+    // Create the combined Gaussian and polynomial fit function
+    TF1* fitFunc = new TF1("fitFunc", d_doubleGausPlusPol, fitRange[0], fitRange[1], 11);
+
+    // Set or fix parameters
+    for (size_t i = 0; i < params.size(); ++i) {
+      fitFunc->SetParameter(i, params[i]);
+      // Prevent root from fitting a single peak twice
+      if(i==1||i==4){
+	fitFunc->SetParLimits(i,params[i]-params[i+1],params[i]+params[i+1]);
+	cout << i << " " << params[i]-params[i+1] << " " << params[i]+params[i+1] << endl;
+      }
+      if(i==2||i==5)
+	fitFunc->SetParLimits(i,0.10,0.16);
+      if(i>5 && fixpol)
+	fitFunc->FixParameter(i, params[i]);
+    }
+
+    // Perform the fit
+    hist->Fit(fitFunc, "R");
+
+    cout << "Actual fits: " << endl;
+
+    for( int i=0; i<11; ++i )
+      cout << fitFunc->GetParameter(i) << endl;
+
+    // Calculate the total number of events under each Gaussian
+    double totalLeft = 0.0;
+    double totalRight = 0.0;
+    int nBins = hist->GetNbinsX();
+    for (int i = 1; i <= nBins; ++i) {
+      double binCenter = hist->GetBinCenter(i);
+      double binWidth = hist->GetBinWidth(i);
+
+      // Evaluate each Gaussian component at the bin center
+      double gauss1Value = fitFunc->EvalPar(&binCenter, &fitFunc->GetParameters()[0]);
+      double gauss2Value = fitFunc->EvalPar(&binCenter, &fitFunc->GetParameters()[3]);
+
+      // Subtract the polynomial contribution to isolate the Gaussian components
+      double polyValue = fitFunc->EvalPar(&binCenter, &fitFunc->GetParameters()[6]);
+      gauss1Value -= polyValue;
+      gauss2Value -= polyValue;
+
+      // Accumulate the total events considering the bin width
+      totalLeft += gauss1Value * binWidth;
+      totalRight += gauss2Value * binWidth;
+    }
+
+    // Calculate ratio
+    ratio = (totalRight / totalLeft);
+
+    // Draw the histogram and the fit
+    canvas->cd();
+    hist->Draw("hist");
+    fitFunc->Draw("SAME");
+
+    // Create separate functions for each Gaussian and the polynomial
+    TF1* gauss1Func = new TF1("gauss1", "gaus", fitRange[0], fitRange[1]);
+    gauss1Func->SetParameters(fitFunc->GetParameter(0), fitFunc->GetParameter(1), fitFunc->GetParameter(2));
+    gauss1Func->SetLineColor(kRed);
+    gauss1Func->Draw("SAME");
+
+    TF1* gauss2Func = new TF1("gauss2", "gaus", fitRange[0], fitRange[1]);
+    gauss2Func->SetParameters(fitFunc->GetParameter(3), fitFunc->GetParameter(4), fitFunc->GetParameter(5));
+    gauss2Func->SetLineColor(kBlue);
+    gauss2Func->Draw("SAME");
+
+    TF1* polyFunc = new TF1("poly", "pol4", fitRange[0], fitRange[1]);
+    polyFunc->SetParameters(&fitFunc->GetParameters()[6]);
+    polyFunc->SetLineColor(kGreen);
+    if(!fixpol)
+      polyFunc->Draw("SAME");
+
+    // Create a legend
+    TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+    legend->AddEntry( gauss1Func, "Proton Gaus Fit", "l");
+    legend->AddEntry( gauss2Func, "Neutron Gaus Fit", "l");
+    if(!fixpol)
+      legend->AddEntry( polyFunc, "4th order poly BG", "l");
+    std::ostringstream stream;
+    stream << "Yield Left: " << totalLeft;
+    legend->AddEntry((TObject*)0, stream.str().c_str(), "");
+    stream.str(""); // Clear the stream
+    stream << "Yield Right: " << totalRight;
+    legend->AddEntry((TObject*)0, stream.str().c_str(), "");
+    stream.str(""); // Clear the stream
+    stream << "Ratio R/L: " << ratio;
+    legend->AddEntry((TObject*)0, stream.str().c_str(), "");
+    legend->Draw();
+
+  }
+
+  //skewed gaussian fit - duplicated from fits.C for use below
   Double_t d_sgfit(Double_t *x, Double_t *par){
     Double_t amp = par[0];
     Double_t offset = par[1];
     Double_t sigma = par[2];
     Double_t alpha = par[3];
-    //return amp*exp(-0.5*pow((x[0]-offset)/sigma,2.))*0.5*(1+erf(alpha*((x[0]-offset)/sigma)));
+
     return amp*exp( -pow( x[0]-offset,2. )/( 2.*pow(sigma,2.) ) )*( 1+erf( (x[0]-offset)*alpha/sigma*sqrt(2.) ) );
   }
 
-//Fits a gaussian to a distribution twice, first course, then fine
-  std::vector<Double_t> fitSkewedGaussianAndGetFineParams(TH1D* hist, Double_t sig, Double_t low = -1e38, Double_t high = 1e38) {
-    
-    std::vector<Double_t> params(4); // Vector to store amplitude, mean, sigma, and alpha
-
+  void fitSkewedGaussianAndGetFineParams(TH1D* hist, Double_t sig, Double_t low, Double_t high, std::vector<Double_t> &params, Double_t alpha_ll = 0.0) {
     if (!hist) {
-      std::cerr << "Histogram is null!" << std::endl;
-      return params;
+      throw std::runtime_error("Histogram is null!");
     }
 
-    // Find the bin numbers corresponding to the specified range. If default values are passed, real edge bins returned by FindBin().
-    Int_t binLow = hist->FindBin(low);
-    Int_t binHigh = hist->FindBin(high);
+    params.resize(4); // Resize to store amplitude, mean, sigma, and alpha
 
-    // Initial values for maximum content and bin
-    Double_t maxContent = 0;
-    Int_t maxBin = -1;
+    // Coarse Fit
+    hist->GetXaxis()->SetRangeUser(low, high);
+    TF1 *gausFit = new TF1("gausFit", "gaus", low, high);
+    hist->Fit(gausFit, "RQ");
 
-    // Iterate over the bins in the range
-    for (Int_t i = binLow; i <= binHigh; ++i) {
-      Double_t content = hist->GetBinContent(i);
-      if (content > maxContent) {
-	maxContent = content;
-	maxBin = i;
-      }
-    }
+    // Fine Fit
+    Double_t amp = gausFit->GetParameter(0);
+    Double_t mean = gausFit->GetParameter(1);
+    Double_t sigma = gausFit->GetParameter(2);
+    Double_t fit2Min = mean - sig * sigma;
+    Double_t fit2Max = mean + sig * sigma;
 
-    Double_t xMax = hist->GetXaxis()->GetBinCenter(maxBin);
-
-    // Define the fit range
-    Double_t fitMin = xMax - sig;
-    Double_t fitMax = xMax + sig;
-
-    // Fit the histogram within the specified range
-    TF1 *gausFit = new TF1("gausFit", "gaus", fitMin, fitMax);
-    hist->Fit(gausFit, "RQ"); // "R" for fit range, "Q" for quiet mode (no print)
-
-    // Get the mean from the fit
-    Double_t amplitude = gausFit->GetParameter(0); // Parameter 0 is the amplitude of the Gaussian 
-    Double_t mean = gausFit->GetParameter(1); // Parameter 1 is the mean of the Gaussian
-    Double_t sigma = gausFit->GetParameter(2); // Parameter 2 is the std dev of the Gaussian
-
-    // Clean up
     delete gausFit;
 
-    // Fit the histogram within the fine range
-    Double_t fit2Min = mean - 1*sigma;
-    Double_t fit2Max = mean + 1*sigma;
-    TF1 *sg_fine = new TF1("sg_fine", d_sgfit, fit2Min, fit2Max);
-    sg_fine->SetParameter(0,amplitude);
-    sg_fine->SetParameter(1,mean);
-    sg_fine->SetParameter(2,sigma);
-    hist->Fit(sg_fine, "RQ"); // "R" for fit range, "Q" for quiet mode (no print)
+    TF1 *sg_fine = new TF1("sg_fine", d_sgfit, fit2Min, fit2Max, 4);
+    sg_fine->SetParameters(amp, mean, sigma, 0); // Initial guess for alpha is 0
+    sg_fine->SetParLimits(3,alpha_ll,1);
+    hist->Fit(sg_fine, "RQ");
 
-    // Store the parameters in the vector
-    params[0] = sg_fine->GetParameter(0); // Amplitude
-    params[1] = sg_fine->GetParameter(1); // Mean
-    params[2] = sg_fine->GetParameter(2); // Sigma
-    params[3] = sg_fine->GetParameter(3); // Alpha
+    // Store parameters
+    for (int i = 0; i < 4; ++i) {
+      params[i] = sg_fine->GetParameter(i);
+    }
 
-    return params;
+    delete sg_fine;
   }
 
   //takes bounds for side-band analysis and fits side-bands to pol4, subtracts this BG, returns events left and fit params
@@ -1084,14 +1335,29 @@ namespace util {
       fs::path dirPath1(directory1);
       fs::path dirPath2(directory2);
 
-      if (!fs::is_directory(dirPath1) || !fs::is_directory(dirPath2)) {
-	std::cerr << "Error: Invalid directory." << std::endl;
+      if (!fs::is_directory(dirPath1) && !fs::is_directory(dirPath2)) {
+	std::cerr << "Error: Both (.root and .csv) directories invalid." << std::endl;
+	std::cerr << "File1: " << directory1 << std::endl;
+	std::cerr << "File2: " << directory2 << std::endl;
+
+	return;
+      }
+
+      if (!fs::is_directory(dirPath2)) {
+	std::cerr << "Error: Invalid directory at " << dirPath2 << "." << std::endl;
+	return;
+      }
+
+      if (!fs::is_directory(dirPath1)) {
+	std::cerr << "Error: Invalid directory at " << dirPath1 << "." << std::endl;
 	return;
       }
 
       for (const auto& entry1 : fs::directory_iterator(dirPath1)) {
 	if (entry1.is_regular_file()) {
 	  std::string filename1 = entry1.path().filename().string();
+
+	  //cout << filename1 << " " << partialName << endl;
 
 	  // Check if the filename1 contains the partialName
 	  if (filename1.find(partialName) != std::string::npos) {
@@ -1109,6 +1375,7 @@ namespace util {
 
 	    // Check if a matching file exists in directory2
 	    if (fs::exists(searchPath2) && fs::is_regular_file(searchPath2)) {
+	      cout << endl << "Match found: " << endl;
 	      vector1.push_back(entry1.path().string());
 	      cout<< vector1.back() << endl;
 	      vector2.push_back(searchPath2.string());
@@ -1121,5 +1388,282 @@ namespace util {
       std::cerr << "Error: " << e.what() << std::endl;
     }
   }
+
+  //Function to look through two vectors of strings and remove entries which don't have a corresponding job pair.
+  void synchronizeJobNumbers(std::vector<std::string>& vecA, std::vector<std::string>& vecB) {
+    std::regex jobNumberRegex("job([0-9]+)");
+    std::smatch match;
+    std::unordered_set<std::string> jobNumbersA, jobNumbersB;
+
+    // Extract job numbers from vecA
+    for (const auto& str : vecA) {
+      if (std::regex_search(str, match, jobNumberRegex)) {
+	jobNumbersA.insert(match[0]);
+      }
+    }
+
+    // Extract job numbers from vecB
+    for (const auto& str : vecB) {
+      if (std::regex_search(str, match, jobNumberRegex)) {
+	jobNumbersB.insert(match[0]);
+      }
+    }
+
+    // Remove unpaired entries from vecA
+    vecA.erase(std::remove_if(vecA.begin(), vecA.end(), 
+			      [&](const std::string& str) {
+				if (std::regex_search(str, match, jobNumberRegex) && jobNumbersB.find(match[0]) == jobNumbersB.end()) {
+				  std::cout << "Removing from vecA: " << str << std::endl;
+				  return true;
+				}
+				return false;
+			      }), vecA.end());
+
+    // Remove unpaired entries from vecB
+    vecB.erase(std::remove_if(vecB.begin(), vecB.end(), 
+			      [&](const std::string& str) {
+				if (std::regex_search(str, match, jobNumberRegex) && jobNumbersA.find(match[0]) == jobNumbersA.end()) {
+				  std::cout << "Removing from vecB: " << str << std::endl;
+				  return true;
+				}
+				return false;
+			      }), vecB.end());
+  }
+
+  //Function to take TH1D, randomly sample from it, and return statistically fluctuated sample histograms
+  std::vector<TH1D*> createBootstrapSamples(TH1D* originalHist, int nBootstrapSamples, TCanvas *canvas) {
+    std::vector<TH1D*> bootstrapHists;
+
+    if (!originalHist) return bootstrapHists;
+
+    // Get the number of bins and range of the histogram
+    int nBins = originalHist->GetNbinsX();
+    double xMin = originalHist->GetXaxis()->GetXmin();
+    double xMax = originalHist->GetXaxis()->GetXmax();
+
+    // Initialize random number generator
+    TRandom3 rnd(0); // 0 to use the machine clock
+
+    // Prepare the canvas
+    canvas->Divide(2, 2); // Divide into 4 pads for the first 4 histograms
+
+    for (int i = 0; i < nBootstrapSamples; ++i) {
+      // Create a new histogram for each bootstrap sample
+      TH1D* bootstrapHist = new TH1D(Form("bootstrapHist%d", i), "Bootstrap Sample;X;Frequency", nBins, xMin, xMax);
+
+      // Fill the bootstrap histogram by randomly sampling the original histogram
+      for (int j = 0; j < originalHist->GetEntries(); ++j) {
+	double val = originalHist->GetRandom();
+	bootstrapHist->Fill(val);
+      }
+
+      // Store the bootstrap histogram for further analysis
+      bootstrapHists.push_back(bootstrapHist);
+
+      // Plot the first four histograms
+      if (i < 4) {
+	canvas->cd(i + 1);
+	bootstrapHist->Draw();
+      }
+    }
+
+    return bootstrapHists;
+  }
+
+  //utility function to shift every bin of a TH1D in x
+  TH1D* shiftHistogramX(TH1D* originalHist, double shiftValue) {
+    if (!originalHist) return nullptr;
+
+    //preserve the total number of entries in histogram for further analysis
+    double totalEntries = originalHist->GetEntries();
+
+    // Create a new histogram with the same binning as the original
+    TH1D *shiftedHist = (TH1D*)(originalHist->Clone("shiftedHist"));
+
+    // Clear the contents of the cloned histogram
+    shiftedHist->Reset();
+
+    // Shift each bin
+    for (int i = 1; i <= originalHist->GetNbinsX(); ++i) {
+      // Calculate new bin center
+      double newBinCenter = originalHist->GetBinCenter(i) + shiftValue;
+
+      // Set the content of the corresponding bin in the new histogram
+      shiftedHist->Fill(newBinCenter, originalHist->GetBinContent(i));
+    }
+
+    //restore N entries
+    shiftedHist->SetEntries(totalEntries);
+
+    return shiftedHist;
+  }
+
+  //Function to constrain x range of histogram and remove underflow and overflow for cleaner analysis
+  TH1D* cloneAndCutHistogram(TH1D* originalHist, double xMin, double xMax) {
+    if (!originalHist) {
+      std::cerr << "Original histogram is null!" << std::endl;
+      return nullptr;
+    }
+
+    // Get bin info
+    int binMin = originalHist->FindBin(xMin);
+    int binMax = originalHist->FindBin(xMax);
+    int dnBins = binMax - binMin + 1; // +1 to include both binMin and binMax
+
+    TH1D *scaledHist = new TH1D("scaledHist", "scaledHist", dnBins, xMin, xMax);
+
+    for (int i = binMin, j = 1; i <= binMax; ++i, ++j) {
+      double binContent = originalHist->GetBinContent(i);
+      double binError = originalHist->GetBinError(i);
+      scaledHist->SetBinContent(j, binContent);
+      scaledHist->SetBinError(j, binError);
+
+    }
+
+    return scaledHist;
+  }
+
+  //gets total error where measurements are independent
+  double GetTotalQuadratureError(TH1D* hist) {
+    if (!hist) {
+      std::cerr << "GetTotalQuadratureError: Histogram pointer is null." << std::endl;
+      return 0.0;
+    }
+
+    double totalErrorSquared = 0.0;
+
+    // Loop over all bins (excluding underflow and overflow)
+    for (int i = 1; i <= hist->GetNbinsX(); ++i) {
+      double binError = hist->GetBinError(i);
+      totalErrorSquared += binError * binError;
+    }
+
+    return sqrt(totalErrorSquared);
+  }
+
+  //defines a new TH1D which is the same as the input TH1D - input TF1 bin by bin within xrange, else zero
+  TH1D* subtractFunctionFromHistogramWithinRange(const TH1D* hist, const TF1* func, double xmin, double xmax) {
+    if (!hist || !func) {
+      std::cerr << "Error: Null pointer passed to the function." << std::endl;
+      return nullptr;
+    }
+
+    // Clone the input histogram
+    TH1D* resultHist = (TH1D*)hist->Clone();
+
+    // Loop over each bin of the cloned histogram
+    int nBins = resultHist->GetNbinsX();
+    for (int i = 1; i <= nBins; ++i) {
+      double binCenter = resultHist->GetBinCenter(i);
+
+      if (binCenter < xmin || binCenter > xmax) {
+	// Set bin content to zero outside the specified range
+	resultHist->SetBinContent(i, 0);
+      } else {
+	// Subtract the function value from the bin content within the specified range
+	double funcValue = func->Eval(binCenter);
+	double binContent = resultHist->GetBinContent(i);
+	resultHist->SetBinContent(i, binContent - funcValue);
+      }
+    }
+
+    return resultHist;
+  }
+
+  //function that subtracts a fit from a histogram and returns the total error 
+  void subtractFunctionAndGetTotalAndError(TH1D* hist, TF1* func, double xMin, double xMax, double &total, double xRangeLow, double xRangeHigh, double &error, bool abs_sub = false) {
+    if (!hist || !func) {
+      throw std::runtime_error("Histogram or function is null!");
+    }
+
+    total = 0.0;
+    error = 0.0;
+
+    int binMin = hist->FindBin(xMin);
+    int binMax = hist->FindBin(xMax);
+
+    int firstbin = hist->FindBin(xRangeLow);
+    int lastbin = hist->FindBin(xRangeHigh);
+
+    double error_sig = 0.;
+    double error_bg = 0.;
+    int sig_bins = 0;
+    int bg_bins = 0;
+
+    for(int i = firstbin; i <= lastbin; ++i) {
+      double binCenter = hist->GetBinCenter(i);
+      double funcValue = func->Eval(binCenter);
+      double binContent = hist->GetBinContent(i);
+      double binErr = hist->GetBinError(i);
+
+      double subtractedValue = binContent - funcValue;
+
+      if( i >= binMin && i <= binMax ){
+	error_sig += pow(binErr, 2);
+	sig_bins++;
+	if (subtractedValue > 0 && abs_sub==true) {
+	  total += subtractedValue; 
+	}else if( abs_sub==false){
+	  total += subtractedValue;
+	}
+      } else {
+	error_bg += pow(binErr, 2);
+	bg_bins++;
+      }
+    }
+
+    double error_bin_bg = bg_bins > 0 ? sqrt(error_bg) / bg_bins : 0;
+
+    error = sqrt(error_sig) + error_bin_bg;
+
+    return;
+  }
+
+  //Function that takes two TH1D histograms, normalizes them, and plots them together on a passed canvas
+  void plotNormalizedTH1DsOnCanvas(TCanvas* canvas, TH1D* hist1, TH1D* hist2, const char* title = "Normalized Histograms", const char* x_label = "X-axis", const char* y_label = "Frequency") {
+    // Check for null pointers
+    if (!canvas || !hist1 || !hist2) {
+      std::cerr << "Error: Null pointer passed." << std::endl;
+      return;
+    }
+
+    // Clone the histograms to avoid modifying the original ones
+    TH1D* h1 = (TH1D*)hist1->Clone();
+    TH1D* h2 = (TH1D*)hist2->Clone();
+
+    // Normalize both histograms to unity
+    h1->Scale(1.0 / h1->Integral());
+    h2->Scale(1.0 / h2->Integral());
+
+    // Determine the maximum y-value between both histograms
+    double max_y = std::max(h1->GetMaximum(), h2->GetMaximum());
+
+    // Set different line colors for visibility
+    h1->SetLineColor(kRed);
+    h2->SetLineColor(kBlue);
+
+    // Draw the histograms on the provided canvas
+    canvas->cd();
+    h1->Draw("HIST");
+    h2->Draw("HIST SAME");
+
+    // Adjust the y-axis range to include the maximum y-value
+    h1->GetYaxis()->SetRangeUser(0, max_y * 1.1); // Adding 10% for padding
+
+    // Set titles and labels
+    h1->SetTitle(title);
+    h1->GetXaxis()->SetTitle(x_label);
+    h1->GetYaxis()->SetTitle(y_label);
+
+    // Add a legend
+    TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+    legend->AddEntry(h1, hist1->GetName(), "l");
+    legend->AddEntry(h2, hist2->GetName(), "l");
+    legend->Draw();
+
+    // Update the canvas to display the plots
+    canvas->Update();
+  }
+
 
 }

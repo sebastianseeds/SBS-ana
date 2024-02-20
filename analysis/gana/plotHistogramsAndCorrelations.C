@@ -13,6 +13,11 @@ void plotHistogramsAndCorrelations(int kine=4, int mag=30, int pass=1){
 
   //"/volatile/halla/sbs/seeds/gmn_analysis/dx_correlations_sbs4_mag30_pass1.root"
   
+  // reading input config file
+  JSONManager *jmgr = new JSONManager("../../config/syst.json");
+
+  jmgr->GetVectorFromSubKey<Double_t>(Form("cut_limits_p%d",pass),Form("sbs%d",kine),coin_profile);
+
   //set up files and paths
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
 

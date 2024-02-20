@@ -17,8 +17,22 @@ namespace fits {
     Double_t offset = par[1];
     Double_t sigma = par[2];
     Double_t alpha = par[3];
-    //return amp*exp(-0.5*pow((x[0]-offset)/sigma,2.))*0.5*(1+erf(alpha*((x[0]-offset)/sigma)));
+
     return amp*exp( -pow( x[0]-offset,2. )/( 2.*pow(sigma,2.) ) )*( 1+erf( (x[0]-offset)*alpha/sigma*sqrt(2.) ) );
+  }
+
+  // Combined Gaussian and fourth-order polynomial fit function
+  Double_t g_doubleGaussPlusPol( Double_t *x, Double_t *par ) {
+    // First Gaussian
+    Double_t gauss1 = par[0] * exp(-0.5 * pow((x[0] - par[1]) / par[2], 2));
+
+    // Second Gaussian
+    Double_t gauss2 = par[3] * exp(-0.5 * pow((x[0] - par[4]) / par[5], 2));
+
+    // Fourth-order polynomial
+    Double_t poly = par[6] + par[7] * x[0] + par[8] * pow(x[0], 2) + par[9] * pow(x[0], 3) + par[10] * pow(x[0], 4);
+
+    return gauss1 + gauss2 + poly;
   }
 
   //expo fit

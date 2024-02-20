@@ -17,12 +17,13 @@ const Int_t maxClus = 35; //larger than max per tree
 const Int_t maxBlk = 25;
 const Double_t W2max = 3.0; //very large compared to nucleon mass
 const Double_t coin_sigma_factor = 5.; //Wide coincidence timing cut
+const Double_t nsig_step = 0.1; //number of sigma to step through in dx until fiducial cut failure written to output tree
 
 //Specific wide cut for all parsing
-const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12&&bb.sh.nclus>0&&sbs.hcal.nclus>0";
+const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
 //MAIN
-void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool verbose=false )
+void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool verbose=false )
 {   
 
   // Define a clock to check macro processing time
@@ -36,12 +37,33 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/parse.json");
 
-  std::string rootfile_dir_lh2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_lh2_p%d",pass), Form("sbs%d",kine) );;
+  std::string rootfile_dir_lh2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_lh2_p%d",pass), Form("sbs%d",kine) );
   std::string rootfile_dir_ld2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_ld2_p%d",pass), Form("sbs%d",kine) );
   Double_t minE = jmgr->GetValueFromSubKey<Double_t>( Form("minE_p%d",pass), Form("sbs%d",kine) );
   vector<Double_t> coin_profile;
   jmgr->GetVectorFromSubKey<Double_t>(Form("coin_profile_p%d",pass),Form("sbs%d",kine),coin_profile);
   Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset_p%d",pass), Form("sbs%d",kine) );
+
+  //Necessary for loop over directories in sbs8
+  std::vector<TString> directories_h = {
+    rootfile_dir_lh2 + "/SBS0percent",
+    rootfile_dir_lh2 + "/SBS100percent",
+    rootfile_dir_lh2 + "/SBS50percent",
+    rootfile_dir_lh2 + "/SBS70percent_part1",
+    rootfile_dir_lh2 + "/SBS70percent_part2",
+    rootfile_dir_lh2 + "/SBS70percent_part3"
+  };
+
+  std::vector<TString> directories_d = {
+    rootfile_dir_ld2 + "/SBS0percent",
+    rootfile_dir_ld2 + "/SBS100percent",
+    rootfile_dir_ld2 + "/SBS50percent",
+    rootfile_dir_ld2 + "/SBS70percent_part1",
+    rootfile_dir_ld2 + "/SBS70percent_part2",
+    rootfile_dir_ld2 + "/SBS70percent_part3",
+    rootfile_dir_ld2 + "/SBS70percent_part4"
+  };
+
 
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
@@ -58,7 +80,7 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 
   // outfile path
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones.root",kine,pass);
+  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones_rd2.root",kine,pass);
 
   //set up output files
   TFile *fout = new TFile( parse_path.c_str(), "RECREATE" );
@@ -92,14 +114,8 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
   Double_t precon_out;
 
   //Fiducial slices
-  Int_t failedfid_0_0_out;
-  Int_t failedfid_0_5_out;
-  Int_t failedfid_1_0_out;
-  Int_t failedfid_1_5_out;
-  Int_t failedfid_2_0_out;
-  Int_t failedfid_2_5_out;
-  Int_t failedfid_3_0_out;
-  Int_t failedfid_3_5_out;
+  Double_t fiducial_sig_x_out;
+  Double_t fiducial_sig_y_out;
 
   //Primary cluster
   Double_t dx_out;
@@ -114,6 +130,7 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
   Double_t hcalx_out;
   Double_t hcaly_out;
   Double_t hcale_out;  
+  Double_t hcal_index_out;
 
   //Best cluster
   Double_t dx_bc_out;
@@ -131,7 +148,12 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 
   // relevant old output tree vars
   Double_t bb_tr_vz_out;
+  Double_t bb_tr_n_out;
   Double_t bb_tr_p_out;
+  Double_t bb_tr_th_out;
+  Double_t bb_tr_ph_out;
+  Double_t bb_tr_r_th_out;
+  Double_t bb_tr_r_x_out;
   Double_t bb_ps_e_out;
   Double_t bb_ps_rowblk_out;
   Double_t bb_ps_colblk_out;
@@ -139,67 +161,75 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
   Double_t bb_sh_rowblk_out;
   Double_t bb_sh_colblk_out;
   Double_t bb_hodotdc_clus_tmean_out;
+  Double_t bb_grinch_tdc_clus_size_out;
+  Double_t bb_grinch_tdc_clus_trackindex_out;
   Double_t bb_gem_track_nhits_out;
+  Double_t bb_gem_track_ngoodhits_out;
+  Double_t bb_gem_track_chi2ndf_out;
   Double_t bb_etot_over_p_out;
 
-  P->Branch("run_out", &run_out, "run_out/I");
-  P->Branch("tar_out", &tar_out, "tar_out/I");
-  P->Branch("mag_out", &mag_out, "mag_out/I");
-  P->Branch("event_out", &event_out, "event_out/I");
-  P->Branch("trig_out", &trig_out, "trig_out/I");
-  P->Branch("xexp_out", &xexp_out, "xexp_out/D");
-  P->Branch("yexp_out", &yexp_out, "yexp_out/D");
-  P->Branch("W2_out", &W2_out, "W2_out/D");
-  P->Branch("Q2_out", &Q2_out, "Q2_out/D");
-  P->Branch("nu_out", &nu_out, "nu_out/D");
-  P->Branch("precon_out", &precon_out, "precon_out/D");
+  P->Branch("run", &run_out, "run/I");
+  P->Branch("tar", &tar_out, "tar/I");
+  P->Branch("mag", &mag_out, "mag/I");
+  P->Branch("event", &event_out, "event/I");
+  P->Branch("trig", &trig_out, "trig/I");
+  P->Branch("xexp", &xexp_out, "xexp/D");
+  P->Branch("yexp", &yexp_out, "yexp/D");
+  P->Branch("W2", &W2_out, "W2/D");
+  P->Branch("Q2", &Q2_out, "Q2/D");
+  P->Branch("nu", &nu_out, "nu/D");
+  P->Branch("precon", &precon_out, "precon/D");
 
-  P->Branch("failedfid_0_0_out", &failedfid_0_0_out, "failedfid_0_0_out/I");
-  P->Branch("failedfid_0_5_out", &failedfid_0_5_out, "failedfid_0_5_out/I");
-  P->Branch("failedfid_1_0_out", &failedfid_1_0_out, "failedfid_1_0_out/I");
-  P->Branch("failedfid_1_5_out", &failedfid_1_5_out, "failedfid_1_5_out/I");
-  P->Branch("failedfid_2_0_out", &failedfid_2_0_out, "failedfid_2_0_out/I");
-  P->Branch("failedfid_2_5_out", &failedfid_2_5_out, "failedfid_2_5_out/I");
-  P->Branch("failedfid_3_0_out", &failedfid_3_0_out, "failedfid_3_0_out/I");
-  P->Branch("failedfid_3_5_out", &failedfid_3_5_out, "failedfid_3_5_out/I");
+  P->Branch("fiducial_sig_x", &fiducial_sig_x_out, "fiducial_sig_x/D");
+  P->Branch("fiducial_sig_y", &fiducial_sig_y_out, "fiducial_sig_y/D");
 
-  P->Branch("dx_out", &dx_out, "dx_out/D");
-  P->Branch("dy_out", &dy_out, "dy_out/D");
-  P->Branch("coin_out", &coin_out, "coin_out/D");
-  P->Branch("thetapq_pout", &thetapq_pout, "thetapq_pout/D");
-  P->Branch("thetapq_nout", &thetapq_nout, "thetapq_nout/D");
-  P->Branch("nucleon_out", &nucleon_out, "nucleon_out/I");
-  P->Branch("hcalon_out", &hcalon_out, "hcalon_out/I");
-  P->Branch("hcalnblk_out", &hcalnblk_out, "hcalnblk_out/D");
-  P->Branch("hcalpid_out", &hcalpid_out, "hcalpid_out/D");
-  P->Branch("hcalx_out", &hcalx_out, "hcalx_out/D");
-  P->Branch("hcaly_out", &hcaly_out, "hcaly_out/D");
-  P->Branch("hcale_out", &hcale_out, "hcale_out/D");
+  P->Branch("dx", &dx_out, "dx/D");
+  P->Branch("dy", &dy_out, "dy/D");
+  P->Branch("coin", &coin_out, "coin/D");
+  P->Branch("thetapq_p", &thetapq_pout, "thetapq_p/D");
+  P->Branch("thetapq_n", &thetapq_nout, "thetapq_n/D");
+  P->Branch("nucleon", &nucleon_out, "nucleon/I");
+  P->Branch("hcalon", &hcalon_out, "hcalon/I");
+  P->Branch("hcalnblk", &hcalnblk_out, "hcalnblk/D");
+  P->Branch("hcalpid", &hcalpid_out, "hcalpid/D");
+  P->Branch("hcalx", &hcalx_out, "hcalx/D");
+  P->Branch("hcaly", &hcaly_out, "hcaly/D");
+  P->Branch("hcale", &hcale_out, "hcale/D");
+  P->Branch("hcal_index", &hcal_index_out, "hcal_index/D");
 
-  P->Branch("dx_bc_out", &dx_bc_out, "dx_bc_out/D");
-  P->Branch("dy_bc_out", &dy_bc_out, "dy_bc_out/D");
-  P->Branch("coin_bc_out", &coin_bc_out, "coin_bc_out/D");
-  P->Branch("thetapq_bc_pout", &thetapq_bc_pout, "thetapq_bc_pout/D");
-  P->Branch("thetapq_bc_nout", &thetapq_bc_nout, "thetapq_bc_nout/D");
-  P->Branch("nucleon_bc_out", &nucleon_bc_out, "nucleon_bc_out/I");
-  P->Branch("hcalon_bc_out", &hcalon_bc_out, "hcalon_bc_out/I");
-  P->Branch("hcalnblk_bc_out", &hcalnblk_bc_out, "hcalnblk_bc_out/D");
-  P->Branch("hcalpid_bc_out", &hcalpid_bc_out, "hcalpid_bc_out/D");
-  P->Branch("hcalx_bc_out", &hcalx_bc_out, "hcalx_bc_out/D");
-  P->Branch("hcaly_bc_out", &hcaly_bc_out, "hcaly_bc_out/D");
-  P->Branch("hcale_bc_out", &hcale_bc_out, "hcale_bc_out/D");
+  P->Branch("dx_bc", &dx_bc_out, "dx_bc/D");
+  P->Branch("dy_bc", &dy_bc_out, "dy_bc/D");
+  P->Branch("coin_bc", &coin_bc_out, "coin_bc/D");
+  P->Branch("thetapq_bc_p", &thetapq_bc_pout, "thetapq_bc_p/D");
+  P->Branch("thetapq_bc_n", &thetapq_bc_nout, "thetapq_bc_n/D");
+  P->Branch("nucleon_bc", &nucleon_bc_out, "nucleon_bc/I");
+  P->Branch("hcalon_bc", &hcalon_bc_out, "hcalon_bc/I");
+  P->Branch("hcalnblk_bc", &hcalnblk_bc_out, "hcalnblk_bc/D");
+  P->Branch("hcalpid_bc", &hcalpid_bc_out, "hcalpid_bc/D");
+  P->Branch("hcalx_bc", &hcalx_bc_out, "hcalx_bc/D");
+  P->Branch("hcaly_bc", &hcaly_bc_out, "hcaly_bc/D");
+  P->Branch("hcale_bc", &hcale_bc_out, "hcale_bc/D");
 
-  P->Branch("bb_tr_vz_out", &bb_tr_vz_out, "bb_tr_vz_out/D");
-  P->Branch("bb_tr_p_out", &bb_tr_p_out, "bb_tr_p_out/D");
-  P->Branch("bb_ps_e_out", &bb_ps_e_out, "bb_ps_e_out/D");
-  P->Branch("bb_ps_rowblk_out", &bb_ps_rowblk_out, "bb_ps_rowblk_out/D");
-  P->Branch("bb_ps_colblk_out", &bb_ps_colblk_out, "bb_ps_colblk_out/D");
-  P->Branch("bb_sh_e_out", &bb_sh_e_out, "bb_sh_e_out/D");
-  P->Branch("bb_sh_rowblk_out", &bb_sh_rowblk_out, "bb_sh_rowblk_out/D");
-  P->Branch("bb_sh_colblk_out", &bb_sh_colblk_out, "bb_sh_colblk_out/D");
-  P->Branch("bb_hodotdc_clus_tmean_out", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean_out/D");
-  P->Branch("bb_gem_track_nhits_out", &bb_gem_track_nhits_out, "bb_gem_track_nhits_out/D");
-  P->Branch("bb_etot_over_p_out", &bb_etot_over_p_out, "bb_etot_over_p_out/D");
+  P->Branch("bb_tr_n", &bb_tr_n_out, "bb_tr_n/D");
+  P->Branch("bb_tr_vz", &bb_tr_vz_out, "bb_tr_vz/D");
+  P->Branch("bb_tr_p", &bb_tr_p_out, "bb_tr_p/D");
+  P->Branch("bb_tr_th", &bb_tr_th_out, "bb_tr_th/D");
+  P->Branch("bb_tr_ph", &bb_tr_ph_out, "bb_tr_ph/D");
+  P->Branch("bb_tr_r_x", &bb_tr_r_x_out, "bb_tr_r_x/D");
+  P->Branch("bb_tr_r_th", &bb_tr_r_th_out, "bb_tr_r_th/D");
+  P->Branch("bb_ps_e", &bb_ps_e_out, "bb_ps_e/D");
+  P->Branch("bb_ps_rowblk", &bb_ps_rowblk_out, "bb_ps_rowblk/D");
+  P->Branch("bb_ps_colblk", &bb_ps_colblk_out, "bb_ps_colblk/D");
+  P->Branch("bb_sh_e", &bb_sh_e_out, "bb_sh_e/D");
+  P->Branch("bb_sh_rowblk", &bb_sh_rowblk_out, "bb_sh_rowblk/D");
+  P->Branch("bb_sh_colblk", &bb_sh_colblk_out, "bb_sh_colblk/D");
+  P->Branch("bb_hodotdc_clus_tmean", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean/D");
+  P->Branch("bb_grinch_tdc_clus_size", &bb_grinch_tdc_clus_size_out, "bb_grinch_tdc_clus_size/D");
+  P->Branch("bb_grinch_tdc_clus_trackindex", &bb_grinch_tdc_clus_trackindex_out, "bb_grinch_tdc_clus_trackindex/D");
+  P->Branch("bb_gem_track_nhits", &bb_gem_track_nhits_out, "bb_gem_track_nhits/D");
+  P->Branch("bb_gem_track_ngoodhits", &bb_gem_track_ngoodhits_out, "bb_gem_track_ngoodhits/D");
+  P->Branch("bb_gem_track_chi2ndf", &bb_gem_track_chi2ndf_out, "bb_gem_track_chi2ndf/D");
+  P->Branch("bb_etot_over_p", &bb_etot_over_p_out, "bb_etot_over_p/D");
 
   // setup reporting indices
   Int_t curmag = -1;
@@ -234,7 +264,23 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 	mag = crunh[irun].sbsmag / 21; //convert to percent
 	ebeam = crunh[irun].ebeam; //get beam energy per run
 	targ = crunh[irun].target;
-	rfname = rootfile_dir_lh2 + Form("/*%d*",crunh[irun].runnum);
+	
+	//search for sbs8 file in subdirectories
+	std::string rfname_sbs8_h;
+	if( kine==8 ){
+	  TString pattern_h = Form("*%d*",crunh[irun].runnum);
+	  TString foundDir_h = util::FindFileInDirectories(pattern_h, directories_h);
+	  if (!foundDir_h.IsNull()) {
+	    std::cout << "SBS 8 lh2 file found in: " << foundDir_h << std::endl;
+	    rfname_sbs8_h = foundDir_h;
+	  } else {
+	    std::cout << "SBS 8 lh2 file not found in " << foundDir_h << std::endl;
+	  }
+
+	  rfname = rfname_sbs8_h + Form("/*%d*",crunh[irun].runnum);
+	  
+	}else
+	  rfname = rootfile_dir_lh2 + Form("/*%d*",crunh[irun].runnum);
 	charge = crunh[irun].charge;
       }
       if( t==1 ){
@@ -243,7 +289,22 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 	mag = crund[irun].sbsmag / 21;
 	ebeam = crund[irun].ebeam;
 	targ = crund[irun].target;
-	rfname = rootfile_dir_ld2 + Form("/*%d*",crund[irun].runnum);
+
+	//search for sbs8 file in subdirectories
+	std::string rfname_sbs8_d;
+	if( kine==8 ){
+	  TString pattern_d = Form("*%d*",crund[irun].runnum);
+	  TString foundDir_d = util::FindFileInDirectories(pattern_d, directories_d);
+	  if (!foundDir_d.IsNull()) {
+	    std::cout << "SBS 8 ld2 file found in: " << foundDir_d << std::endl;
+	    rfname_sbs8_d = foundDir_d;
+	  } else {
+	    std::cout << "SBS 8 ld2 file not found in " << foundDir_d << std::endl;
+	  }
+	  rfname = rfname_sbs8_d + Form("/*%d*",crund[irun].runnum);
+	}else
+	  rfname = rootfile_dir_ld2 + Form("/*%d*",crund[irun].runnum);
+
 	charge = crund[irun].charge;
       }
 
@@ -292,6 +353,8 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
       C = new TChain("T");
       C->Add(rfname.c_str());
 
+      cout << "Loaded file for analysis: " << rfname << endl;
+
       // setting up ROOT tree branch addresses
       C->SetBranchStatus("*",0);    
 
@@ -332,8 +395,9 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
       Double_t ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
       Double_t vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
       Double_t xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
-      std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph"};
-      std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt};
+      Double_t r_x[econst::maxtrack],r_th[econst::maxtrack];
+      std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph","r_x","r_th"};
+      std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt,&r_x,&r_th};
       rvars::setbranch(C,"bb.tr",trvar,trvarlink);
 
       // tdctrig branches
@@ -356,9 +420,9 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
       rvars::setbranch(C,"fEvtHdr",evhdrvar,evhdrlink);
 
       // other bb branches
-      Double_t gemNhits, eop;
-      std::vector<std::string> miscbbvar = {"gem.track.nhits","etot_over_p"};
-      std::vector<void*> miscbbvarlink = {&gemNhits,&eop};
+      Double_t gemNhits, gemNgoodhits, gemChiSqr, grinchClusSize, grinchClusTrIndex, eop;
+      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","grinch_tdc.clus.size","grinch_tdc.clus.trackindex","etot_over_p"};
+      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&grinchClusSize,&grinchClusTrIndex,&eop};
       rvars::setbranch(C, "bb", miscbbvar, miscbbvarlink);
 
       TCut GCut = gcut.c_str();
@@ -384,7 +448,7 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
       if(pass<1)
 	hcalaa = cut::hcalaa_data_alt(1,1);
       else
-	hcalaa = cut::hcalaa_data(1,1);
+	hcalaa = cut::hcalaa_mc(1,1); //verified 2.10.24
 
       // set nucleon defaults by target
       std::string nucleon;
@@ -404,6 +468,7 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
       if(verbose)
 	std::cout << "Beginning analysis of run " << runnum << ", target " << targ << ", magnetic field " << mag << "%, total accumulated charge " << charge << " C." << std::endl;
       
+      //Event loop
       while (C->GetEntry(nevent++)) {
 	
 	std::cout << "Processing run " << runnum << " event " << nevent << " / " << nevents << ", total passed cuts " << npassed << "\r";
@@ -617,41 +682,22 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 	else if(in_n_bc)
 	  PID_bc=2;
 
+	//Find fiducial cut sigma factor
+	std::pair<Double_t, Double_t> fiducial_factors = cut::findFidFailure(dxsig_p, 
+									     dysig, 
+									     xyhcalexp[0],
+									     xyhcalexp[1], 
+									     dx0_p,
+									     hcalaa);
+	
 
-	//H-arm fiducial cuts (best_cluster)
+	//cout << "Fiducial cut failed at x:y " << fiducial_factors.first << ":" << fiducial_factors.second << endl;
+
+	//H-arm active area cuts (best_cluster)
 	bool hcalON_bc = cut::hcalaaON(hcalcx[cidx_best],hcalcy[cidx_best],hcalaa);
 
-	//Set up multiple fiducial cut points
-	//Nsig=0
-	vector<Double_t> fid_0_0 = cut::hcalfid(dxsig_p,dysig,hcalaa,0);
-	bool passed_fid_0_0 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_0_0);
-	//Nsig=0.5
-	vector<Double_t> fid_0_5 = cut::hcalfid(dxsig_p,dysig,hcalaa,0.5);
-	bool passed_fid_0_5 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_0_5);
-	//Nsig=1.
-	vector<Double_t> fid_1_0 = cut::hcalfid(dxsig_p,dysig,hcalaa,1.);
-	bool passed_fid_1_0 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_1_0);
-	//Nsig=1.5
-	vector<Double_t> fid_1_5 = cut::hcalfid(dxsig_p,dysig,hcalaa,1.5);
-	bool passed_fid_1_5 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_1_5);
-	//Nsig=2.
-	vector<Double_t> fid_2_0 = cut::hcalfid(dxsig_p,dysig,hcalaa,2.);
-	bool passed_fid_2_0 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_2_0);
-	//Nsig=2.5
-	vector<Double_t> fid_2_5 = cut::hcalfid(dxsig_p,dysig,hcalaa,2.5);
-	bool passed_fid_2_5 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_2_5);
-	//Nsig=3
-	vector<Double_t> fid_3_0 = cut::hcalfid(dxsig_p,dysig,hcalaa,3.);
-	bool passed_fid_3_0 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_3_0);
-	//Nsig=3.5
-	vector<Double_t> fid_3_5 = cut::hcalfid(dxsig_p,dysig,hcalaa,3.5);
-	bool passed_fid_3_5 = cut::hcalfidIN(xyhcalexp[0],xyhcalexp[1],dx0_p,fid_3_5);
-
-	//H-arm acceptance cut (primary cluster)
+	//H-arm active area cut (primary cluster)
 	bool hcalON = cut::hcalaaON(hcalx,hcaly,hcalaa);
-
-	//H-arm acceptance cut (primary cluster)
-	//bool hcalON_bc = cut::hcalaaON(x_bestcluster,y_bestcluster,hcalaa);
 
 	//Fill diagnostic histos
 	hQ2mag->Fill( mag, Q2 );
@@ -678,16 +724,10 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 	precon_out = precon;
 
 	//Fiducial slices
-	failedfid_0_0_out = (Int_t)!passed_fid_0_0;
-	failedfid_0_5_out = (Int_t)!passed_fid_0_5;
-	failedfid_1_0_out = (Int_t)!passed_fid_1_0;
-	failedfid_1_5_out = (Int_t)!passed_fid_1_5;
-	failedfid_2_0_out = (Int_t)!passed_fid_2_0;
-	failedfid_2_5_out = (Int_t)!passed_fid_2_5;
-	failedfid_3_0_out = (Int_t)!passed_fid_3_0;
-	failedfid_3_5_out = (Int_t)!passed_fid_3_5;
+	fiducial_sig_x_out = fiducial_factors.first;
+	fiducial_sig_y_out = fiducial_factors.second;
 
-	//Primary Cluster
+	  //Primary Cluster
 	dx_out = dx;
 	dy_out = dy;
 	coin_out = pclus_diff;
@@ -700,6 +740,7 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 	hcalx_out = hcalx;
 	hcaly_out = hcaly;
 	hcale_out = hcale;
+	hcal_index_out = hcalidx;
 
 	//Best Cluster
 	dx_bc_out = dx_bestcluster;
@@ -717,7 +758,12 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 
 	//Fill old output tree
 	bb_tr_p_out = p[0];
+	bb_tr_n_out = ntrack;
 	bb_tr_vz_out = vz[0];
+	bb_tr_th_out = thtr[0];
+	bb_tr_ph_out = phtr[0];
+	bb_tr_r_x_out = r_x[0];
+	bb_tr_r_th_out = r_th[0];
 	bb_ps_e_out = ePS;
 	bb_ps_rowblk_out = rblkPS;
 	bb_ps_colblk_out = cblkPS;
@@ -725,7 +771,11 @@ void parse_barebones( Int_t kine=4, Int_t pass=2, Int_t cluster_method=4, bool v
 	bb_sh_rowblk_out = rblkSH;
 	bb_sh_colblk_out = cblkSH;
 	bb_hodotdc_clus_tmean_out = hodotmean[0];
+	bb_grinch_tdc_clus_size_out = grinchClusSize;
+	bb_grinch_tdc_clus_trackindex_out = grinchClusTrIndex;
 	bb_gem_track_nhits_out = gemNhits;
+	bb_gem_track_ngoodhits_out = gemNgoodhits;
+	bb_gem_track_chi2ndf_out = gemChiSqr;
 	bb_etot_over_p_out = eop;
 
 	P->Fill();	

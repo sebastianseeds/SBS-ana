@@ -21,7 +21,7 @@
 bool debug = false;
 
 //MAIN
-void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicInfo=true )
+void data_elastic( Int_t kine=9, Int_t magset=70, Int_t pass=2, bool systematicInfo=true )
 {
 
   // Define a clock to check macro processing time
@@ -49,7 +49,18 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   Double_t coin_sigma_factor = jmgr->GetValueFromSubKey<Double_t>( "coin_sigma_factor", Form("sbs%d",kine) );
   vector<Double_t> coin_profile;
   jmgr->GetVectorFromSubKey<Double_t>("coin_profile",Form("sbs%d",kine),coin_profile);
-  Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( "hcal_offset", Form("sbs%d",kine) );
+  Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset%s",rootfile_word.c_str()), Form("sbs%d",kine) );
+
+  //Necessary for loop over directories in sbs8
+  std::vector<TString> directories = {
+    rootfile_dir + "/SBS0percent",
+    rootfile_dir + "/SBS100percent",
+    rootfile_dir + "/SBS50percent",
+    rootfile_dir + "/SBS70percent_part1",
+    rootfile_dir + "/SBS70percent_part2",
+    rootfile_dir + "/SBS70percent_part3",
+    rootfile_dir + "/SBS70percent_part4"
+  };
 
   std::cout << "Loaded HCal vertical offset: " << hcal_v_offset << std::endl;
 
@@ -67,7 +78,7 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   if(pass<1)
     hcalaa = cut::hcalaa_data_alt(1,1);
   else
-    hcalaa = cut::hcalaa_data(1,1);
+    hcalaa = cut::hcalaa_mc(1,1); //verified 2.10.24
 
   //SBStune *tune = new SBStune(kine,mag);
   SBStune tune(kine,magset);
@@ -78,7 +89,7 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
   cout << endl << tune << endl;
 
   //Obtain cuts from tune class
- std:string gcut   = tune.Getglobcut();
+  std::string gcut   = tune.Getglobcut();
   Double_t W2mean   = tune.GetW2mean();
   Double_t W2sig    = tune.GetW2sig();
   Double_t dx0_n    = tune.Getdx0_n();
@@ -94,6 +105,8 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
 
   Double_t W2min = W2mean - 3*W2sig;
   Double_t W2max = W2mean + 3*W2sig;
+
+  cout << "Loaded globalcut: " << gcut << endl;
 
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
@@ -263,10 +276,10 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
     bottom = econst::hcalposXi_p0;
   }else{
     //pass1 and >pass1
-    left = econst::hcalposYi;
-    right = econst::hcalposYf;
-    top = econst::hcalposXf;
-    bottom = econst::hcalposXi;
+    left = econst::hcalposYi_mc;
+    right = econst::hcalposYf_mc;
+    top = econst::hcalposXf_mc;
+    bottom = econst::hcalposXi_mc;
   }
 
   //Active area boundaries
@@ -283,10 +296,10 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
     bottomAA = (econst::hcalposXi_p0+econst::hcalblk_h_p0);
   }else{
     //pass1 and >pass1
-    leftAA = (econst::hcalposYi+econst::hcalblk_div_h);
-    rightAA = (econst::hcalposYf-econst::hcalblk_div_h);
-    topAA = (econst::hcalposXf-econst::hcalblk_div_v);
-    bottomAA = (econst::hcalposXi+econst::hcalblk_div_v);
+    leftAA = (econst::hcalposYi_mc+econst::hcalblk_div_h);
+    rightAA = (econst::hcalposYf_mc-econst::hcalblk_div_h);
+    topAA = (econst::hcalposXf_mc-econst::hcalblk_div_v);
+    bottomAA = (econst::hcalposXi_mc+econst::hcalblk_div_v);
   }
   
   //Safety Margin boundaries
@@ -306,10 +319,10 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
     bottomSM = (econst::hcalposXi_p0+econst::hcalblk_h_p0+3*dxsig_p-dx0_p);
   }else{
     //pass1 and >pass1
-    leftSM = (econst::hcalposYi+econst::hcalblk_div_h+3*dysig);
-    rightSM = (econst::hcalposYf-econst::hcalblk_div_h-3*dysig);
-    topSM = (econst::hcalposXf-econst::hcalblk_div_v-3*dxsig_p-dx0_p);
-    bottomSM = (econst::hcalposXi+econst::hcalblk_div_v+3*dxsig_p-dx0_p);
+    leftSM = (econst::hcalposYi_mc+econst::hcalblk_div_h+3*dysig);
+    rightSM = (econst::hcalposYf_mc-econst::hcalblk_div_h-3*dysig);
+    topSM = (econst::hcalposXf_mc-econst::hcalblk_div_v-3*dxsig_p-dx0_p);
+    bottomSM = (econst::hcalposXi_mc+econst::hcalblk_div_v+3*dxsig_p-dx0_p);
   }
 
   // setup reporting indices
@@ -332,7 +345,20 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
 
     std::cout << "Analyzing run " << runnum << ".." << std::endl;
 
-    std::string rfname = rootfile_dir + Form("/*%d*",corun[irun].runnum);
+    std::string rfname;
+    std::string rfname_sbs8;
+    if( kine==8 ){
+      TString pattern = Form("*%d*",corun[irun].runnum);
+      TString foundDir = util::FindFileInDirectories(pattern, directories);
+      if (!foundDir.IsNull()) {
+	std::cout << "SBS 8 ld2 file found in: " << foundDir << std::endl;
+	rfname_sbs8 = foundDir;
+      } else {
+	std::cout << "SBS 8 ld2 file not found in " << foundDir << std::endl;
+      }
+      rfname = rfname_sbs8 + Form("/*%d*",corun[irun].runnum);
+    }else
+      rfname = rootfile_dir + Form("/*%d*",corun[irun].runnum);
 
     //first attempt to resolve segmentation fault on large data sets
     if (C != nullptr) {
@@ -358,13 +384,6 @@ void data_elastic( Int_t kine=4, Int_t magset=30, Int_t pass=2, bool systematicI
     std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","nblk","id"};
     std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&hcalcnblk,&Nhcalcid};
     rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink, 7);
-    
-    // // HCal cluster branches (primary block information for id, tdc, and atime)
-    // Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus];
-    // Int_t Nhcalcid;
-    // std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","id"};
-    // std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&Nhcalcid};
-    // rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink,6);
 
     // hodoscope cluster mean time
     Int_t Nhodotmean; 

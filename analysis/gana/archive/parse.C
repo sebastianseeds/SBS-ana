@@ -1,4 +1,5 @@
 //sseeds 10.23.23 - Updated parsing script to cut both inelastic events and unused branches. Configured only to parse data files, not MC. Event parsing using wide globalcuts, wide W2 cuts, and wide coin (HCal/BBCal) cuts. Branch parsing includes only branches that sseeds is using for his gmn analysis
+//Update 2.10.24
 
 #include <vector>
 #include <iostream>
@@ -142,20 +143,20 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   Double_t sbs_hcal_colblk_out;
   Double_t sbs_hcal_atimeblk_out;
   Double_t sbs_hcal_tdctimeblk_out;
-  Double_t sbs_hcal_clus_id_out[maxClus];
-  Double_t sbs_hcal_clus_e_out[maxClus];
-  Double_t sbs_hcal_clus_x_out[maxClus];
-  Double_t sbs_hcal_clus_y_out[maxClus];
-  Double_t sbs_hcal_clus_tdctime_out[maxClus];
-  Double_t sbs_hcal_clus_atime_out[maxClus];
+  // Double_t sbs_hcal_clus_id_out[maxClus];
+  // Double_t sbs_hcal_clus_e_out[maxClus];
+  // Double_t sbs_hcal_clus_x_out[maxClus];
+  // Double_t sbs_hcal_clus_y_out[maxClus];
+  // Double_t sbs_hcal_clus_tdctime_out[maxClus];
+  // Double_t sbs_hcal_clus_atime_out[maxClus];
   Double_t sbs_hcal_nclus_out;
   Double_t sbs_hcal_nblk_out;
-  Double_t sbs_hcal_clus_blk_id_out[maxBlk];
-  Double_t sbs_hcal_clus_blk_e_out[maxBlk];
-  Double_t sbs_hcal_clus_blk_x_out[maxBlk];
-  Double_t sbs_hcal_clus_blk_y_out[maxBlk];
-  Double_t sbs_hcal_clus_blk_atime_out[maxBlk];
-  Double_t sbs_hcal_clus_blk_tdctime_out[maxBlk];
+  // Double_t sbs_hcal_clus_blk_id_out[maxBlk];
+  // Double_t sbs_hcal_clus_blk_e_out[maxBlk];
+  // Double_t sbs_hcal_clus_blk_x_out[maxBlk];
+  // Double_t sbs_hcal_clus_blk_y_out[maxBlk];
+  // Double_t sbs_hcal_clus_blk_atime_out[maxBlk];
+  // Double_t sbs_hcal_clus_blk_tdctime_out[maxBlk];
   Int_t Ndata_sbs_hcal_clus_blk_id_out;
   Int_t Ndata_sbs_hcal_clus_id_out;
   Double_t sbs_hcal_bclus_x_out;
@@ -194,7 +195,7 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   P->Branch( "failedfid_2_0", &failedfid_2_0_out, "failedfid_2_0/I" );
   P->Branch( "failedfid_2_5", &failedfid_2_5_out, "failedfid_2_5/I" );
   P->Branch( "failedfid_3_0", &failedfid_3_0_out, "failedfid_3_0/I" );
-  P->Branch( "failedfid_4_5", &failedfid_3_5_out, "failedfid_3_5/I" );
+  P->Branch( "failedfid_3_5", &failedfid_3_5_out, "failedfid_3_5/I" );
   P->Branch( "hcalon", &hcalon_out, "hcalon/I" );
   P->Branch( "hcalon_bc", &hcalon_bc_out, "hcalon_bc/I" );
   //P->Branch( "cluster_idx_fail", &cluster_idx_fail_out, "cluster_idx_fail/I" );
@@ -237,18 +238,18 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
   P->Branch( "sbs.hcal.rowblk", &sbs_hcal_rowblk_out, "sbs.hcal.rowblk/D" );
   P->Branch( "sbs.hcal.colblk", &sbs_hcal_colblk_out, "sbs.hcal.colblk/D" );
   P->Branch( "sbs.hcal.atimeblk", &sbs_hcal_atimeblk_out, "sbs.hcal.atimeblk/D" );
-  P->Branch( "sbs.hcal.clus.id", &sbs_hcal_clus_id_out, "sbs.hcal.clus.id/D" );
-  P->Branch( "sbs.hcal.clus.e", &sbs_hcal_clus_e_out, "sbs.hcal.clus.e/D" );
-  P->Branch( "sbs.hcal.clus.x", &sbs_hcal_clus_x_out, "sbs.hcal.clus.x/D" );
-  P->Branch( "sbs.hcal.clus.y", &sbs_hcal_clus_y_out, "sbs.hcal.clus.y/D" );
-  P->Branch( "sbs.hcal.clus.tdctime", &sbs_hcal_clus_tdctime_out, "sbs.hcal.clus.tdctime/D" );
-  P->Branch( "sbs.hcal.clus.atime", &sbs_hcal_clus_atime_out, "sbs.hcal.clus.atime/D" );
-  P->Branch( "sbs.hcal.clus_blk.id", &sbs_hcal_clus_blk_id_out, "sbs.hcal.clus_blk.id/D" );
-  P->Branch( "sbs.hcal.clus_blk.e", &sbs_hcal_clus_blk_e_out, "sbs.hcal.clus_blk.e/D" );
-  P->Branch( "sbs.hcal.clus_blk.x", &sbs_hcal_clus_blk_x_out, "sbs.hcal.clus_blk.x/D" );
-  P->Branch( "sbs.hcal.clus_blk.y", &sbs_hcal_clus_blk_y_out, "sbs.hcal.clus_blk.y/D" );
-  P->Branch( "sbs.hcal.clus_blk.tdctime", &sbs_hcal_clus_blk_tdctime_out, "sbs.hcal.clus_blk.tdctime/D" );
-  P->Branch( "sbs.hcal.clus_blk.atime", &sbs_hcal_clus_blk_atime_out, "sbs.hcal.clus_blk.atime/D" );
+  // P->Branch( "sbs.hcal.clus.id", &sbs_hcal_clus_id_out, "sbs.hcal.clus.id/D" );
+  // P->Branch( "sbs.hcal.clus.e", &sbs_hcal_clus_e_out, "sbs.hcal.clus.e/D" );
+  // P->Branch( "sbs.hcal.clus.x", &sbs_hcal_clus_x_out, "sbs.hcal.clus.x/D" );
+  // P->Branch( "sbs.hcal.clus.y", &sbs_hcal_clus_y_out, "sbs.hcal.clus.y/D" );
+  // P->Branch( "sbs.hcal.clus.tdctime", &sbs_hcal_clus_tdctime_out, "sbs.hcal.clus.tdctime/D" );
+  // P->Branch( "sbs.hcal.clus.atime", &sbs_hcal_clus_atime_out, "sbs.hcal.clus.atime/D" );
+  // P->Branch( "sbs.hcal.clus_blk.id", &sbs_hcal_clus_blk_id_out, "sbs.hcal.clus_blk.id/D" );
+  // P->Branch( "sbs.hcal.clus_blk.e", &sbs_hcal_clus_blk_e_out, "sbs.hcal.clus_blk.e/D" );
+  // P->Branch( "sbs.hcal.clus_blk.x", &sbs_hcal_clus_blk_x_out, "sbs.hcal.clus_blk.x/D" );
+  // P->Branch( "sbs.hcal.clus_blk.y", &sbs_hcal_clus_blk_y_out, "sbs.hcal.clus_blk.y/D" );
+  // P->Branch( "sbs.hcal.clus_blk.tdctime", &sbs_hcal_clus_blk_tdctime_out, "sbs.hcal.clus_blk.tdctime/D" );
+  // P->Branch( "sbs.hcal.clus_blk.atime", &sbs_hcal_clus_blk_atime_out, "sbs.hcal.clus_blk.atime/D" );
   P->Branch( "sbs.hcal.nclus", &sbs_hcal_nclus_out, "sbs.hcal.nclus/D" );
   P->Branch( "sbs.hcal.nblk", &sbs_hcal_nblk_out, "sbs.hcal.nblk/D" );
   P->Branch( "Ndata.sbs.hcal.clus.id", &Ndata_sbs_hcal_clus_id_out, "Ndata.sbs.hcal.clus.id/I" );
@@ -917,39 +918,39 @@ void parse( Int_t kine=7, Int_t epm=3, Int_t cluster_method = 4, Int_t pass=0, b
 	sbs_hcal_tdctimeblk_out = hcaltdc;
 	sbs_hcal_nclus_out = nclus;
 	Ndata_sbs_hcal_clus_id_out = Nhcalcid;
-	for( Int_t c=0; c<Nhcalcid; ++c ){
-	  Double_t cid = hcalcid[c];
-	  Double_t ce = hcalce[c];
-	  Double_t cx = hcalcx[c];
-	  Double_t cy = hcalcy[c];
-	  Double_t ctdc = hcalctdctime[c];
-	  Double_t catime = hcalcatime[c];
+	// for( Int_t c=0; c<Nhcalcid; ++c ){
+	//   Double_t cid = hcalcid[c];
+	//   Double_t ce = hcalce[c];
+	//   Double_t cx = hcalcx[c];
+	//   Double_t cy = hcalcy[c];
+	//   Double_t ctdc = hcalctdctime[c];
+	//   Double_t catime = hcalcatime[c];
 
-	  sbs_hcal_clus_id_out[c] = cid;
-	  sbs_hcal_clus_e_out[c] = ce;
-	  sbs_hcal_clus_x_out[c] = cx;	  
-	  sbs_hcal_clus_y_out[c] = cy;
-	  sbs_hcal_clus_tdctime_out[c] = ctdc;
-	  sbs_hcal_clus_atime_out[c] = catime;
-	}
+	//   sbs_hcal_clus_id_out[c] = cid;
+	//   sbs_hcal_clus_e_out[c] = ce;
+	//   sbs_hcal_clus_x_out[c] = cx;	  
+	//   sbs_hcal_clus_y_out[c] = cy;
+	//   sbs_hcal_clus_tdctime_out[c] = ctdc;
+	//   sbs_hcal_clus_atime_out[c] = catime;
+	// }
 	sbs_hcal_nblk_out = nblk;
 	Ndata_sbs_hcal_clus_blk_id_out = Nhcalcbid;
-	for( Int_t b=0; b<Nhcalcbid; ++b ){
-	  Double_t cbid = hcalcbid[b];
-	  Double_t cbe = hcalcbe[b];
-	  Double_t cbx = hcalcbx[b];
-	  Double_t cby = hcalcby[b];
-	  Double_t cbtdc = hcalcbtdctime[b];
-	  Double_t cbatime = hcalcbatime[b];
+	// for( Int_t b=0; b<Nhcalcbid; ++b ){
+	//   Double_t cbid = hcalcbid[b];
+	//   Double_t cbe = hcalcbe[b];
+	//   Double_t cbx = hcalcbx[b];
+	//   Double_t cby = hcalcby[b];
+	//   Double_t cbtdc = hcalcbtdctime[b];
+	//   Double_t cbatime = hcalcbatime[b];
 
-	  sbs_hcal_clus_blk_id_out[b] = cbid;
-	  sbs_hcal_clus_blk_e_out[b] = cbe;
-	  sbs_hcal_clus_blk_x_out[b] = cbx;	  
-	  sbs_hcal_clus_blk_y_out[b] = cby;
-	  sbs_hcal_clus_blk_tdctime_out[b] = cbtdc;
-	  sbs_hcal_clus_blk_atime_out[b] = cbatime;
+	//   sbs_hcal_clus_blk_id_out[b] = cbid;
+	//   sbs_hcal_clus_blk_e_out[b] = cbe;
+	//   sbs_hcal_clus_blk_x_out[b] = cbx;	  
+	//   sbs_hcal_clus_blk_y_out[b] = cby;
+	//   sbs_hcal_clus_blk_tdctime_out[b] = cbtdc;
+	//   sbs_hcal_clus_blk_atime_out[b] = cbatime;
 
-	}
+	// }
 
 	P->Fill();	
 	

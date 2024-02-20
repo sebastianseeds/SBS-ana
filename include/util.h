@@ -8,11 +8,21 @@
 #include <dirent.h>
 #include <filesystem>
 
+#include <string>
+#include <regex>
+#include <unordered_set>
+#include <algorithm>
+
 #include "TH1F.h"
 #include "TH2F.h"
 #include "TLine.h"
 #include "TLatex.h"
 #include "TString.h"
+
+#include <TSystemDirectory.h>
+#include <TList.h>
+#include <TCollection.h>
+#include <TRegexp.h>
 
 #include "../include/crun.h"
 #include "../include/econst.h"
@@ -40,9 +50,25 @@ namespace util {
 		      Int_t totalIterations_inner,
 		      std::string label);
 
+  //parse global cut string delimited by && into individual cut strings
+  std::vector<std::string> parseCuts(const std::string& cutsString);         //global cut string delimited by &&
+
+  //Find files for pass2
+  TString FindFileInDirectories(const TString& pattern,                      //look for runnum
+				const std::vector<TString>& directories);    //pass possible directories
+
   //General
   void readParam(std::string const_path,vector<Double_t> &param); //reads parameters from txt file
   void readParam(std::string const_path,std::string type,Int_t setsize,vector<Double_t> &param); //overload to read subset of data from sbs db-like file
+
+  Double_t generateRandomNumber(const std::string& passkey);      //four-element string which generates a random number between 0.95 and 1.05
+
+  std::vector<std::string> parseGlobalCut(const std::string& input);  //Take in global cut and parse all cut elements for systematic analysis
+
+  bool checkFile(const std::string& filePath);              //Full path to file
+
+  bool checkTH1D(TH1D* histogram,                           //Input histogram to check
+		 const std::string& name);                  //Name of histogram to indicate which failed
 
   //HCal histograms
   TH2D *hhcalrowcol(std::string name); // returns hcal row/col 2d histo
@@ -131,10 +157,25 @@ namespace util {
 						    Double_t low,     // Lower bound for first fit, default first bin
 						    Double_t high);   // Upper bound for first fit, default last bin
 
-  std::vector<Double_t> fitSkewedGaussianAndGetFineParams(TH1D* hist,       // 1D histo passed for fitting
-							  Double_t sig,     // Estimated sigma for course fit
-							  Double_t low,     // Lower bound for first fit, default first bin
-							  Double_t high);   // Upper bound for first fit, default last bin
+  double CalculateCorrelationFactor(TH2D* hist,              //TH2D to get correlation factor from
+				    double xmin,             //xmin for constraint
+				    double xmax,             //xmax for constraint
+				    double ymin,             //ymin for constraint
+				    double ymax);            //ymax for constraint
+
+  void fitAndCalculateRatio(TH1D* hist,                           //dx histogram for LD2
+			    TCanvas* canvas,                      //QA histogram
+			    double &ratio,                        //yield ratio
+			    std::vector<double>& params,          //pass 3(gaus)+3(gaus)+5(pol4)=11 set params
+			    std::vector<double>& fitRange,        //pass 2 params (xfitmin, xfitmax)
+			    bool fixpol=false);                   //option to fix the pol4 params
+
+  void fitSkewedGaussianAndGetFineParams(TH1D* hist,                  // 1D histo passed for fitting
+					 Double_t sig,                   // Estimated sigma for course fit
+					 Double_t low,                   // Lower bound for first fit, default first bin
+					 Double_t high,                  // Upper bound for first fit, default last bin
+					 std::vector<Double_t> &params,  //vector to store parameters
+					 Double_t alpha_ll);             // Lower Limit on alpha (optional)
   
   TH1D *makeResidualHisto(TString identifier,
 			  TH1D *histo_1,
@@ -155,6 +196,44 @@ namespace util {
 			 std::vector<std::string>& vector2,  //vector of .root file extensions
 			 bool jboyd);                        //bool to alter file name structure to jboyd convention
     
+  void synchronizeJobNumbers(std::vector<std::string>& vecA,   //Vector of strings A of form "bla_job<int>bla"
+			     std::vector<std::string>& vecB);  //Vector of strings B of form "bla_job<int>bla"
+
+  std::vector<TH1D*> createBootstrapSamples(TH1D* originalHist,             //Original dataset (full)
+					    int nBootstrapSamples);         //Number of sample datasets desired
+
+  TH1D* shiftHistogramX(TH1D* originalHist,                  //original dataset (full)
+			double shiftValue);                  //amount to shift each bin
+  
+  TH1D* cloneAndCutHistogram(TH1D* originalHist,             //original dataset (full) 
+			     double xMin,                    //constraint min
+			     double xMax);                   //constraint max
+
+  double GetTotalQuadratureError(TH1D* hist);                //input histogram 
+
+  TH1D* subtractFunctionFromHistogramWithinRange(const TH1D* hist, //input histogram
+						 const TF1* func,  //input tuned functional fit to bg
+						 double xmin,      //<xmin, zero
+						 double xmax);     //>xmax, zero
+
+  void subtractFunctionAndGetTotalAndError(TH1D* hist,         //data histogram
+					   TF1* func,          //fit to background
+					   double xMin,        //reject point region else full histo, x minimum
+					   double xMax,        //reject point region else full histo, x maximum
+					   double &total,      //total difference, modifying input
+					   double xRangeLow,   //full histo region, x minimum
+					   double xRangeHigh,  //full histo region, x maximum
+					   double &error,      //total error
+					   bool abs_sub);      //bool to choose if hist-fit diff >0 else 0
+
+  void plotNormalizedTH1DsOnCanvas(TCanvas* canvas,                              //passed canvas for viewing
+				   TH1D* hist1,                                  //first TH1D
+				   TH1D* hist2,                                  //second TH1D
+				   const char* title = "Normalized Histograms",  //Title for overlay
+				   const char* x_label = "X-axis",               //xaxis title for overlay
+				   const char* y_label = "Frequency");           //yaxis title for overlay
+
+
 }
 
 #endif
