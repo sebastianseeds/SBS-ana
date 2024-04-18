@@ -1,9 +1,13 @@
 //sseeds 10.23.23 - Updated parsing script to cut both inelastic events and unused branches. Configured only to parse data files, not MC. Event parsing using wide globalcuts, wide W2 cuts, and wide coin (HCal/BBCal) cuts. Branch parsing includes only branches that sseeds is using for his gmn analysis
 //Update 2.2.24 - Same method, made simpler without class references for troubleshooting
-//Added multicluster analysis
+//Version of parse_barebones.C updated to handle monte carlo data.
+//csv structure: jobid,Nthrown,Ntried,genvol(MeV*sr^2),luminosity(ub^-1),ebeam(GeV),charge(mC),RndmSeed. jobid is dropped during metadata formation such that each element of metadata objects are as listed - 1. 
+//Update 4.2.24 - Added multicluster analysis for higher Q2
 
 #include <vector>
 #include <iostream>
+#include <regex>
+#include <algorithm>
 #include "TCut.h"
 #include "TLorentzVector.h"
 #include "TTreeFormula.h"
@@ -14,86 +18,223 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-const Int_t maxClus = 35; //larger than max per tree
-const Int_t maxBlk = 25;
-const Double_t W2max = 3.0; //very large compared to nucleon mass
-const Double_t coin_sigma_factor = 5.; //Wide coincidence timing cut
-const Double_t nsig_step = 0.1; //number of sigma to step through in dx until fiducial cut failure written to output tree
-const Double_t R_mclus = 0.3; //search region for clusters to add to highest energy cluster on multicluster analysis
+const int maxClus = 35; //larger than max per tree
+const int maxBlk = 25;
+const double W2max = 3.0; //very large compared to nucleon mass
+const double coin_sigma_factor = 5.; //Wide coincidence timing cut
+const double nsig_step = 0.1; //number of sigma to step through in dx until fiducial cut failure written to output tree
+const int cluster_method = 4; //Hard coded to scoring (same as data)
+const double hcal_v_offset = 0.; //Should be no offset in MC data
+const double R_mclus = 0.3; //Total radius outside of primary tree cluster where additional clusters are absorbed
+
+//norm_override data
+const double Ntried_override = 100000;
+const double luminosity_override = 3.8475e+36;
+const double genvol_override = 12.566;
+
+//limit_size data
+const int maxEvents = 5000000; //5M
+Long64_t maxFileSize = 8000000000; //8 GB
 
 //Specific wide cut for all parsing
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
 //MAIN
-void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool verbose=false, bool ld2_only = false )
+void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "alt", bool verbose=false, bool norm_override=false, bool limit_size=false )
 {   
 
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();
   st->Start( kTRUE );
 
-  //One set of data files in json config shared between pass0/1 per kinematic
-  if( pass==0 )
-    pass=1;
-
+  // Set up exception to MC file structure
+  std::string rtype = replay_type;
+  std::string rootfile_type = "";
+  bool jboyd = false;
+  bool alt = false;
+  if( rtype.compare("jboyd")==0 ){
+      rootfile_type = "_jboyd";
+      jboyd = true;
+  }else if( rtype.compare("alt")==0 ){
+      rootfile_type = "_alt";
+      alt = true;
+  }else if( rtype.compare("")!=0 )
+    cout << "WARNING: invalid argument at replay_type. Valid entries include jboyd, alt, or nothing. Defaulting to nothing." << endl;
+    
   // reading input config file
-  JSONManager *jmgr = new JSONManager("../../config/parse.json");
+  JSONManager *jmgr = new JSONManager("../../config/gmn_mc.json");
 
-  std::string rootfile_dir_lh2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_lh2_p%d",pass), Form("sbs%d",kine) );
-  std::string rootfile_dir_ld2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_ld2_p%d",pass), Form("sbs%d",kine) );
-  Double_t minE = jmgr->GetValueFromSubKey<Double_t>( Form("minE_p%d",pass), Form("sbs%d",kine) );
-  vector<Double_t> coin_profile;
-  jmgr->GetVectorFromSubKey<Double_t>(Form("coin_profile_p%d",pass),Form("sbs%d",kine),coin_profile);
-  Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset_p%d",pass), Form("sbs%d",kine) );
+  //Get rootfiles and metadata accounting for exceptions
+  //All MC for analysis is LD2
+  std::string rootfile_dir = jmgr->GetValueFromSubKey_str( Form("filedir_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
 
-  //Necessary for loop over directories in sbs8
-  std::vector<TString> directories_h = {
-    rootfile_dir_lh2 + "/SBS0percent",
-    rootfile_dir_lh2 + "/SBS100percent",
-    rootfile_dir_lh2 + "/SBS50percent",
-    rootfile_dir_lh2 + "/SBS70percent_part1",
-    rootfile_dir_lh2 + "/SBS70percent_part2",
-    rootfile_dir_lh2 + "/SBS70percent_part3"
-  };
+  std::string histfile_dir = rootfile_dir;
 
-  std::vector<TString> directories_d = {
-    rootfile_dir_ld2 + "/SBS0percent",
-    rootfile_dir_ld2 + "/SBS100percent",
-    rootfile_dir_ld2 + "/SBS50percent",
-    rootfile_dir_ld2 + "/SBS70percent_part1",
-    rootfile_dir_ld2 + "/SBS70percent_part2",
-    rootfile_dir_ld2 + "/SBS70percent_part3",
-    rootfile_dir_ld2 + "/SBS70percent_part4"
-  };
+  if( jboyd ){
+    rootfile_dir += Form("simc/SBS%d/",kine);
+    histfile_dir += "hist/";
+  }else
+    histfile_dir += "simcout/";
 
+  //Get search parameters for MC files
+  std::string partialName_p = jmgr->GetValueFromSubKey_str( Form("p_string_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
+  std::string partialName_n = jmgr->GetValueFromSubKey_str( Form("n_string_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
 
   //set up default parameters for all analysis
-  std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
-  Int_t nhruns = -1; //Always analyze all available runs
-  Int_t ndruns = -1; //Always analyze all available runs
-  Int_t verb = 0; //Don't print diagnostic info by default
-  Double_t binfac = 400.;
-
-  //read the run list to parse run numbers associated to input parameters and set up for loop over runs
-  vector<crun> crunh; 
-  vector<crun> crund;
-  util::ReadRunList(runsheet_dir,nhruns,kine,"LH2",pass,verb,crunh); //modifies nruns
-  util::ReadRunList(runsheet_dir,ndruns,kine,"LD2",pass,verb,crund); //modifies nruns
+  double binfac = 400.;
 
   // outfile path
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones.root",kine,pass);
+  std::string parse_path = outdir_path + Form("/parse/parse_mc_sbs%d_%dp_barebones%s.root",kine,mag,rootfile_type.c_str());
+
+  cout << "Creating parse file and parse log file at " << parse_path << endl;
 
   //set up output files
   TFile *fout = new TFile( parse_path.c_str(), "RECREATE" );
+  std::ofstream logfile(outdir_path + Form("/parse/parselog_mc_sbs%d_%dp_barebones%s.root",kine,mag,rootfile_type.c_str()));
 
-  //set up diagnostic histograms
-  TH2D *hW2mag = new TH2D( "hW2mag", "W^{2} vs sbsmag; \%; GeV^{2}", 20, 0, 100, 200, 0, 2 );
-  TH2D *hQ2mag = new TH2D( "hQ2mag", "Q^{2} vs sbsmag; \%; GeV^{2}", 20, 0, 100, 200, 0, 4 ); //can generalize
-  TH2D *hdxmag = new TH2D( "hdxmag","dx vs sbsmag; \%; x_{HCAL}-x_{expect} (m)", 20, 0, 100, 800, -4, 4 );
-  TH2D *hdymag = new TH2D( "hdymag","dy vs sbsmag; \%; y_{HCAL}-y_{expect} (m)", 20, 0, 100, 800, -4, 4 );
-  TH1D *hcidxfail_d = new TH1D( "hcidxfail_d","Cluster Index Failed vs Run; runnum", ndruns, 0, ndruns );
-  TH1D *hcidxfail_h = new TH1D( "hcidxfail_h","Cluster Index Failed vs Run; runnum", nhruns, 0, nhruns );
+  // Obtain current time
+  std::time_t now = std::time(nullptr);
+    
+  // Convert time_t to tm struct for local time
+  std::tm *ltm = std::localtime(&now);
+
+  logfile << "Logfile created for " << parse_path << " at " 
+	  << std::setfill('0') << std::setw(2) << 1 + ltm->tm_mon << "."  // Month (01-12)
+	  << std::setfill('0') << std::setw(2) << ltm->tm_mday << "."    // Day (01-31)
+	  << 1900 + ltm->tm_year << " "                                  // Year
+	  << std::setfill('0') << std::setw(2) << ltm->tm_hour << ":"    // Hour (00-23)
+	  << std::setfill('0') << std::setw(2) << ltm->tm_min << endl << endl;
+
+  logfile << "Rootfile type: " << rootfile_type << endl;
+
+  //Check neutron root/hist files for generic replay output type
+  std::vector<std::string> rootFileNames_n;
+
+  //std::map<int, std::pair<std::string, std::vector<float>>> csvData_n;
+  std::vector<std::pair<std::string, std::vector<float>>> metadata_n;
+
+  if(!jboyd)
+    util::SyncFilesWithCsv(histfile_dir, rootfile_dir, partialName_n, rootFileNames_n, metadata_n);
+
+  //Check proton root/hist files for generic replay output type
+  std::vector<std::string> rootFileNames_p;
+
+  //std::map<int, std::pair<std::string, std::vector<float>>> csvData_p;
+  std::vector<std::pair<std::string, std::vector<float>>> metadata_p;
+
+  if(!jboyd)
+    util::SyncFilesWithCsv(histfile_dir, rootfile_dir, partialName_p, rootFileNames_p, metadata_p);
+
+  //Check neutron root/hist files for jboyd replay output type
+  std::vector<std::string> histFileNames_n;
+
+  if(jboyd)
+    util::FindMatchingFiles(histfile_dir,rootfile_dir,partialName_n,histFileNames_n,rootFileNames_n,true);
+
+  //Check proton root/hist files for jboyd replay output type
+  std::vector<std::string> histFileNames_p;
+
+  if(jboyd)
+    util::FindMatchingFiles(histfile_dir,rootfile_dir,partialName_p,histFileNames_p,rootFileNames_p,true);
+
+  int size_rfiles_raw_p = rootFileNames_p.size();
+  int size_rfiles_raw_n = rootFileNames_n.size();  
+  int size_hfiles_raw_p = histFileNames_p.size();
+  int size_hfiles_raw_n = histFileNames_n.size();
+
+  //Double check that FindMatchingFiles is give 1:1 results
+  if(jboyd)
+    if( (size_rfiles_raw_p != size_hfiles_raw_p) || 
+	(size_rfiles_raw_n != size_hfiles_raw_n) )
+      cerr << "ERROR: FindMatchingFiles() failure, vector sizes mismatch" << endl;
+
+  //Throw away jobs for which there does not exist both a proton and neutron rootfile and check if synchronizeJobNumbers() is working.
+  int protonfiles = 0;
+  int neutronfiles = 0;
+
+  //Make certain that there is a 1:1 correspondance between proton and neutron files. Throw away any unpaired files from analysis
+  if(jboyd){
+    util::synchronizeJobNumbers(rootFileNames_p,rootFileNames_n);
+    protonfiles = rootFileNames_p.size();
+    neutronfiles = rootFileNames_n.size();
+    
+    if( protonfiles!=neutronfiles )
+      cout << "ERROR: synchronizeJobNumbers() for jboyd file not working. pfiles/nfiles: " << protonfiles << "/" << neutronfiles << endl;
+
+    for( int i=0; i<protonfiles; ++i ){
+      cout << "idx: " << i << " protonfile: " << rootFileNames_p[i] << endl;
+      if(jboyd)
+	cout << "      protonhistfile: " << histFileNames_p[i] << endl;
+      cout << "      neutronfile: " << rootFileNames_n[i] << endl;
+      if(jboyd)
+	cout << "      neutronhistfile: " << histFileNames_n[i] << endl;
+
+    }
+
+  }else{
+
+    // for( size_t p=0; p<metadata_p.size(); ++p )
+    //   cout << metadata_p[p].first << endl;
+    // for( size_t n=0; n<metadata_n.size(); ++n )
+    //   cout << metadata_n[n].first << endl;
+
+
+    util::synchronizeJobNumbers(metadata_p,metadata_n);
+    protonfiles = metadata_p.size();
+    neutronfiles = metadata_n.size();
+    
+    if( protonfiles!=neutronfiles ){
+      logfile << "ERROR: synchronizeJobNumbers() for generic file not working. pfiles/nfiles: " << protonfiles << "/" << neutronfiles << endl;
+      cout << "ERROR: synchronizeJobNumbers() for generic file not working. pfiles/nfiles: " << protonfiles << "/" << neutronfiles << endl;
+    }
+    for( int i=0; i<protonfiles; ++i ){
+      logfile << "idx: " << i << " protonfile: " << metadata_p[i].first << endl;
+      logfile << "      neutronfile: " << metadata_n[i].first << endl << endl;
+
+      cout << "idx: " << i << " protonfile: " << metadata_p[i].first << endl;
+      cout << "      neutronfile: " << metadata_n[i].first << endl << endl;
+    }
+  }
+
+  //set up diagnostic objects
+  int totalNtried_p = 0;
+  int totalNtried_n = 0;
+
+  TH1D *hNtried_p = new TH1D("hNtried_p","Number of proton MC events tried by job index;job index",size_rfiles_raw_p,0,size_rfiles_raw_p);
+  TH1D *hNtried_n = new TH1D("hNtried_n","Number of neutron MC events tried by job index;job index",size_rfiles_raw_n,0,size_rfiles_raw_n);
+
+  //set up experimental constants
+  vector<double> coin_profile = {1000., 0., 5.};
+
+  //Set up hcal active area with bounds that match database on pass
+  vector<double> hcalaa = cut::hcalaa_mc(1,1); //verified 2.10.24
+
+  //set up configuration and tune objects to load analysis parameters
+  SBSconfig config(kine,mag);
+
+  //Obtain configuration pars from config file
+  double hcaltheta = config.GetHCALtheta_rad();
+  double hcaldist = config.GetHCALdist();
+  double sbsdist = config.GetSBSdist();
+  double bbthr = config.GetBBtheta_rad(); //in radians
+  double ebeam_tune = config.GetEbeam();
+
+  SBStune tune(kine,mag);
+
+  //Obtain cuts from tune class
+  double W2mean   = tune.GetW2mean();
+  double W2sig    = tune.GetW2sig();
+  double dx0_n    = tune.Getdx0_n();
+  double dx0_p    = tune.Getdx0_p();
+  double dy0      = tune.Getdy0();
+  double dxsig_n  = tune.Getdxsig_n();
+  double dxsig_p  = tune.Getdxsig_p();
+  double dysig    = tune.Getdysig();
+  double atime0   = tune.Getatime0();
+  double atimesig = tune.Getatimesig();
+  double atimediff0   = tune.Getatimediff0();
+  double atimediffsig = tune.Getatimediffsig();
 
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
@@ -101,62 +242,74 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   // create output tree
   TTree *P = new TTree("P","Analysis Tree"); 
 
+  // limit the output so that root files don't grow to ridiculous sizes.
+  // Set maximum tree size to 1 GB
+  TTree::SetMaxTreeSize(maxFileSize);
+
   // new output tree vars
   //Universals
-  Int_t run_out;
-  Int_t tar_out; //0:LH2, 1:LD2
-  Int_t mag_out;
-  Int_t event_out;
-  Int_t trig_out;
-  Double_t xexp_out;
-  Double_t yexp_out;
-  Double_t W2_out;
-  Double_t W2_uc_out;
-  Double_t Q2_out;
-  Double_t Q2_uc_out;
-  Double_t nu_out;
-  Double_t precon_out;
-  Double_t tau_out;
-  Double_t epsilon_out;
+  int job_out;
+  int event_out;
+  int trig_out;
+  double xexp_out;
+  double yexp_out;
+  double W2_out;
+  double Q2_out;
+  double nu_out;
+  double tau_out;
+  double epsilon_out;
+  double precon_out;
+
+  //MC data
+  int nucleon_out;
+  int ntried_out;
+  double genvol_out;
+  double lumi_out;
+  double ebeam_out;
+  double charge_out;
+  double seed_out;
+  double mc_weight_out;
+  double mc_weight_norm_out;
 
   //Fiducial slices
-  Double_t fiducial_sig_x_out;
-  Double_t fiducial_sig_y_out;
+  double fiducial_sig_x_out;
+  double fiducial_sig_y_out;
 
-  //Primary cluster
-  Double_t dx_out;
-  Double_t dy_out;
-  Double_t coin_out;
-  Double_t thetapq_pout;
-  Double_t thetapq_nout;
+  //Primary cluster (default, containing highest energy block)
+  double dx_out;
+  double dy_out;
+  double coin_out;
+  double thetapq_pout;
+  double thetapq_nout;
   double sigsep_pout; //Total scale N, where N*sig_dx_p and N*sig_dy_p (and mean dx_p, dy_p) defines the minimum area necessary to include point on event (dx,dy)
   double sigsep_nout; //Total scale N, where N*sig_dx_n and N*sig_dy_n (and mean dx_n, dy_n) defines the minimum area necessary to include point on event (dx,dy)
   int hcalon_out;
   double accsep_xout; //Total scale N, where N*block_width_x necessary to reject event on active area cut
   double accsep_yout; //Total scale N, where N*block_width_y necessary to reject event on active area cut
-  Double_t hcalnblk_out;
-  Double_t hcalpid_out;
-  Double_t hcalx_out;
-  Double_t hcaly_out;
-  Double_t hcale_out;  
-  Double_t hcal_index_out;
+  double hcalnblk_out;
+  double hcalnclus_out;
+  double hcalpid_out;
+  double hcalx_out;
+  double hcaly_out;
+  double hcale_out;  
+  double hcal_index_out;
 
   //Best cluster
-  Double_t dx_bc_out;
-  Double_t dy_bc_out;
-  Double_t coin_bc_out;
-  Double_t thetapq_bc_pout;
-  Double_t thetapq_bc_nout;
+  double dx_bc_out;
+  double dy_bc_out;
+  double coin_bc_out;
+  double thetapq_bc_pout;
+  double thetapq_bc_nout;
   double sigsep_bc_pout; //Total scale N, where N*sig_dx_p and N*sig_dy_p (and mean dx_p, dy_p) defines the minimum area necessary to include point on event (dx,dy)
   double sigsep_bc_nout; //Total scale N, where N*sig_dx_n and N*sig_dy_n (and mean dx_n, dy_n) defines the minimum area necessary to include point on event (dx,dy)  int hcalon_bc_out;
   int hcalon_bc_out;
   double accsep_bc_xout; //Total scale N, where N*block_width_x necessary to reject event on active area cut
   double accsep_bc_yout; //Total scale N, where N*block_width_y necessary to reject event on active area cut
-  Double_t hcalnblk_bc_out;
-  Double_t hcalpid_bc_out;
-  Double_t hcalx_bc_out;
-  Double_t hcaly_bc_out;
-  Double_t hcale_bc_out;  
+  double hcalnblk_bc_out;
+  double hcalpid_bc_out;
+  double hcalx_bc_out;
+  double hcaly_bc_out;
+  double hcale_bc_out; 
 
   //Multi cluster
   double dx_mclus_out;
@@ -227,42 +380,48 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   double hcale_tc_out;
 
   // relevant old output tree vars
-  Double_t bb_tr_vz_out;
-  Double_t bb_tr_n_out;
-  Double_t bb_tr_p_out;
-  Double_t bb_tr_th_out;
-  Double_t bb_tr_ph_out;
-  Double_t bb_tr_r_th_out;
-  Double_t bb_tr_r_x_out;
-  Double_t bb_ps_e_out;
-  Double_t bb_ps_rowblk_out;
-  Double_t bb_ps_colblk_out;
-  Double_t bb_sh_e_out;
-  Double_t bb_sh_rowblk_out;
-  Double_t bb_sh_colblk_out;
-  Double_t bb_hodotdc_clus_tmean_out;
-  Double_t bb_grinch_tdc_clus_size_out;
-  Double_t bb_grinch_tdc_clus_trackindex_out;
-  Double_t bb_gem_track_nhits_out;
-  Double_t bb_gem_track_ngoodhits_out;
-  Double_t bb_gem_track_chi2ndf_out;
-  Double_t bb_etot_over_p_out;
+  double bb_tr_vz_out;
+  double bb_tr_n_out;
+  double bb_tr_p_out;
+  double bb_tr_th_out;
+  double bb_tr_ph_out;
+  double bb_tr_r_th_out;
+  double bb_tr_r_x_out;
+  double bb_ps_e_out;
+  double bb_ps_rowblk_out;
+  double bb_ps_colblk_out;
+  double bb_sh_e_out;
+  double bb_sh_rowblk_out;
+  double bb_sh_colblk_out;
+  //double bb_hodotdc_clus_tmean_out;
+  //double bb_grinch_tdc_clus_size_out;
+  //double bb_grinch_tdc_clus_trackindex_out;
+  double bb_gem_track_nhits_out;
+  double bb_gem_track_ngoodhits_out;
+  double bb_gem_track_chi2ndf_out;
+  double bb_etot_over_p_out;
 
-  P->Branch("run", &run_out, "run/I");
-  P->Branch("tar", &tar_out, "tar/I");
-  P->Branch("mag", &mag_out, "mag/I");
+  P->Branch("job", &job_out, "job/I");
   P->Branch("event", &event_out, "event/I");
   P->Branch("trig", &trig_out, "trig/I");
   P->Branch("xexp", &xexp_out, "xexp/D");
   P->Branch("yexp", &yexp_out, "yexp/D");
   P->Branch("W2", &W2_out, "W2/D");
-  P->Branch("W2_uc", &W2_uc_out, "W2_uc/D");
   P->Branch("Q2", &Q2_out, "Q2/D");
-  P->Branch("Q2_uc", &Q2_uc_out, "Q2_uc/D");
   P->Branch("nu", &nu_out, "nu/D");
   P->Branch("tau", &tau_out, "tau/D");
   P->Branch("epsilon", &epsilon_out, "epsilon/D");
   P->Branch("precon", &precon_out, "precon/D");
+
+  P->Branch("nucleon", &nucleon_out, "nucleon/I");
+  P->Branch("ntried", &ntried_out, "ntried/I");
+  P->Branch("genvol", &genvol_out, "genvol/D");
+  P->Branch("lumi", &lumi_out, "lumi/D");
+  P->Branch("ebeam", &ebeam_out, "ebeam/D");
+  P->Branch("charge", &charge_out, "charge/D");
+  P->Branch("seed", &seed_out, "seed/D");
+  P->Branch("mc_weight", &mc_weight_out, "mc_weight/D");
+  P->Branch("mc_weight_norm", &mc_weight_norm_out, "mc_weight_norm/D");
 
   P->Branch("fiducial_sig_x", &fiducial_sig_x_out, "fiducial_sig_x/D");
   P->Branch("fiducial_sig_y", &fiducial_sig_y_out, "fiducial_sig_y/D");
@@ -278,6 +437,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   P->Branch("accsep_x", &accsep_xout, "accsep_x/D");
   P->Branch("accsep_y", &accsep_yout, "accsep_y/D");
   P->Branch("hcalnblk", &hcalnblk_out, "hcalnblk/D");
+  P->Branch("hcalnclus", &hcalnclus_out, "hcalnclus/D");
   P->Branch("hcalpid", &hcalpid_out, "hcalpid/D");
   P->Branch("hcalx", &hcalx_out, "hcalx/D");
   P->Branch("hcaly", &hcaly_out, "hcaly/D");
@@ -377,132 +537,151 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   P->Branch("bb_sh_e", &bb_sh_e_out, "bb_sh_e/D");
   P->Branch("bb_sh_rowblk", &bb_sh_rowblk_out, "bb_sh_rowblk/D");
   P->Branch("bb_sh_colblk", &bb_sh_colblk_out, "bb_sh_colblk/D");
-  P->Branch("bb_hodotdc_clus_tmean", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean/D");
-  P->Branch("bb_grinch_tdc_clus_size", &bb_grinch_tdc_clus_size_out, "bb_grinch_tdc_clus_size/D");
-  P->Branch("bb_grinch_tdc_clus_trackindex", &bb_grinch_tdc_clus_trackindex_out, "bb_grinch_tdc_clus_trackindex/D");
+  //P->Branch("bb_hodotdc_clus_tmean", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean/D");
+  //P->Branch("bb_grinch_tdc_clus_size", &bb_grinch_tdc_clus_size_out, "bb_grinch_tdc_clus_size/D");
+  //P->Branch("bb_grinch_tdc_clus_trackindex", &bb_grinch_tdc_clus_trackindex_out, "bb_grinch_tdc_clus_trackindex/D");
   P->Branch("bb_gem_track_nhits", &bb_gem_track_nhits_out, "bb_gem_track_nhits/D");
   P->Branch("bb_gem_track_ngoodhits", &bb_gem_track_ngoodhits_out, "bb_gem_track_ngoodhits/D");
   P->Branch("bb_gem_track_chi2ndf", &bb_gem_track_chi2ndf_out, "bb_gem_track_chi2ndf/D");
   P->Branch("bb_etot_over_p", &bb_etot_over_p_out, "bb_etot_over_p/D");
 
-  // setup reporting indices
-  Int_t curmag = -1;
-  std::string curtar = "";
+  std::string nuc = "none";
+  int nnuc = 2; //two nucleons, proton and neutron
+  int nfiles = 0;
 
-  for ( Int_t t=0; t<2; t++ ){ //loop over targets
-    // t==0, lh2; t==1, ld2
-    Int_t nruns = 1;
+  int protonevents = 0;
+  int neutronevents = 0;
 
-    // skip hydrogen if bool enabled to do so
-    if( ld2_only && t==0 )
-      continue;
+  //Main loop over nucleons (r==0, proton; r==1, neutron)
+  for (int r=0; r<nnuc; r++) {
 
-    if( t==0 ){
-      nruns = nhruns;
-      std::cout << std::endl << "Proceeding to LH2 data.." << std::endl << std::endl;
+    //update current nucleon
+    if( r==0 ){
+      nuc = "p";
+      nfiles = protonfiles;
+      if( limit_size && protonevents>maxEvents ) //if over max limit on events, continue
+	continue;
+    }else if( r==1 ){
+      nuc = "n";
+      nfiles = neutronfiles;
+      if( limit_size && neutronevents>maxEvents )
+	continue;
     }
-    if( t==1 ){
-      nruns = ndruns;
-      std::cout << std::endl << "Proceeding to LD2 data.." << std::endl << std::endl;
-    }
 
-    for (Int_t irun=0; irun<nruns; irun++) {
-      
-      cout << "irun/nruns " << irun << "/" << nruns << endl;
+    //loop over simulation files
+    for( int f=0; f<nfiles; ++f ){
 
-      // accessing run info
-      Int_t runnum;
-      Int_t mag;
-      Double_t ebeam;
-      Double_t charge;
-      std::string targ;
-      std::string rfname;
-      if( t==0 ){
-	//std::cout << crunh;
-	runnum = crunh[irun].runnum;
-	mag = crunh[irun].sbsmag / 21; //convert to percent
-	ebeam = crunh[irun].ebeam; //get beam energy per run
-	targ = crunh[irun].target;
-	
-	//search for sbs8 file in subdirectories
-	std::string rfname_sbs8_h;
-	if( kine==8 ){
-	  TString pattern_h = Form("*%d*",crunh[irun].runnum);
-	  TString foundDir_h = util::FindFileInDirectories(pattern_h, directories_h);
-	  if (!foundDir_h.IsNull()) {
-	    std::cout << "SBS 8 lh2 file found in: " << foundDir_h << std::endl;
-	    rfname_sbs8_h = foundDir_h;
-	  } else {
-	    std::cout << "SBS 8 lh2 file not found in " << foundDir_h << std::endl;
-	  }
+      std::string load_file;
+      int job_number = -1;
+      int Ntried = -1;
+      int Nthrown = -1;
+      double luminosity = -1.;
+      double genvol = -1.;
+      double ebeam = -1.;
+      double charge = -1.;
+      double seed = -1.;
+      bool using_rej_samp = 0;
+      double max_weight = -1;
+      double weight_gt_max = 0.;
+      double obs_max_weight = 0.;
 
-	  rfname = rfname_sbs8_h + Form("/*%d*",crunh[irun].runnum);
+      //Get rootfile paths and metadata
+      if(r==0){  //proton
+	//for jboyd structure
+	if(jboyd){
+	  load_file = rootFileNames_p[f];
+	  std::string hist_file = histFileNames_p[f];
+
+	  Ntried = (int)util::searchSimcHistFile("Ntried", hist_file);
+	  luminosity = util::searchSimcHistFile("luminosity", hist_file);
+	  genvol = util::searchSimcHistFile("genvol", hist_file);
+
+	}else{
+	  load_file = metadata_p[f].first;
 	  
-	}else
-	  rfname = rootfile_dir_lh2 + Form("/*%d*",crunh[irun].runnum);
-	charge = crunh[irun].charge;
-      }
-      if( t==1 ){
-	//std::cout << crund;
-	runnum = crund[irun].runnum;
-	mag = crund[irun].sbsmag / 21;
-	ebeam = crund[irun].ebeam;
-	targ = crund[irun].target;
-
-	//search for sbs8 file in subdirectories
-	std::string rfname_sbs8_d;
-	if( kine==8 ){
-	  TString pattern_d = Form("*%d*",crund[irun].runnum);
-	  TString foundDir_d = util::FindFileInDirectories(pattern_d, directories_d);
-	  if (!foundDir_d.IsNull()) {
-	    std::cout << "SBS 8 ld2 file found in: " << foundDir_d << std::endl;
-	    rfname_sbs8_d = foundDir_d;
-	  } else {
-	    std::cout << "SBS 8 ld2 file not found in " << foundDir_d << std::endl;
+	  job_number = metadata_p[f].second[0];
+	  Nthrown = metadata_p[f].second[1];
+	  Ntried = metadata_p[f].second[2]; //see csv structure in preamble
+	  genvol = metadata_p[f].second[3];
+	  luminosity = metadata_p[f].second[4];
+	  ebeam =  metadata_p[f].second[5];
+	  charge =  metadata_p[f].second[6];
+	  seed =  metadata_p[f].second[7];
+	  if(metadata_p[f].second.size() > 8) {  //added just in case old mc file is loaded
+	    using_rej_samp = metadata_p[f].second[8];
+	    max_weight = metadata_p[f].second[9];
+	    weight_gt_max = metadata_p[f].second[10];
+	    obs_max_weight = metadata_p[f].second[11];
 	  }
-	  rfname = rfname_sbs8_d + Form("/*%d*",crund[irun].runnum);
-	}else
-	  rfname = rootfile_dir_ld2 + Form("/*%d*",crund[irun].runnum);
-
-	charge = crund[irun].charge;
-      }
-
-      //set up configuration and tune objects to load analysis parameters
-      SBSconfig config(kine,mag);
-
-      //Obtain configuration pars from config file
-      Double_t hcaltheta = config.GetHCALtheta_rad();
-      Double_t hcaldist = config.GetHCALdist();
-      Double_t sbsdist = config.GetSBSdist();
-      Double_t bbthr = config.GetBBtheta_rad(); //in radians
-
-      SBStune tune(kine,mag);
-
-      //Reporting. tar should always equal curtar as categorized by good run list
-      if( targ.compare(curtar)!=0 || mag!=curmag ){
-	if(verbose){
-	  std::cout << "Settings change.." << std::endl;
-	  std::cout << config;
-	  //std::cout << tune;
 	}
-	curtar = targ;
-	curmag = mag;
+	
+	cout << "Loaded proton file at " << load_file << endl;
+	logfile << "Loaded PROTON file at " << load_file << endl;
+	
+
+      }else if(r==1){  //neutron
+	//jboyd structure
+	if(jboyd){
+	  load_file = rootFileNames_n[f];
+	  std::string hist_file = histFileNames_n[f];
+
+	  Ntried = (int)util::searchSimcHistFile("Ntried", hist_file);
+	  luminosity = util::searchSimcHistFile("luminosity", hist_file);
+	  genvol = util::searchSimcHistFile("genvol", hist_file);
+
+	}else{
+	  load_file = metadata_n[f].first;
+	  
+	  job_number = metadata_n[f].second[0];
+	  Nthrown = metadata_n[f].second[1];
+	  Ntried = metadata_n[f].second[2]; //see csv structure in preamble
+	  genvol = metadata_n[f].second[3];
+	  luminosity = metadata_n[f].second[4];
+	  ebeam =  metadata_n[f].second[5];
+	  charge =  metadata_n[f].second[6];
+	  seed =  metadata_n[f].second[7];
+	  if(metadata_n[f].second.size() > 8) {  //added just in case old mc file is loaded
+	    using_rej_samp = metadata_n[f].second[8];
+	    max_weight = metadata_n[f].second[9];
+	    weight_gt_max = metadata_n[f].second[10];
+	    obs_max_weight = metadata_n[f].second[11];
+	  }
+	}
+
+	cout << "Loaded neutron file at " << load_file << endl;
+	logfile << "Loaded NEUTRON file at " << load_file << endl;
+
       }
 
-      //Obtain cuts from tune class
-      //std::string gcut   = tune.Getglobcut_wide();
-      Double_t W2mean   = tune.GetW2mean();
-      Double_t W2sig    = tune.GetW2sig();
-      Double_t dx0_n    = tune.Getdx0_n();
-      Double_t dx0_p    = tune.Getdx0_p();
-      Double_t dy0      = tune.Getdy0();
-      Double_t dxsig_n  = tune.Getdxsig_n();
-      Double_t dxsig_p  = tune.Getdxsig_p();
-      Double_t dysig    = tune.Getdysig();
-      Double_t atime0   = tune.Getatime0();
-      Double_t atimesig = tune.Getatimesig();
-      Double_t atimediff0   = tune.Getatimediff0();
-      Double_t atimediffsig = tune.Getatimediffsig();
+      //if override is enabled, change metadata
+      if(norm_override){
+	Ntried = Ntried_override; //see csv structure in preamble
+	genvol = genvol_override;
+	luminosity = luminosity_override;
+      }
+
+      cout << "For job " << job_number <<  ", Ntried=" << Ntried << " luminosity=" << luminosity << " genvol=" << genvol <<  " max weight=" << max_weight << endl; 
+      logfile << "For job " << job_number <<  ", Ntried=" << Ntried << " luminosity=" << luminosity << " genvol=" << genvol << " max weight=" << max_weight <<  endl; 
+
+      //fill diagnostics
+      if(r==0){
+	totalNtried_p += Ntried;
+	hNtried_p->SetBinContent(job_number,Ntried);
+      }else if(r==1){
+	totalNtried_n += Ntried;
+	hNtried_n->SetBinContent(job_number,Ntried);
+      }
+
+      if( !norm_override && (Ntried==-1 || luminosity==-1 || genvol==-1) ){
+	cout << "WARNING: Failed to read normalization data, skipping file.." << endl;
+	continue;
+      }
+
+      //send values of ebeam to console for comparison
+      ebeam /= 1000.; //convert to GeV
+
+      if( ebeam == -1 )
+	ebeam = ebeam_tune;
 
       //first attempt to resolve segmentation fault on large data sets
       if (C != nullptr) {
@@ -510,64 +689,76 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
       }
 
       C = new TChain("T");
-      C->Add(rfname.c_str());
+      C->Add(load_file.c_str());
 
-      cout << "Loaded file for analysis: " << rfname << endl;
+      //Reporting on farm running
+      // Get current system time
+      auto now = std::chrono::system_clock::now();
+    
+      // Convert to time_t which is needed for converting to tm (time structure)
+      std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+    
+      // Convert to local time
+      std::tm* now_tm = std::localtime(&now_time_t);
+    
+      // Print the time in "HH:MM AM/PM" format
+      std::cout << "Switched to file " << load_file << " at " << std::put_time(now_tm, "%I:%M %p") << std::endl;
+      logfile << "Switched to file " << load_file << " at " << std::put_time(now_tm, "%I:%M %p") << std::endl;
 
       // setting up ROOT tree branch addresses
       C->SetBranchStatus("*",0);    
 
       // HCal general
-      Double_t hcalid, hcale, hcalx, hcaly, hcalr, hcalc, hcaltdc, hcalatime, hcalidx, nclus, nblk;
+      double hcalid, hcale, hcalx, hcaly, hcalr, hcalc, hcaltdc, hcalatime, hcalidx, nclus, nblk;
       std::vector<std::string> hcalvar = {"idblk","e","x","y","rowblk","colblk","tdctimeblk","atimeblk","index","nclus","nblk"};
       std::vector<void*> hcalvarlink = {&hcalid,&hcale,&hcalx,&hcaly,&hcalr,&hcalc,&hcaltdc,&hcalatime,&hcalidx,&nclus,&nblk};
       rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
       
       // HCal cluster branches
-      Double_t hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus], hcalcrow[econst::maxclus], hcalcnblk[econst::maxclus], hcalccol[econst::maxclus];
-      Int_t Nhcalcid;
+      double hcalcid[econst::maxclus], hcalce[econst::maxclus], hcalcx[econst::maxclus], hcalcy[econst::maxclus], hcalctdctime[econst::maxclus], hcalcatime[econst::maxclus], hcalcrow[econst::maxclus], hcalcnblk[econst::maxclus], hcalccol[econst::maxclus];
+      int Nhcalcid;
       std::vector<std::string> hcalcvar = {"id","e","x","y","tdctime","atime","row","col","nblk","id"};
       std::vector<void*> hcalcvarlink = {&hcalcid,&hcalce,&hcalcx,&hcalcy,&hcalctdctime,&hcalcatime,&hcalcrow,&hcalccol,&hcalcnblk,&Nhcalcid};
       rvars::setbranch(C, "sbs.hcal.clus", hcalcvar, hcalcvarlink, 9);
 
       // HCal cluster blk branches
-      Double_t hcalcbid[econst::maxclus], hcalcbe[econst::maxclus], hcalcbx[econst::maxclus], hcalcby[econst::maxclus], hcalcbtdctime[econst::maxclus], hcalcbatime[econst::maxclus];
-      Int_t Nhcalcbid;
+      double hcalcbid[econst::maxclus], hcalcbe[econst::maxclus], hcalcbx[econst::maxclus], hcalcby[econst::maxclus], hcalcbtdctime[econst::maxclus], hcalcbatime[econst::maxclus];
+      int Nhcalcbid;
       std::vector<std::string> hcalcbvar = {"id","e","x","y","tdctime","atime","id"};
       std::vector<void*> hcalcbvarlink = {&hcalcbid,&hcalcbe,&hcalcbx,&hcalcby,&hcalcbtdctime,&hcalcbatime,&Nhcalcbid};
       rvars::setbranch(C, "sbs.hcal.clus_blk", hcalcbvar, hcalcbvarlink, 6);
 
       // bbcal clus var
-      Double_t eSH, xSH, ySH, rblkSH, cblkSH, idblkSH, atimeSH, nclusSH, ePS, rblkPS, cblkPS, idblkPS, atimePS;
+      double eSH, xSH, ySH, rblkSH, cblkSH, idblkSH, atimeSH, nclusSH, ePS, rblkPS, cblkPS, idblkPS, atimePS;
       std::vector<std::string> bbcalclvar = {"sh.e","sh.x","sh.y","sh.rowblk","sh.colblk","sh.idblk","sh.atimeblk","sh.nclus","ps.e","ps.rowblk","ps.colblk","ps.idblk","ps.atimeblk"};
       std::vector<void*> bbcalclvarlink = {&eSH,&xSH,&ySH,&rblkSH,&cblkSH,&idblkSH,&atimeSH,&nclusSH,&ePS,&rblkPS,&cblkPS,&idblkPS,&atimePS};
       rvars::setbranch(C, "bb", bbcalclvar, bbcalclvarlink);
 
       // hodoscope cluster mean time
-      Int_t Nhodotmean; 
-      Double_t hodotmean[econst::maxclus];
-      std::vector<std::string> hodovar = {"clus.tmean","clus.tmean"};
-      std::vector<void*> hodovarlink = {&Nhodotmean,&hodotmean};
-      rvars::setbranch(C, "bb.hodotdc", hodovar, hodovarlink, 0);  
+      // int Nhodotmean; 
+      // double hodotmean[econst::maxclus];
+      // std::vector<std::string> hodovar = {"clus.tmean","clus.tmean"};
+      // std::vector<void*> hodovarlink = {&Nhodotmean,&hodotmean};
+      // rvars::setbranch(C, "bb.hodotdc", hodovar, hodovarlink, 0); 
 
       // track branches
-      Double_t ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
-      Double_t vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
-      Double_t xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
-      Double_t r_x[econst::maxtrack],r_th[econst::maxtrack];
+      double ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
+      double vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
+      double xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
+      double r_x[econst::maxtrack],r_th[econst::maxtrack];
       std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph","r_x","r_th"};
       std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt,&r_x,&r_th};
       rvars::setbranch(C,"bb.tr",trvar,trvarlink);
 
       // tdctrig branches
-      Int_t Ntdctrigid;
-      Double_t tdctrig[econst::maxtrack], tdctrigid[econst::maxtrack];
-      std::vector<std::string> tdcvar = {"tdcelemID","tdcelemID","tdc"};
-      std::vector<void*> tdcvarlink = {&tdctrigid,&Ntdctrigid,&tdctrig};
-      rvars::setbranch(C,"bb.tdctrig",tdcvar,tdcvarlink,1);
+      // int Ntdctrigid;
+      // double tdctrig[econst::maxtrack], tdctrigid[econst::maxtrack];
+      // std::vector<std::string> tdcvar = {"tdcelemID","tdcelemID","tdc"};
+      // std::vector<void*> tdcvarlink = {&tdctrigid,&Ntdctrigid,&tdctrig};
+      // rvars::setbranch(C,"bb.tdctrig",tdcvar,tdcvarlink,1);
 
       // ekine branches
-      Double_t ekineQ2, ekineW2, ekineeps, ekinenu, ekineqx, ekineqy, ekineqz;
+      double ekineQ2, ekineW2, ekineeps, ekinenu, ekineqx, ekineqy, ekineqz;
       std::vector<std::string> ekinevar = {"Q2","W2","epsilon","nu","q_x","q_y","q_z"};
       std::vector<void*> ekinevarlink = {&ekineQ2,&ekineW2,&ekineeps,&ekinenu,&ekineqx,&ekineqy,&ekineqz};
       rvars::setbranch(C, "e.kine", ekinevar, ekinevarlink);
@@ -579,10 +770,16 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
       rvars::setbranch(C,"fEvtHdr",evhdrvar,evhdrlink);
 
       // other bb branches
-      Double_t gemNhits, gemNgoodhits, gemChiSqr, grinchClusSize, grinchClusTrIndex, eop;
-      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","grinch_tdc.clus.size","grinch_tdc.clus.trackindex","etot_over_p"};
-      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&grinchClusSize,&grinchClusTrIndex,&eop};
+      double gemNhits, gemNgoodhits, gemChiSqr, eop;
+      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","etot_over_p"};
+      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&eop};
       rvars::setbranch(C, "bb", miscbbvar, miscbbvarlink);
+
+      // Monte Carlo variables
+      double mcweight;
+      std::vector<std::string> mcvar = {"simc_Weight"};
+      std::vector<void*> mcvarlink = {&mcweight};
+      rvars::setbranch(C, "MC", mcvar, mcvarlink);
 
       TCut GCut = gcut.c_str();
 
@@ -593,50 +790,30 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
       vector<TVector3> hcalaxes; vars::sethcalaxes( hcaltheta, hcalaxes );
       TVector3 hcalorigin = hcaldist*hcalaxes[2] + hcal_v_offset*hcalaxes[0];
 
-      Double_t BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
-      Double_t Eloss_outgoing;
-      if(t==0)
-	Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::lh2tarrho * econst::lh2dEdx;
-      if(t==1)
-	Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::ld2tarrho * econst::ld2dEdx;
+      double BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
+      double Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::ld2tarrho * econst::ld2dEdx;
 
-      //Set up hcal active area with bounds that match database on pass
-      vector<Double_t> hcalaa;
-      if(pass<1)
-	hcalaa = cut::hcalaa_data_alt(1,1);
-      else
-	hcalaa = cut::hcalaa_mc(1,1); //verified 2.10.24
-
-      // set nucleon defaults by target
-      std::string nucleon;
-      if( targ.compare("LH2")==0 )
-	nucleon = "p"; 
-      else if( targ.compare("LD2")==0 )      
-	nucleon = "np";
-      else{
-	nucleon = "np";
-	std::cout << "ERROR: incorrect target information loaded from good run list. Check and verify." << std::endl;
-      }
+      // set nucleon defaulted to LD2
+      std::string nucleon = "np";
 
       // event indices
       long nevent = 0, npassed = 0, nevents = C->GetEntries(); 
-      Int_t treenum = 0, currenttreenum = 0;
+      int treenum = 0, currenttreenum = 0;
 
-      if(verbose)
-	std::cout << "Beginning analysis of run " << runnum << ", target " << targ << ", magnetic field " << mag << "%, total accumulated charge " << charge << " C." << std::endl;
+      cout << "Beginning analysis of " << nuc << " rootfile " << load_file << endl;
+      logfile << "Beginning analysis of " << nuc << " rootfile " << load_file << endl;
       
       //Event loop
       while (C->GetEntry(nevent++)) {
 	
-	std::cout << "Processing run " << runnum << " event " << nevent << " / " << nevents << ", total passed cuts " << npassed << "\r";
-	std::cout.flush();
+	// std::cout << "Processing job " << f << " event " << nevent << " / " << nevents << ", total passed cuts " << npassed << ". Total proton events: " << protonevents << ". Total neutron events: " << neutronevents << "\r";
+	// std::cout.flush();
 
-	if((Int_t)hcalidx>9){
-	  if(t==0)
-	    hcidxfail_h->Fill(irun);
-	  if(t==1)
-	    hcidxfail_d->Fill(irun);
-	}
+	//
+	if( r==0 && limit_size && protonevents>maxEvents )
+	  break;
+	if( r==1 && limit_size && neutronevents>maxEvents )
+	  break;
 
 	///////
 	//Single-loop globalcut method. Save pass/fail for output tree.
@@ -646,8 +823,8 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	if( nevent == 1 || currenttreenum != treenum ){
 	  treenum = currenttreenum; 
 	  GlobalCut->UpdateFormulaLeaves();
-	  //cout << "Updating formula leaves and switching segment at event: " << nevent << endl;
 	}
+
 	failedglobal = GlobalCut->EvalInstance(0) == 0;
 	if( failedglobal ){
 	  continue;
@@ -656,32 +833,30 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	///////
 	//Physics calculations
 	//correct beam energy with vertex information
-	Double_t ebeam_c;
-	ebeam_c = vars::ebeam_c( ebeam, vz[0], targ ); //correct for energy loss of beam electron as it passes into the target material towards the vertex position.
+	double ebeam_c;
+	ebeam_c = vars::ebeam_c( ebeam, vz[0], "LD2" );
 
 	TVector3 vertex( 0., 0., vz[0] );
 
 	//reconstructed momentum, corrected for mean energy loss exiting the target (later we'll also want to include Al shielding on scattering chamber)
-	Double_t precon = p[0] + Eloss_outgoing; //correct the momentum of e' after the vertex as it passes out of the target material.
+	double precon = p[0] + Eloss_outgoing;
 
 	//set up four-momenta with some empty for various calculation methods
 	TLorentzVector pbeam( 0., 0., ebeam_c, ebeam_c ); //beam momentum
 	//TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' momentum
 	TLorentzVector pe( precon*px[0]/p[0], precon*py[0]/p[0], precon*pz[0]/p[0], precon ); //e' recon plvect
-
-	//TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' recon plvect
 	TLorentzVector ptarg; vars::setPN(nucleon,ptarg); //target momentum
 	TLorentzVector q = pbeam - pe; //virtual photon mom. or mom. transferred to scatter nucleon (N')
 	TLorentzVector pN; //N' momentum
 	TVector3 pNhat; //Unit N' 3-vector
       
 	//simple calculations for e' and N'
-	Double_t etheta = vars::etheta(pe); 
-	Double_t ephi = vars::ephi(pe);
-	Double_t pcent = vars::pcentral(ebeam,etheta,nucleon); //e' p reconstructed by angles
-	Double_t phNexp = ephi + physconst::pi;
-	Double_t Q2, Q2_uc, W2, W2_uc, nu, thNexp, pNexp, ebeam_o, tau, epsilon;
-	ebeam_o = vars::ebeam_o( ebeam_c, etheta, targ ); //Second energy correction accounting for energy loss leaving target
+	double etheta = vars::etheta(pe); 
+	double ephi = vars::ephi(pe);
+	double pcent = vars::pcentral(ebeam,etheta,nucleon); //e' p reconstructed by angles
+	double phNexp = ephi + physconst::pi;
+	double Q2, W2, nu, thNexp, pNexp, ebeam_o, tau, epsilon;
+	ebeam_o = vars::ebeam_o( ebeam_c, etheta, "LD2" ); //Second energy correction accounting for energy loss leaving target
        
 	//reconstruct track with angles (better resolution with GEMs)
 	nu = pbeam.E() - pcent;
@@ -690,9 +865,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	pNhat = vars::pNhat_track( thNexp, phNexp );
 	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
 	Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
-	Q2_uc = ekineQ2;
 	W2 = vars::W2( pbeam.E(), pe.E(), Q2, nucleon );
-	W2_uc = ekineW2;
 	tau = vars::tau( Q2, nucleon );
 	epsilon = vars::epsilon( tau, etheta );
 
@@ -704,20 +877,20 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 
 	npassed++;
 
-	Double_t comp_ev_fraction = (Double_t)npassed/(Double_t)nevent;
-	Double_t ev_fraction = (Double_t)npassed/(Double_t)nevents;
+	double comp_ev_fraction = (double)npassed/(double)nevent;
+	double ev_fraction = (double)npassed/(double)nevents;
 
 	//Calculate h-arm quantities
-	vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
+	vector<double> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
 	TVector3 hcalpos = hcalorigin + hcalx*hcalaxes[0] + hcaly*hcalaxes[1];
-	Double_t dx = hcalx - xyhcalexp[0];
-	Double_t dy = hcaly - xyhcalexp[1];
+	double dx = hcalx - xyhcalexp[0];
+	double dy = hcaly - xyhcalexp[1];
 	TVector3 neutdir = ( hcalpos - vertex ).Unit();
-	Double_t protdeflect = tan( 0.3 * BdL / q.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
+	double protdeflect = tan( 0.3 * BdL / q.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
 	TVector3 protdir = ( hcalpos + protdeflect * hcalaxes[0] - vertex ).Unit();
-	Double_t thetapq_p = acos( protdir.Dot( pNhat ) );
-	Double_t thetapq_n = acos( neutdir.Dot( pNhat ) );
-	Double_t eoverp = ( ePS + eSH ) / p[0];
+	double thetapq_p = acos( protdir.Dot( pNhat ) );
+	double thetapq_n = acos( neutdir.Dot( pNhat ) );
+	double eoverp = ( ePS + eSH ) / p[0];
 
 	double pclus_diff = hcalatime - atimeSH;
 	double pclus_nblk = hcalcnblk[0];
@@ -736,7 +909,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 
 	// Set up the structure to hold energy and index, then sort based on energy
 	std::vector<std::pair<double, int>> energy_index_pairs;
-
+	
 	//Add multicluster analysis for higher Q2 where hcal clusters may be separated
 	vector<int> intime_cluster_indices;
 
@@ -748,9 +921,9 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  double atime_diff = atime - atimeSH; //Assuming best shower time on primary cluster
 	  double ce = hcalce[c];
 
-	  //using hcal atime until after pass2, wide cut around sigma factor
+	  //using hcal atime until after pass2
 	  bool passedCoin = abs(atime_diff-coin_profile[1])<coin_sigma_factor*coin_profile[2];
-	  
+
 	  //Replicate the in-time algorithm with new cluster to be sorted later
 	  clone_cluster_intime.push_back(ce);
 	  if( !passedCoin ){
@@ -760,20 +933,25 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  }
 
 	  //Get score (no position info). Will be sorted later
-	  double cascore = util::assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile);
+	  double cascore = util::assignScore( ce, atime_diff, hcalce[(int)hcalidx], coin_profile);
 	  clone_cluster_score.push_back(cascore);
 	  
 	  //Add energy cluster index and energy to pair
 	  energy_index_pairs.push_back(std::make_pair(ce, c));
-
+	
 	}//endloop over cluster elements
 
 	// Sort in descending order based on the cluster energy
 	std::sort(energy_index_pairs.begin(), energy_index_pairs.end(), [](const std::pair<double, int>& a, const std::pair<double, int>& b) {
 	    return a.first > b.first; // Using the first element of pair (energy) for comparison
 	  });
+	
+	// cout << "total clusters on this event " << Nhcalcid << endl;
 
-///////////////////////
+	// for (size_t i=0; i<energy_index_pairs.size(); ++i)
+	//   cout << "Sorted cluster index " << energy_index_pairs[i].second << " with energy " << energy_index_pairs[i].first << endl;
+
+	///////////////////////
 	//Multicluster analysis
 
 	// Step 1: Find the highest energy cluster from intime_cluster_indices
@@ -835,16 +1013,15 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  cidxe_sc = energy_index_pairs[1].second;
 	if(Nhcalcid>2)
 	  cidxe_tc = energy_index_pairs[2].second;
-      
-	if( hcale != hcalce[(Int_t)hcalidx] && verbose )
-	  cerr << "WARNING: Sorting failure on cluster index " << (Int_t)hcalidx << ". Check max clusters allowed on tree." << endl;
-	
 
+	if( hcale != hcalce[(int)hcalidx] && verbose )
+	  cerr << "WARNING: Sorting failure on cluster index " << (int)hcalidx << ". Check max clusters allowed on tree." << endl;
+	
 	//Get best score/intime indices from clone clusters
-	Int_t score_idx = -1;
-	Int_t intime_idx = -1;
-	Double_t score = 0.;
-	Double_t intime = 0.;
+	int score_idx = -1;
+	int intime_idx = -1;
+	double score = 0.;
+	double intime = 0.;
 	for( int c=0; c<Nhcalcid; c++ ){
 	  if( clone_cluster_score[c]>score ){
 	    score = clone_cluster_score[c];
@@ -856,11 +1033,11 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  }
 	}
 
-	Int_t cidx_intime = intime_idx;
-	Int_t cidx_score = score_idx;
+	int cidx_intime = intime_idx;
+	int cidx_score = score_idx;
 
 	//Switch between best clusters for systematic analysis
-	Int_t cidx_best;
+	int cidx_best;
       
 	switch (cluster_method) {
 	case 1:
@@ -886,8 +1063,8 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 
 	TVector3 protdir_bc = ( hcalpos_bestcluster + protdeflect * hcalaxes[0] - vertex ).Unit();
 	TVector3 neutdir_bc = ( hcalpos_bestcluster - vertex ).Unit();
-	Double_t thetapq_bc_p = acos( protdir_bc.Dot( pNhat ) );
-	Double_t thetapq_bc_n = acos( neutdir_bc.Dot( pNhat ) );
+	double thetapq_bc_p = acos( protdir_bc.Dot( pNhat ) );
+	double thetapq_bc_n = acos( neutdir_bc.Dot( pNhat ) );
 
 	//Calculations from the multi cluster
 	TVector3 hcalpos_multicluster = hcalorigin + 
@@ -1010,8 +1187,9 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	double separation_tc_p = util::NspotScaleFactor(dy_thirdcluster, dx_thirdcluster, dy0, dx0_p, dysig, dxsig_p, 0);
 	double separation_tc_n = util::NspotScaleFactor(dy_thirdcluster, dx_thirdcluster, dy0, dx0_n, dysig, dxsig_n, 0);
 
+
 	//Find fiducial cut sigma factor
-	std::pair<Double_t, Double_t> fiducial_factors = cut::findFidFailure(dxsig_p, 
+	std::pair<double, double> fiducial_factors = cut::findFidFailure(dxsig_p, 
 									     dysig, 
 									     xyhcalexp[0],
 									     xyhcalexp[1], 
@@ -1036,33 +1214,42 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	std::pair<double,double> minaacut_sc = util::minaa(hcalcx[cidxe_sc],hcalcy[cidxe_sc]);
 	std::pair<double,double> minaacut_tc = util::minaa(hcalcx[cidxe_tc],hcalcy[cidxe_tc]);
 
-	//Fill diagnostic histos
-	hQ2mag->Fill( mag, Q2 );
-	hW2mag->Fill( mag, W2 );
-	hdxmag->Fill( mag, dx );
-	hdymag->Fill( mag, dy );
-	
 	////////////////////
 	//coincidence time BBCal/HCal cut
 	bool failedwidecoin_bc = abs( hatime_bestcluster - atimediff0 ) > coin_sigma_factor*atimediffsig;
 
+	//caculate final weight for this event
+	Double_t final_mc_weight;
+
+	if(using_rej_samp)
+	  final_mc_weight = max_weight*luminosity*genvol/Ntried;
+	else
+	  final_mc_weight = mcweight*luminosity*genvol/Ntried;
+	  
 	//Fill new output tree  
 	//Universals
-	mag_out = mag;
-	run_out = runnum;
-	tar_out = t;
-	event_out = (Int_t)gevnum;
-	trig_out = (Int_t)trigbits;
+	job_out = job_number;
+	event_out = (int)gevnum;
+	trig_out = (int)trigbits;
 	xexp_out = xyhcalexp[0];
 	yexp_out = xyhcalexp[1];
 	W2_out = W2;
-	W2_uc_out = W2_uc;
 	Q2_out = Q2;
-	Q2_uc_out = Q2_uc;
 	nu_out = nu;
 	tau_out = tau;
 	epsilon_out = epsilon;
 	precon_out = precon;
+
+	//MC data
+	nucleon_out = r;
+	ntried_out = Ntried;
+	genvol_out = genvol;
+	lumi_out = luminosity;
+	ebeam_out = ebeam_c;
+	charge_out = charge;
+	seed_out = seed;
+	mc_weight_out = mcweight;
+	mc_weight_norm_out = final_mc_weight;
 
 	//Fiducial slices
 	fiducial_sig_x_out = fiducial_factors.first;
@@ -1185,16 +1372,22 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	bb_sh_e_out = eSH;
 	bb_sh_rowblk_out = rblkSH;
 	bb_sh_colblk_out = cblkSH;
-	bb_hodotdc_clus_tmean_out = hodotmean[0];
-	bb_grinch_tdc_clus_size_out = grinchClusSize;
-	bb_grinch_tdc_clus_trackindex_out = grinchClusTrIndex;
+	//bb_hodotdc_clus_tmean_out = hodotmean[0];
+	//bb_grinch_tdc_clus_size_out = grinchClusSize;
+	//bb_grinch_tdc_clus_trackindex_out = grinchClusTrIndex;
 	bb_gem_track_nhits_out = gemNhits;
 	bb_gem_track_ngoodhits_out = gemNgoodhits;
 	bb_gem_track_chi2ndf_out = gemChiSqr;
 	bb_etot_over_p_out = eop;
+	hcalnclus_out = Nhcalcid;
 
 	P->Fill();	
 	
+	if(r==0)
+	  protonevents++;
+	else
+	  neutronevents++;
+
       }//end event loop
 
       // getting ready for the next run
@@ -1206,7 +1399,10 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 
   fout->Write();
 
+  logfile.close();
+
   std::cout << std::endl << "Barebones parsing complete. Output written to " << parse_path << std::endl << std::endl;
+  logfile << std::endl << "Barebones parsing complete. Output written to " << parse_path << std::endl << std::endl;
 
   st->Stop();
 

@@ -13,6 +13,15 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <TCanvas.h>
+#include <TLatex.h>
+#include <TString.h>
+#include <sstream>
+#include <chrono>
+#include <iomanip>
+#include <TPaveText.h>
+#include <vector>
+#include <string>
 #include "../../../include/gmn.h"
 
 using namespace std;
@@ -47,11 +56,30 @@ double getRCSsimc(double tau_value, double epsilon_value, double GD, bool isprot
 std::pair<double,double> getRCSmdp_with_error(double tau_p, double epsilon_p, double GD);
 std::pair<double, double> getRCSmdp_borntpe_with_error(double tau_p, double epsilon_p, double GD);
 std::pair<double, double> getGMn_and_error_from_nRCS(double nRCS, double tau_value, double epsilon_value, double GD, double err_nRCS, double GEn, double err_GEn);
+string getCurrentDateTime();
+
+//SBS4
+//50p: 0.953, err 0.0951
+//30p: 0.986, err 0.1139
+//SBS8
+//70p: 1.029, err  0.1218
+//SBS9
+//70p: 1.034, err 0.1252
 
 // Main
-void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951, double Q2=3.0335, bool tpecorr = true) {
+void extract_GMn_from_simc(int kine=4, double Rsf=0.9359, double Rsf_err= 0.0728, double Q2=3.0335, bool tpecorr = true) {
 
+  // Set up vector for output report .pdf
+  std::vector<std::string> reportLines;
+
+  reportLines.push_back("Report generated on: " + getCurrentDateTime());
+  reportLines.push_back("Extracting GMn from SIMC reduced cross section and global fits to GEp, GEn, and GMn...");
+  reportLines.push_back(" ");
+    
   cout << "Extracting GMn from SIMC reduced cross section and global fits to GEp, GEn, and GMn..." << endl << endl;
+
+  reportLines.push_back("Extracting GMn from SIMC reduced cross section and global fits to GEp, GEn, and GMn...");
+  reportLines.push_back(" ");
 
   // Set up configuration and tune objects to load analysis parameters
   SBSconfig config(kine,0);
@@ -72,7 +100,16 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
   cout << "   Central Q2 = " << Q2_central << endl;
   cout << "   Rsf = " << Rsf << " +/- " << Rsf_err << endl << endl;
 
+  reportLines.push_back("Loaded configuration parameters for kinematic " + std::to_string(kine) + ".");
+  reportLines.push_back("   Beam energy = " + std::to_string(E_beam));
+  reportLines.push_back("   Bigbite angle = " + std::to_string(BB_angle));
+  reportLines.push_back("   Measured Q2 = " + std::to_string(Q2));
+  reportLines.push_back("   Central Q2 = " + std::to_string(Q2_central));
+  reportLines.push_back("   Rsf = " + std::to_string(Rsf) + " +/- " + std::to_string(Rsf_err));
+  reportLines.push_back(" ");
+
   cout << "Calculating shared analysis parameters..." << endl;
+  reportLines.push_back("Calculating shared analysis parameters..." );
 
   // Calculate taus
   double tau_p = Q2 / (4.0 * M_p * M_p);
@@ -91,7 +128,15 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
   cout << "   Epsilon neutron = " << epsilon_n << endl;
   cout << "   Dipole FF = " << GD << endl << endl;
 
+  reportLines.push_back("   Tau proton = " + std::to_string(tau_p) );
+  reportLines.push_back("   Tau neutron = " + std::to_string(tau_n) );
+  reportLines.push_back("   Epsilon proton = " + std::to_string(epsilon_p) );
+  reportLines.push_back("   Epsilon neutron = " + std::to_string(epsilon_n) );
+  reportLines.push_back("   Dipole FF = " + std::to_string(GD) );
+  reportLines.push_back(" ");
+
   cout << "Calculating reduced cross section with simc parameterizations..." << endl;
+  reportLines.push_back("Calculating reduced cross section with simc parameterizations..." );
 
   double simc_RCS_proton = getRCSsimc(tau_p,epsilon_p,GD,true);
   double simc_RCS_neutron = getRCSsimc(tau_n,epsilon_n,GD,false);
@@ -107,6 +152,13 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
   cout << "   Model independent Born + TPE cross section ratio using Rsf = " << Rsf << ":" << endl;
   cout << "      " << RCSR << endl << endl;
 
+  reportLines.push_back("   Reduced cross section, proton simc = " + std::to_string(simc_RCS_proton) );
+  reportLines.push_back("   Reduced cross section, neutron simc = " + std::to_string(simc_RCS_neutron) );
+  reportLines.push_back("   Reduced cross section ratio simc = " + std::to_string(simc_RCSR) );
+  reportLines.push_back("   Model independent Born + TPE cross section ratio using Rsf = " + std::to_string(Rsf) + ":" );
+  reportLines.push_back("      " + std::to_string(RCSR) );
+  reportLines.push_back(" ");
+
   double m_RCS_proton;
   double m_RCS_proton_error;
 
@@ -115,10 +167,12 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
 
   if(tpecorr){
     cout << "Calculating Arrington07 Born + TPE proton cross section..." << endl;
+    reportLines.push_back("Calculating Arrington07 Born + TPE proton cross section..." );
     m_RCS_proton = m_pRCS_with_err_tpe.first;
     m_RCS_proton_error = m_pRCS_with_err_tpe.second;
   }else{
     cout << "Calculating Arrington07 Born proton cross section..." << endl;
+    reportLines.push_back("Calculating Arrington07 Born proton cross section..." );
     m_RCS_proton = m_pRCS_with_err.first;
     m_RCS_proton_error = m_pRCS_with_err.second;
   }
@@ -126,14 +180,22 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
   cout << "   Model reduced cross section, proton = " << m_RCS_proton << endl;
   cout << "   Model reduced cross section error, proton = " << m_RCS_proton_error << endl << endl;
 
+  reportLines.push_back("   Model reduced cross section, proton = " + std::to_string(m_RCS_proton) );
+  reportLines.push_back("   Model reduced cross section error, proton = " + std::to_string(m_RCS_proton_error) );
+  reportLines.push_back(" ");
+
   cout << "Calculating model-dependent measured Born + TPE neutron reduced cross section..." << endl;
+  reportLines.push_back("Calculating model-dependent measured Born + TPE neutron reduced cross section..." );
 
   double md_RCS_neutron = RCSR * m_RCS_proton;
   double md_RCS_neutron_error = md_RCS_neutron * sqrt(pow(Rsf_err/Rsf,2)+pow(m_RCS_proton_error/m_RCS_proton,2));
 
   cout << "   Model dependent reduced cross section, neutron = " << md_RCS_neutron << endl << endl;
+  reportLines.push_back("   Model dependent reduced cross section, neutron = " + std::to_string(md_RCS_neutron ) );
+  reportLines.push_back(" ");
 
   cout << "Calculating Ye parameterization constants and Ye GEn..." << endl;
+  reportLines.push_back("Calculating Ye parameterization constants and Ye GEn..." );
 
   double ye_tcut = 4 * M_pi * M_pi;
   double ye_z = calculateYeZ(Q2,ye_tcut,ye_tnot); //Base for GEn expansion
@@ -148,14 +210,26 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
   cout << "      Ye GEn = " << ye_GEn << endl;
   cout << "      Ye GEn error = " << ye_GEn_error << endl << endl;
 
+  reportLines.push_back("   Ye tcut = " + std::to_string(ye_tcut) );
+  reportLines.push_back("   Ye tnot = " + std::to_string(ye_tnot) );
+  reportLines.push_back("   Ye z = " + std::to_string(ye_z) );
+  reportLines.push_back("   Ye x = " + std::to_string(ye_x) );
+  reportLines.push_back("      Ye GEn = " + std::to_string(ye_GEn) );
+  reportLines.push_back("      Ye GEn error = " + std::to_string(ye_GEn_error) );
+  reportLines.push_back(" ");
+
   cout << "Calculating Ye GEn with 5%% TPE correction..." << endl; 
+  reportLines.push_back("Calculating Ye GEn with 5%% TPE correction..." ); 
   
   //NEEDS WORK - this is just a placeholder from J. Arr private comm. Should verify necessary correction (if any) to Ye parameterization
   double tpe_ye_GEn = ye_GEn - 0.05*GD;
 
   cout << "   Ye TPE corrected GEn = " << tpe_ye_GEn << endl << endl;
-
+  reportLines.push_back("   Ye TPE corrected GEn = " + std::to_string(tpe_ye_GEn) );
+  reportLines.push_back(" ");
+ 
   cout << "Extracting GMn..." << endl;
+  reportLines.push_back("Extracting GMn..." );
 
   // With model for neutron reduced cross section, solve for GMn
   //double GMn = getGMn_from_nRCS(md_RCS_neutron, tau_n, epsilon_n, GD, tpe_ye_GEn);
@@ -166,7 +240,33 @@ void extract_GMn_from_simc(int kine=4, double Rsf=0.953, double Rsf_err= 0.0951,
   cout << "   dGMn = " << GMn_and_error.second << endl;
   cout << "   GMn/GD/mun = " << GMn_and_error.first/GD/abs_mu_n << endl;
   cout << "   dGMn/GD/mun = " << GMn_and_error.second/GD/abs_mu_n << endl;
-  
+
+  reportLines.push_back("   GMn = " + std::to_string(GMn_and_error.first) );
+  reportLines.push_back("   dGMn = " + std::to_string(GMn_and_error.second) );
+  reportLines.push_back("   GMn/GD/mun = " + std::to_string(GMn_and_error.first/GD/abs_mu_n) );
+  reportLines.push_back("   dGMn/GD/mun = " + std::to_string(GMn_and_error.second/GD/abs_mu_n) );
+
+  // Setup ROOT canvas
+  TCanvas* canvas = new TCanvas("canvas", "GMn Extraction Report", 1100, 1500);
+  TPaveText* reportText = new TPaveText(0.1, 0.1, 0.9, 0.9, "NB NDC"); // Coordinates are normalized
+
+  // Iterate over the reportLines vector to add each line to the TPaveText object
+  for (const auto& line : reportLines) {
+    reportText->AddText(line.c_str());
+  }
+
+  // Set the background color and remove margins
+  reportText->SetFillColor(kWhite); // Example background color
+  reportText->SetMargin(0);         // Remove margins
+
+  // Customize the TPaveText appearance
+  reportText->SetTextAlign(12); // Align text to the left
+  reportText->SetTextColor(kBlue); // Set the text to be blue
+  reportText->Draw();           // Draw the TPaveText on the canvas
+
+  // Save the canvas to a PDF file
+  canvas->Print("GMnExtractionReport.pdf");
+
   return;
 }
 
@@ -198,11 +298,6 @@ double calcRiordan(double tau, double a1, double a2, double a3, double b1, doubl
   double denominator = 1 + (b1 * tau) + (b2 * tau * tau) + (b3 * tau * tau * tau);
   return numerator / denominator;
 }
-
-// double calcYe(double yez){
-//   double GEn = 0.048919981 - 0.064525054*yez - 0.240825897*yez*yez + 0.392108745*yez*yez*yez + 0.300445259*yez*yez*yez*yez - 0.661888687*yez*yez*yez*yez*yez - 0.17563977*yez*yez*yez*yez*yez*yez + 0.624691724*yez*yez*yez*yez*yez*yez*yez - 0.077684299*yez*yez*yez*yez*yez*yez*yez*yez - 0.236003975*yez*yez*yez*yez*yez*yez*yez*yez*yez*yez + 0.090401973*yez*yez*yez*yez*yez*yez*yez*yez*yez*yez*yez;
-//   return GEn;
-// }
 
 double calcYe(double yez){
   double GEn = 0.048919981 +
@@ -333,4 +428,14 @@ std::pair<double, double> getGMn_and_error_from_nRCS(double nRCS, double tau_val
     double err_GMn = sqrt(pow(dGMn_dNRCs * err_nRCS, 2) + pow(dGMn_dGEn * err_GEn, 2));
 
     return std::make_pair(GMn, err_GMn);
+}
+
+// Function to get current date and time as a string
+string getCurrentDateTime() {
+    auto now = chrono::system_clock::now();
+    time_t now_time = chrono::system_clock::to_time_t(now);
+    tm now_tm = *localtime(&now_time);
+    stringstream ss;
+    ss << put_time(&now_tm, "%m-%d-%Y %H:%M:%S");
+    return ss.str();
 }

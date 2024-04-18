@@ -70,7 +70,7 @@ Double_t BGfit(double *x, double *par){
 }
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, N=cutvarsliceN
-void analyzeCorrelations_p2(int kine, int mag, int pass, double sb_min, double sb_max, int N) {
+void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_max, int N) {
 
   //set up files and paths
   //std::string outdir_path = gSystem->Getenv("OUT_DIR");

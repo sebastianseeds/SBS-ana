@@ -3,7 +3,7 @@
 #include <TString.h>
 #include <TObjArray.h>
 #include <TObjString.h>
-#include "../../src/jsonmgr.C"
+#include "../../../src/jsonmgr.C"
 
 void parseAndDisplayCuts(const char* cuts) {
     // Convert the input string to a ROOT TString for easy manipulation
@@ -40,9 +40,9 @@ void parseAndDisplayCuts(const char* cuts) {
     delete tokens; // Free memory used by the TObjArray
 }
 
-void displayElasticCuts(int kine = 4, int pass = 2, int mag = 50) {
+void displayElasticCuts(int kine = 9, int pass = 2, int mag = 70) {
 
-  JSONManager *jmgr = new JSONManager("../../config/syst.json");
+  JSONManager *jmgr = new JSONManager("../../../config/syst.json");
 
   std::string cuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
 

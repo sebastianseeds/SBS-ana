@@ -1,0 +1,70 @@
+# Version file created on 2024-04-02 21:14:39
+# This run range from 0 to 50
+# This infile p657sf_sbs9_sbs70p_simc_deep
+
+# SSeeds 3.24.24
+# This list sets the current user build environment versions for all Hall A analysis software
+
+ANAVER=1.7.8
+G4VER=11.1.2
+
+HPC_HASH=15f201a03a7d9fabc6f3e97a96219437f59df979
+G4SBS_HASH=2257dfc667060b92ab9c3d50b3c4ec124d423add
+SIMC_GFORTRAN_HASH=9a1ce71a339fa679d8b6af6bf2e5eba8b98c551f
+LIBSBSDIG_HASH=0099217b9addd15c5a6c3eaf65afa30b0ce8c277
+SBS_OFFLINE_HASH=e9b26d592722baf19044804bdb7702f26dd88356
+SBS_REPLAY_HASH=a70fbb625a00e15b56dd6c5922bd4cd63b8034e9
+
+
+# Version file created on 2024-04-02 21:16:35
+# This run range from 0 to 50
+# This infile p657sf_sbs9_sbs70p_simc_deen
+
+# SSeeds 3.24.24
+# This list sets the current user build environment versions for all Hall A analysis software
+
+ANAVER=1.7.8
+G4VER=11.1.2
+
+HPC_HASH=15f201a03a7d9fabc6f3e97a96219437f59df979
+G4SBS_HASH=2257dfc667060b92ab9c3d50b3c4ec124d423add
+SIMC_GFORTRAN_HASH=9a1ce71a339fa679d8b6af6bf2e5eba8b98c551f
+LIBSBSDIG_HASH=0099217b9addd15c5a6c3eaf65afa30b0ce8c277
+SBS_OFFLINE_HASH=e9b26d592722baf19044804bdb7702f26dd88356
+SBS_REPLAY_HASH=a70fbb625a00e15b56dd6c5922bd4cd63b8034e9
+
+
+# Version file created on 2024-04-04 12:01:56
+# This run range from 50 to 100
+# This infile p657sf_sbs9_sbs70p_simc_deep
+
+# SSeeds 3.24.24
+# This list sets the current user build environment versions for all Hall A analysis software
+
+ANAVER=1.7.8
+G4VER=11.1.2
+
+HPC_HASH=15f201a03a7d9fabc6f3e97a96219437f59df979
+G4SBS_HASH=2257dfc667060b92ab9c3d50b3c4ec124d423add
+SIMC_GFORTRAN_HASH=9a1ce71a339fa679d8b6af6bf2e5eba8b98c551f
+LIBSBSDIG_HASH=0099217b9addd15c5a6c3eaf65afa30b0ce8c277
+SBS_OFFLINE_HASH=e9b26d592722baf19044804bdb7702f26dd88356
+SBS_REPLAY_HASH=a70fbb625a00e15b56dd6c5922bd4cd63b8034e9
+
+
+# Version file created on 2024-04-04 12:04:10
+# This run range from 50 to 100
+# This infile p657sf_sbs9_sbs70p_simc_deen
+
+# SSeeds 3.24.24
+# This list sets the current user build environment versions for all Hall A analysis software
+
+ANAVER=1.7.8
+G4VER=11.1.2
+
+HPC_HASH=15f201a03a7d9fabc6f3e97a96219437f59df979
+G4SBS_HASH=2257dfc667060b92ab9c3d50b3c4ec124d423add
+SIMC_GFORTRAN_HASH=9a1ce71a339fa679d8b6af6bf2e5eba8b98c551f
+LIBSBSDIG_HASH=0099217b9addd15c5a6c3eaf65afa30b0ce8c277
+SBS_OFFLINE_HASH=e9b26d592722baf19044804bdb7702f26dd88356
+SBS_REPLAY_HASH=a70fbb625a00e15b56dd6c5922bd4cd63b8034e9

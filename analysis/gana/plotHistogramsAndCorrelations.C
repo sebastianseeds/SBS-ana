@@ -16,6 +16,7 @@ void plotHistogramsAndCorrelations(int kine=4, int mag=30, int pass=1){
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
+  //BORKED
   jmgr->GetVectorFromSubKey<Double_t>(Form("cut_limits_p%d",pass),Form("sbs%d",kine),coin_profile);
 
   //set up files and paths

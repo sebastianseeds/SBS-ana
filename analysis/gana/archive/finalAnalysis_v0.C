@@ -10,23 +10,34 @@
 #include <vector>
 #include <string>
 #include <TLatex.h>
+#include <algorithm>
 #include "../../include/gmn.h"
 
 double hcalfit_l = econst::hcalposXi_mc; //lower fit/bin limit for hcal dx plots (m)
 double hcalfit_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m)
-double hcalr_l = -2.2; //lower fit/bin limit for hcal dx plots (m)
-double hcalr_h = 0.8; //upper fit/bin limit for hcal dx plots (m)
+//double hcalr_l = -2.2; //lower fit/bin limit for hcal dx plots (m)
+//double hcalr_h = 0.8; //upper fit/bin limit for hcal dx plots (m)
+double hcalr_l = econst::hcalposXi_mc; //lower fit/bin limit for hcal dx plots (m)
+double hcalr_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m)
+
+//fit min entries
+int minEntries = 1000;
+
+//get random seed
+string passkey = "flpx";
+
+//set up exclusions
+const vector<std::string> exclusions = {"hist_bb.tr.n",
+					"hist_bb.gem.track.nhits",
+					"hist_bb.sh.nclus",
+					"hist_sbs.hcal.nclus",
+					"hist_hcalx",
+					"hist_thetapq_n",
+					"hist_thetapq_p"};
 
 //Total fits using Interpolate with elastic signal histo and 4th order poly fit to bg
 TH1D *hdx_p;
 TH1D *hdx_n;
-string passkey = "flpx";
-
-const vector<std::string> exclusions = {"hist_bb.tr.n",
-					"hist_bb.gem.track.nhits",
-					"hist_bb.sh.nclus",
-					"hist_sbs.hcal.nclus"};
-
 Double_t fitFull(double *x, double *par){
   double dx = x[0];
   double proton_scale = par[0];
@@ -36,30 +47,31 @@ Double_t fitFull(double *x, double *par){
   return proton + neutron + fits::g_p4fit(x,&par[2]);
 }
 
-Double_t fitFull_rd2(double *x, double *par){
-  double dx = x[0];
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
-  return proton + neutron + fits::g_p4fit(x,&par[2]);
+Double_t fitFullShift(double *x, double *par){
+
+  // MC float params
+  double dx_shift_p = par[0]; // Shift for proton histogram
+  double dx_shift_n = par[1]; // Shift for neutron histogram
+  double proton_scale = par[2];
+  double neutron_scale = par[3];
+  
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + fits::g_p4fit(x, &par[4]);
 }
+
+TH1D *hdx_slice_p;
+TH1D *hdx_slice_n;
 
 Double_t fitSlice(double *x, double *par){
   double dx = x[0];
   double proton_scale = par[0];
   double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
-  return proton + neutron + fits::g_p4fit(x,&par[2]);
-}
-
-Double_t fitSlice_rd2(double *x, double *par){
-  double dx = x[0];
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
+  double proton = proton_scale * hdx_slice_p->Interpolate(dx);
+  double neutron = neutron_scale * hdx_slice_n->Interpolate(dx);
   return proton + neutron + fits::g_p4fit(x,&par[2]);
 }
 
@@ -67,14 +79,15 @@ Double_t fitSlice_nobg(double *x, double *par){
   double dx = x[0];
   double proton_scale = par[0];
   double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
+  double proton = proton_scale * hdx_slice_p->Interpolate(dx);
+  double neutron = neutron_scale * hdx_slice_n->Interpolate(dx);
   return proton + neutron;
 }
 
 //Side-band pol4 fit
 //sbs9: -1.8 to 0.8
-//sbs4 30p: -1.0 to 0.5 (careful)
+//sbs4 30p: -1.4 to 0.5, shiftX=0.0, neutronshift=-0.05
+//sbs4 50p: -1.9 to 0.6, shiftX=0.05, neutronshift=0.0
 Double_t SBpol4rej_b; //Central-band fit begin
 Double_t SBpol4rej_e; //Central-band fit end
 
@@ -94,8 +107,10 @@ Double_t BGfit(double *x, double *par){
   return yint+p1*x[0]+p2*pow(x[0],2)+p3*pow(x[0],3)+p4*pow(x[0],4);
 }
 
+//shiftX, SBS-4 = 0.05
+
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN
-void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_max, double shiftX, int N) {
+void finalAnalysis_v0(int kine=4, int mag=30, int pass=2, double sb_min=-1.4, double sb_max=0.5, double shiftX=0.0, double neutronshift=-0.05, int N=20, bool detail=false) {
 
   //set up files and paths
   //std::string outdir_path = gSystem->Getenv("OUT_DIR");
@@ -112,7 +127,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   std::string outdir_path = "/lustre19/expphy/volatile/halla/sbs/seeds";
   std::string fin_path = outdir_path + Form("/gmn_analysis/dx_correlations_sbs%d_mag%d_pass%d_rd2.root",kine,mag,pass);
   std::string fin_path_mc = outdir_path + Form("/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d_rd2.root",kine,mag,pass);
-  std::string fout_path = outdir_path + Form("/gmn_analysis/analyze_correlations_sbs%d_mag%d_pass%d_rd2_finefit.root",kine,mag,pass);
+  std::string fout_path = outdir_path + Form("/gmn_analysis/analyze_gmn_sbs%d_mag%d_pass%d.root",kine,mag,pass);
 
   //std::string fout_path = outdir_path + "/garbage.root";
 
@@ -156,7 +171,6 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   SBpol4rej_b = sb_min;
   SBpol4rej_e = sb_max;
 
-  
   // Obtain overall fit to dx 
   gStyle->SetOptStat(0);
   TH1D *hdx_shifted = util::shiftHistogramX(hdx_data,shiftX);
@@ -164,6 +178,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   TH1D *hdx_shifted_clone2 = (TH1D*)(hdx_shifted->Clone("hdx_shifted_clone2"));
   TH1D *hdx_shifted_clone3 = (TH1D*)(hdx_shifted->Clone("hdx_shifted_clone3"));
   TH1D *hdx_p_clone = (TH1D*)(hdx_p->Clone("hdx_p_clone"));
+  hdx_n = util::shiftHistogramX(hdx_n,neutronshift); //SET TO ZERO WITH BETTER FIELD SETTINGS
   TH1D *hdx_n_clone = (TH1D*)(hdx_n->Clone("hdx_n_clone"));
 
   //Get Scale Factor ratio from this slice
@@ -177,11 +192,12 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   }
 
   //Fit again for fine tuning
-  TF1* fullFit_rd2 = new TF1("fullFit_rd2", fitFull_rd2, hcalfit_l, hcalfit_h, 7);
+  //TF1* fullFit_rd2 = new TF1("fullFit_rd2", fitFull_rd2, hcalfit_l, hcalfit_h, 7);
+  TF1* fullFit_rd2 = new TF1("fullFit_rd2", fitFull, hcalfit_l, hcalfit_h, 7);
   //fullFit_rd2->SetNpx(5000);
   fullFit_rd2->SetParameters(fullpar_array);
 
-  hdx_shifted_clone->Fit(fullFit_rd2, "RBMQ0");  // Fitting the slice second with fine tuned params
+  hdx_shifted_clone->Fit(fullFit_rd2, "RMQ0");  // Fitting the slice second with fine tuned params
 
   double fullpar_rd2_array[7]={0.};
   for( int i=0; i<7; ++i ){
@@ -228,7 +244,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   double nscale = fullpar_rd2_array[1];
 
   //double np_par_ratio = blind_factor * nscale/pscale;
-  double np_par_ratio = nscale/pscale*blind_factor;
+  double np_par_ratio = nscale/pscale;
 
   //Add a legend to the canvas
   auto leg = new TLegend(0.6,0.6,0.89,0.89);
@@ -241,7 +257,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   leg->AddEntry( (TObject*)0, Form("data N events : %0.0f",hdx_shifted_clone2->GetEntries()), "");
   leg->AddEntry( (TObject*)0, Form("MC N events : %0.0f",(hdx_p_clone->GetEntries()+hdx_n_clone->GetEntries())), "");
   leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f",np_par_ratio), "");
-  leg->AddEntry( (TObject*)0, Form("#chi^{2}: %0.3f",fullFit_rd2->GetChisquare()), "");
+  leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f",fullFit_rd2->GetChisquare()/fullFit_rd2->GetNDF()), "");
   leg->Draw("same");
 
   c2->Update();
@@ -327,7 +343,8 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
   // Save the canvas to a file
   cTotal->SaveAs("~/gmn_plots/combined_dx_fits_residuals.pdf");
 
-  return;
+  if(!detail)
+    return;
 
   // Loop over all TH2D histograms
   TIter next(inputFile->GetListOfKeys());
@@ -336,12 +353,21 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
 
     if (strcmp(key->GetClassName(), "TH2D") != 0) continue; // Process only TH2D objects
 
+    //Get 2D histogram from data file
     TH2D* hist = dynamic_cast<TH2D*>(key->ReadObj());
     if (!hist) continue;
 
-    // Check if the histogram name starts with "coorhist" and skip if so
+    //Get corresponding histogram from MC file
     std::string histName = hist->GetName();
-    if (histName.find("coorhist") == 0) continue; // Skip if name doesn't start with "hist"
+    std::string histName_mc_p = histName + "_p";
+    std::string histName_mc_n = histName + "_n";
+
+    TH2D* hist_mc_p = dynamic_cast<TH2D*>(inputFile_mc->Get(histName_mc_p.c_str()));
+    TH2D* hist_mc_n = dynamic_cast<TH2D*>(inputFile_mc->Get(histName_mc_n.c_str()));
+    if (!hist_mc_p || !hist_mc_n) continue;
+
+    // Check if the histogram name starts with "coorhist" and skip if so
+    if (histName.find("coorhist") == 0) continue; // Skip if name starts with coorhist
 
     bool skip = false;
 
@@ -354,6 +380,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       }
     }
 
+    //skip on exclusions
     if(skip)
       continue;
 
@@ -363,25 +390,30 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
     hist->Draw("COLZ");  // Draw the histogram
     th2dCanvas->Write();
 
-    // Determine the first and last bin with data along the x-axis
-    int firstBinWithData = 1;
-    int lastBinWithData = hist->GetNbinsX();
-    for (int i = 1; i <= hist->GetNbinsX(); ++i) {
-      if (hist->ProjectionY("_py", i, i)->GetEntries() > 0) {
-	firstBinWithData = i;
-	break;
-      }
-    }
-    for (int i = hist->GetNbinsX(); i >= 1; --i) {
-      if (hist->ProjectionY("_py", i, i)->GetEntries() > 0) {
-	lastBinWithData = i;
-	break;
-      }
-    }
+    //Determine the first and last bin with data along the x-axis for all data TH2Ds
+    int histBE[4] = {0};
+    util::checkTH2DBinsAndEntries(hist,minEntries,histBE[0],histBE[1],histBE[2],histBE[3]);
+
+    //Determine the first and last bin with data along the x-axis for all data TH2Ds
+    int histBE_mcp[4] = {0};
+    util::checkTH2DBinsAndEntries(hist_mc_p,minEntries,histBE_mcp[0],histBE_mcp[1],histBE_mcp[2],histBE_mcp[3]);
+
+    //Determine the first and last bin with data along the x-axis for all data TH2Ds
+    int histBE_mcn[4] = {0};
+    util::checkTH2DBinsAndEntries(hist_mc_n,minEntries,histBE_mcn[0],histBE_mcn[1],histBE_mcn[2],histBE_mcn[3]);
+
+    //get first bin where sufficient data exists on all histograms
+    int first_bin = std::max({histBE[0],histBE_mcp[0],histBE_mcn[0]});
+
+    //get last bin where sufficient data exists on all histograms
+    int last_bin = std::min({histBE[1],histBE_mcp[1],histBE_mcn[1]});
 
     // Get x-axis values corresponding to these bins
-    double xLow = hist->GetXaxis()->GetBinLowEdge(firstBinWithData);
-    double xHigh = hist->GetXaxis()->GetBinUpEdge(lastBinWithData);
+    //double xLow = hist->GetXaxis()->GetBinLowEdge(firstBinWithData);
+    //double xHigh = hist->GetXaxis()->GetBinUpEdge(lastBinWithData);
+
+    double xLow = hist->GetXaxis()->GetBinLowEdge(first_bin);
+    double xHigh = hist->GetXaxis()->GetBinUpEdge(last_bin);
 
     // Create TH1D to store ratios and yields with the same x-axis range as the TH2D histogram
     std::string ratioHistName = std::string("ratio: ") + hist->GetName() + ";" + hist->GetName() + ";scale factor n:p ratio";
@@ -396,12 +428,25 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
     TH1D* ratio_w = new TH1D(ratioHistName_w.c_str(), ratioHistName_w.c_str(), N, -1, 3);
     TH1D* ratio_w_bg = new TH1D(ratioHistNameBG_w.c_str(), ratioHistNameBG_w.c_str(), N, -1, 3);
 
-    cout << endl << endl << "Working on correlation histogram " << ratioHistName << ". First bin with data: " << firstBinWithData << " (x = " << xLow << "), last bin with data: " << lastBinWithData << " (x = " << xHigh << ")" << endl << endl;
 
+    cout << endl << endl << "Working on correlation histogram " << ratioHistName << ". first_bin last_bin first_N last_N : " << histBE[0] << " " << histBE[1] << " " << histBE[2] << " " << histBE[3] << endl;
+
+    cout << "MC p. First_bin last_bin first_N last_N : " << histBE_mcp[0] << " " << histBE_mcp[1] << " " << histBE_mcp[2] << " " << histBE_mcp[3] << endl;
+
+    cout << "MC n. First_bin last_bin first_N last_N : " << histBE_mcn[0] << " " << histBE_mcn[1] << " " << histBE_mcn[2] << " " << histBE_mcn[3] << endl;
+
+    //return;
+
+    //data slices
     TH1D *cellslice[N];
     TH1D *cellslice_rd2[N];
     TH1D *cellslice_bgsub[N];
     TH1D *sliceclone[N];
+
+    //mc slices
+    TH1D *cellslice_mc[N];
+    TH1D *cellslice_mc_rd2[N];
+    TH1D *sliceclone_mc[N];
 
     double scalefactor[N][7];
     double scalefactor_bg[N][2];
@@ -429,20 +474,57 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
     // Make N slices and fit each
     for (int i = 0; i < N; ++i) {
       
-      //cout << "Slice " << i << endl;
+      sMin[i] = 0;
+      sMax[i] = 0;
+      scaleratio[i] = 0.;
+      scaleratio_err[i] = 0.;
+      scaleratio_bgsub[i] = 0.;
+      scaleratio_bgsub_err[i] = 0.;
+      totalevents[i] = 0.;
+      pScale[i] = 0.;
+      nScale[i] = 0.;
+      scaleratio_bg[i] = 0.;
+      scaleratio_bg_err[i] = 0.;
+      bin_low[i] = 0.;
+      bin_high[i] = 0.;
 
-      int binLow = firstBinWithData + i * (lastBinWithData - firstBinWithData + 1) / N;
-      int binHigh = firstBinWithData + (i + 1) * (lastBinWithData - firstBinWithData + 1) / N - 1;
+      for (int sf=0; sf<7; ++sf)
+	scalefactor[i][sf] = 0.;
+
+      int binLow = first_bin + i * (last_bin - first_bin + 1) / N;
+      int binHigh = first_bin + (i + 1) * (last_bin - first_bin + 1) / N - 1;
 
       bin_low[i] = hist->GetXaxis()->GetBinCenter(binLow);
       bin_high[i] = hist->GetXaxis()->GetBinCenter(binHigh);
 
       //Do slices for fits to MC
-      cellslice[i] = hist->ProjectionY(Form("cellslice_%d", i+1), binLow, binHigh);
+      cellslice[i] = hist->ProjectionY(Form("%s_cellslice_%d", histName.c_str(), i+1), binLow, binHigh);
       cellslice_rd2[i] = hist->ProjectionY(Form("cellslice_rd2_%d", i+1), binLow, binHigh);
+      
+      //Get slices from corresponding MC hist
+      hdx_slice_p = hist_mc_p->ProjectionY(Form("%s_slicemc_p_%d",histName.c_str(), i+1), binLow, binHigh);
+      hdx_slice_n = hist_mc_n->ProjectionY(Form("%s_slicemc_n_%d",histName.c_str(), i+1), binLow, binHigh);
 
-      if( cellslice[i] == nullptr )
+      if( cellslice[i] == nullptr || cellslice_mc[i] == nullptr )
 	continue;
+
+      if( cellslice[i]->GetEntries()<minEntries ||
+	  hdx_slice_p->GetEntries()<minEntries ||
+	  hdx_slice_n->GetEntries()<minEntries){	
+	continue;
+      }
+
+      //Diagnostic for now - write out all histograms. N MUST BE SMALL
+      cellslice[i]->Draw();
+      cellslice[i]->Write();
+
+      hdx_slice_p->Draw();
+      hdx_slice_p->Write();
+
+      hdx_slice_n->Draw();
+      hdx_slice_n->Write();
+
+      cout << "....chugging through at: " << i << endl;
 
       int sliceNBins = cellslice[i]->GetNbinsX();
       double sliceMin = 0;
@@ -482,7 +564,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       }
 
       //Fit again for fine tuning
-      TF1* fitFunc_rd2 = new TF1("fitFunc_rd2", fitSlice_rd2, sliceMin, sliceMax, 7);
+      TF1* fitFunc_rd2 = new TF1("fitFunc_rd2", fitSlice, sliceMin, sliceMax, 7);
       fitFunc_rd2->SetNpx(5000);
       fitFunc_rd2->SetParameters(mcParams_array);
 
@@ -596,8 +678,12 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       ratioHist_bg->SetBinContent(i, scaleratio_bg[i]);
       ratioHist_bg->SetBinError(i, scaleratio_bg_err[i]);
 
-    }
+    } //endloop over N slices
 
+
+    ////////////////////////////////////////////////////////
+    cout << "Filling ratio histograms..." << endl;
+    
     //Now get weighted histograms
     // Loop over all bins and print the value in each bin
     int ratioHist_nBins = ratioHist->GetXaxis()->GetNbins();
@@ -610,6 +696,9 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       ratio_w_bg->Fill(ratioHist_bg_binValue,yieldHist_binValue);
     }
 
+    ////////////////////////////////////////////////////////
+    cout << "Checking ratioHist for division by zero..." << endl;
+
     // Before writing the histogram, check for invalid values
     for (int i = 1; i <= ratioHist->GetNbinsX(); ++i) {
       if (std::isinf(ratioHist->GetBinContent(i)) || std::isnan(ratioHist->GetBinContent(i))) {
@@ -618,7 +707,8 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       }
     }
 
-    
+    ////////////////////////////////////////////////////////
+    cout << "Writing the MC canvas with example fits..." << endl;
 
     //Now write out the mc canvas
     TCanvas* canvasSlices = new TCanvas(Form("MC Fits %s", hist->GetName()), hist->GetTitle(), 800, 600);
@@ -630,7 +720,7 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       int j = i*(int)(N/6);
       //int j = i+20;
 
-      if( cellslice[j] == nullptr )
+      if( cellslice[j] == nullptr || j>N )
 	continue;
 
       cellslice[j]->SetTitle(Form("slice window: %0.2f - %0.2f, ratio: %0.2f",bin_low[j],bin_high[j],scaleratio[j]));
@@ -643,18 +733,11 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
     }	
     canvasSlices->Write();
 
-    // //Now write overall fit to dx
-    // TCanvas* dxfull = new TCanvas("dxfull","Interpolate/4th Order Poly BG", 800, 600);
-    // dxfull->cd();
-    // hdx_shifted_clone2->SetTitle("dx;x_{hcal}-x_{exp}");
-    // hdx_shifted_clone2->Draw();
-    // TF1 *fullfit = new TF1("fullfit", fitFull, hcalfit_l, hcalfit_h, 7);
-    // fullfit->SetParameters(&fullpar_rd2_array[0]);
-    // fullfit->SetLineColor(kRed);
-    // fullfit->Draw("SAME");
-    // dxfull->Update();
-
-    // dxfull->Write();
+    //continue;
+    
+    /*
+    ////////////////////////////////////////////////////////
+    cout << "Writing the BG sub MC canvas with example fits..." << endl;
 
     //Now write out the mc bg sub canvas
     TCanvas* canvasSlices_bg = new TCanvas(Form("MC Fits BG Sub %s", hist->GetName()), hist->GetTitle(), 800, 600);
@@ -665,6 +748,13 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       //Get even sample
       int j = i*(int)(N/6);
       //int j = i+20;
+
+
+      cout << i << " " << j << " " << sliceclone[j]->GetEntries() << endl;
+
+      if(cellslice_bgsub[j] == nullptr || j>N)
+	continue;
+
       cellslice_bgsub[j]->SetTitle(Form("slice window: %0.2f - %0.2f, ratio bg: %0.2f",bin_low[j],bin_high[j],scaleratio_bg[j]));
       cellslice_bgsub[j]->Draw();
       TF1 *mcfit = new TF1("mcfit", fitSlice_nobg, sMin[i], sMax[i], 7);
@@ -675,6 +765,9 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
     }	
     canvasSlices_bg->Write();
 
+    ////////////////////////////////////////////////////////
+    cout << "Writing the sideband BG fit canvas with example fits..." << endl;
+
     //Now write out the sideband canvas
     TCanvas* canvasClones = new TCanvas(Form("Sideband Fits %s", hist->GetName()), hist->GetTitle(), 800, 600);
     canvasClones->Divide(3, 2); // Divide canvas into sub-pads for slices
@@ -684,6 +777,10 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       //Get even sample
       int j = i*(int)(N/6);
       //int j = i+20;
+
+      if(sliceclone[j] == nullptr || j>N)
+	continue;
+
       sliceclone[j]->SetTitle(Form("slice window: %0.2f - %0.2f, p+n yield: %0.2f",bin_low[j],bin_high[j],totalevents[j]));
       sliceclone[j]->Draw();
       TF1 *sbfit = new TF1("sbfit",fits::g_p4fit,sMin[i],sMax[i],5);
@@ -692,7 +789,9 @@ void analyzeCorrelations(int kine, int mag, int pass, double sb_min, double sb_m
       sbfit->Draw("SAME");
       canvasClones->Update();
     }	
-    canvasClones->Write();
+    */
+
+    //canvasClones->Write();
 
     ratioHist->Draw();
     ratioHist->Write();
