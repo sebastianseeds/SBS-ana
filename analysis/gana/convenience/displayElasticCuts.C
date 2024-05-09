@@ -40,7 +40,7 @@ void parseAndDisplayCuts(const char* cuts) {
     delete tokens; // Free memory used by the TObjArray
 }
 
-void displayElasticCuts(int kine = 9, int pass = 2, int mag = 70) {
+void displayElasticCuts(int kine = 4, int pass = 2, int mag = 30) {
 
   JSONManager *jmgr = new JSONManager("../../../config/syst.json");
 

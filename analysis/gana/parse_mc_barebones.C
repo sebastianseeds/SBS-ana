@@ -26,6 +26,7 @@ const double nsig_step = 0.1; //number of sigma to step through in dx until fidu
 const int cluster_method = 4; //Hard coded to scoring (same as data)
 const double hcal_v_offset = 0.; //Should be no offset in MC data
 const double R_mclus = 0.3; //Total radius outside of primary tree cluster where additional clusters are absorbed
+const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety margin for fid cut quality plots
 
 //norm_override data
 const double Ntried_override = 100000;
@@ -33,14 +34,16 @@ const double luminosity_override = 3.8475e+36;
 const double genvol_override = 12.566;
 
 //limit_size data
-const int maxEvents = 5000000; //5M
-Long64_t maxFileSize = 8000000000; //8 GB
+const int maxEvents = 5e6; //5M
+Long64_t maxFileSize = 8e9; //8 GB
 
 //Specific wide cut for all parsing
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
+//For now, use alt for all kine except 7, 14, 11
+
 //MAIN
-void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "alt", bool verbose=false, bool norm_override=false, bool limit_size=false )
+void parse_mc_barebones( int kine=8, int mag = 100, const char *replay_type = "alt", bool verbose=false, bool norm_override=false, bool effz=true, bool ep_fourvec=true, bool limit_size=false )
 {   
 
   // Define a clock to check macro processing time
@@ -52,12 +55,16 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   std::string rootfile_type = "";
   bool jboyd = false;
   bool alt = false;
+  bool alt2 = false;
   if( rtype.compare("jboyd")==0 ){
       rootfile_type = "_jboyd";
       jboyd = true;
   }else if( rtype.compare("alt")==0 ){
       rootfile_type = "_alt";
       alt = true;
+  }else if( rtype.compare("alt2")==0 ){
+      rootfile_type = "_alt2";
+      alt2 = true;
   }else if( rtype.compare("")!=0 )
     cout << "WARNING: invalid argument at replay_type. Valid entries include jboyd, alt, or nothing. Defaulting to nothing." << endl;
     
@@ -68,6 +75,11 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   //All MC for analysis is LD2
   std::string rootfile_dir = jmgr->GetValueFromSubKey_str( Form("filedir_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
 
+  //Check if trailing forward slash is in json, if not add it
+  if (!rootfile_dir.empty() && rootfile_dir.back() != '/') {
+    rootfile_dir += '/';
+  }
+
   std::string histfile_dir = rootfile_dir;
 
   if( jboyd ){
@@ -76,7 +88,17 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   }else
     histfile_dir += "simcout/";
 
+  std::cout << "Rootfile directory: " << rootfile_dir <<  std::endl;
+  std::cout << "Histfile directory: " << histfile_dir <<  std::endl;
+
   //Get search parameters for MC files
+  std::string effz_word = "";
+  if(effz)
+    effz_word = "_effz";
+  std::string four_word = "";
+  if(ep_fourvec)
+    four_word = "_fourvec";
+
   std::string partialName_p = jmgr->GetValueFromSubKey_str( Form("p_string_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
   std::string partialName_n = jmgr->GetValueFromSubKey_str( Form("n_string_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
 
@@ -85,7 +107,7 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
 
   // outfile path
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_mc_sbs%d_%dp_barebones%s.root",kine,mag,rootfile_type.c_str());
+  std::string parse_path = outdir_path + Form("/parse/parse_mc_sbs%d_%dp_barebones%s%s%s.root",kine,mag,rootfile_type.c_str(),effz_word.c_str(),four_word.c_str());
 
   cout << "Creating parse file and parse log file at " << parse_path << endl;
 
@@ -215,7 +237,12 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
 
   //Obtain configuration pars from config file
   double hcaltheta = config.GetHCALtheta_rad();
-  double hcaldist = config.GetHCALdist();
+  double hcaldist;
+  if(effz){
+    hcaldist = config.GetHCALeffdist();
+    cout << "Loading effective z offset " << hcaldist << "..." << endl;
+  }else
+    hcaldist = config.GetHCALdist();  
   double sbsdist = config.GetSBSdist();
   double bbthr = config.GetBBtheta_rad(); //in radians
   double ebeam_tune = config.GetEbeam();
@@ -227,6 +254,7 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   double W2sig    = tune.GetW2sig();
   double dx0_n    = tune.Getdx0_n();
   double dx0_p    = tune.Getdx0_p();
+  double dx_del   = tune.Getdx_del();
   double dy0      = tune.Getdy0();
   double dxsig_n  = tune.Getdxsig_n();
   double dxsig_p  = tune.Getdxsig_p();
@@ -235,6 +263,13 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   double atimesig = tune.Getatimesig();
   double atimediff0   = tune.Getatimediff0();
   double atimediffsig = tune.Getatimediffsig();
+
+  //Make fiducial cut quality histograms
+  TH2D *hexpxy_p = new TH2D( "hexpxy_p","proton hcal exp x vs hcal exp y; #sigma (m); x_{expect} (m)", 400, -2, 2, 600, -4, 2 );
+  TH2D *hexpxy_p_fid = new TH2D( "hexpxy_p_fid",Form("proton hcal exp x vs hcal exp y %0.1f#sigma fid cut; #sigma (m); x_{expect} (m)",Nsig_fid_qual), 400, -2, 2, 600, -4, 2 );
+
+  TH2D *hexpxy_n = new TH2D( "hexpxy_n","neutron hcal exp x vs hcal exp y; #sigma (m); x_{expect} (m)", 400, -2, 2, 600, -4, 2 );
+  TH2D *hexpxy_n_fid = new TH2D( "hexpxy_n_fid",Form("neutron hcal exp x vs hcal exp y %0.1f#sigma fid cut; #sigma (m); x_{expect} (m)",Nsig_fid_qual), 400, -2, 2, 600, -4, 2 );
 
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
@@ -393,9 +428,9 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   double bb_sh_e_out;
   double bb_sh_rowblk_out;
   double bb_sh_colblk_out;
-  //double bb_hodotdc_clus_tmean_out;
-  //double bb_grinch_tdc_clus_size_out;
-  //double bb_grinch_tdc_clus_trackindex_out;
+  double bb_hodotdc_clus_tmean_out;
+  double bb_grinch_tdc_clus_size_out;
+  double bb_grinch_tdc_clus_trackindex_out;
   double bb_gem_track_nhits_out;
   double bb_gem_track_ngoodhits_out;
   double bb_gem_track_chi2ndf_out;
@@ -537,9 +572,9 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
   P->Branch("bb_sh_e", &bb_sh_e_out, "bb_sh_e/D");
   P->Branch("bb_sh_rowblk", &bb_sh_rowblk_out, "bb_sh_rowblk/D");
   P->Branch("bb_sh_colblk", &bb_sh_colblk_out, "bb_sh_colblk/D");
-  //P->Branch("bb_hodotdc_clus_tmean", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean/D");
-  //P->Branch("bb_grinch_tdc_clus_size", &bb_grinch_tdc_clus_size_out, "bb_grinch_tdc_clus_size/D");
-  //P->Branch("bb_grinch_tdc_clus_trackindex", &bb_grinch_tdc_clus_trackindex_out, "bb_grinch_tdc_clus_trackindex/D");
+  P->Branch("bb_hodotdc_clus_tmean", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean/D");
+  P->Branch("bb_grinch_tdc_clus_size", &bb_grinch_tdc_clus_size_out, "bb_grinch_tdc_clus_size/D");
+  P->Branch("bb_grinch_tdc_clus_trackindex", &bb_grinch_tdc_clus_trackindex_out, "bb_grinch_tdc_clus_trackindex/D");
   P->Branch("bb_gem_track_nhits", &bb_gem_track_nhits_out, "bb_gem_track_nhits/D");
   P->Branch("bb_gem_track_ngoodhits", &bb_gem_track_ngoodhits_out, "bb_gem_track_ngoodhits/D");
   P->Branch("bb_gem_track_chi2ndf", &bb_gem_track_chi2ndf_out, "bb_gem_track_chi2ndf/D");
@@ -735,11 +770,11 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
       rvars::setbranch(C, "bb", bbcalclvar, bbcalclvarlink);
 
       // hodoscope cluster mean time
-      // int Nhodotmean; 
-      // double hodotmean[econst::maxclus];
-      // std::vector<std::string> hodovar = {"clus.tmean","clus.tmean"};
-      // std::vector<void*> hodovarlink = {&Nhodotmean,&hodotmean};
-      // rvars::setbranch(C, "bb.hodotdc", hodovar, hodovarlink, 0); 
+      int Nhodotmean; 
+      double hodotmean[econst::maxclus];
+      std::vector<std::string> hodovar = {"clus.tmean","clus.tmean"};
+      std::vector<void*> hodovarlink = {&Nhodotmean,&hodotmean};
+      rvars::setbranch(C, "bb.hodotdc", hodovar, hodovarlink, 0); 
 
       // track branches
       double ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
@@ -770,9 +805,9 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
       rvars::setbranch(C,"fEvtHdr",evhdrvar,evhdrlink);
 
       // other bb branches
-      double gemNhits, gemNgoodhits, gemChiSqr, eop;
-      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","etot_over_p"};
-      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&eop};
+      Double_t gemNhits, gemNgoodhits, gemChiSqr, grinchClusSize, grinchClusTrIndex, eop;
+      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","grinch_tdc.clus.size","grinch_tdc.clus.trackindex","etot_over_p"};
+      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&grinchClusSize,&grinchClusTrIndex,&eop};
       rvars::setbranch(C, "bb", miscbbvar, miscbbvarlink);
 
       // Monte Carlo variables
@@ -861,6 +896,7 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
 	//reconstruct track with angles (better resolution with GEMs)
 	nu = pbeam.E() - pcent;
 	pNexp = vars::pN_expect( nu, nucleon );
+	//thNexp = acos((ebeam-pz[0])/pNexp);
 	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
 	pNhat = vars::pNhat_track( thNexp, phNexp );
 	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
@@ -868,6 +904,19 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
 	W2 = vars::W2( pbeam.E(), pe.E(), Q2, nucleon );
 	tau = vars::tau( Q2, nucleon );
 	epsilon = vars::epsilon( tau, etheta );
+
+	//Use four-momentum member functions for higher Q2 points (7,11)
+	if(ep_fourvec){
+	  pN = q + ptarg;
+	  pNhat = pN.Vect().Unit();
+	  Q2 = -q.M2();
+	  W2 = pN.M2();
+	  nu = q.E();
+	}
+
+	// if(ep_fourvec)
+	//   thNexp = acos((ebeam-pz[0])/pNexp);
+
 
 	/////////////////////
 	//W2 elastic cut
@@ -1193,9 +1242,18 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
 									     dysig, 
 									     xyhcalexp[0],
 									     xyhcalexp[1], 
-									     dx0_p,
+									     dx_del,
 									     hcalaa);
 	
+	//Fill fiducial quality histograms
+	hexpxy_p->Fill(xyhcalexp[1],xyhcalexp[0]-dx_del);
+	hexpxy_n->Fill(xyhcalexp[1],xyhcalexp[0]);
+	
+	if(fiducial_factors.first>Nsig_fid_qual && fiducial_factors.second>Nsig_fid_qual){
+	  hexpxy_p_fid->Fill(xyhcalexp[1],xyhcalexp[0]-dx_del);
+	  hexpxy_n_fid->Fill(xyhcalexp[1],xyhcalexp[0]);
+	}
+
 	//H-arm active area cut (primary cluster)
 	bool hcalON = cut::hcalaaON(hcalx,hcaly,hcalaa);
 
@@ -1372,9 +1430,9 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
 	bb_sh_e_out = eSH;
 	bb_sh_rowblk_out = rblkSH;
 	bb_sh_colblk_out = cblkSH;
-	//bb_hodotdc_clus_tmean_out = hodotmean[0];
-	//bb_grinch_tdc_clus_size_out = grinchClusSize;
-	//bb_grinch_tdc_clus_trackindex_out = grinchClusTrIndex;
+	bb_hodotdc_clus_tmean_out = hodotmean[0];
+	bb_grinch_tdc_clus_size_out = grinchClusSize;
+	bb_grinch_tdc_clus_trackindex_out = grinchClusTrIndex;
 	bb_gem_track_nhits_out = gemNhits;
 	bb_gem_track_ngoodhits_out = gemNgoodhits;
 	bb_gem_track_chi2ndf_out = gemChiSqr;
@@ -1396,6 +1454,88 @@ void parse_mc_barebones( int kine=8, int mag = 70, const char *replay_type = "al
     }//end run loop
 
   }//end target loop
+
+  // Draw fiducial quality histograms
+
+  // Add TLines to form the rectangle representing the active area
+  TLine *line1a = new TLine(econst::hcalposYi_mc, econst::hcalposXi_mc, econst::hcalposYf_mc, econst::hcalposXi_mc); // bottom line
+  TLine *line2a = new TLine(econst::hcalposYi_mc, econst::hcalposXf_mc, econst::hcalposYf_mc, econst::hcalposXf_mc); // top line
+  TLine *line3a = new TLine(econst::hcalposYi_mc, econst::hcalposXi_mc, econst::hcalposYi_mc, econst::hcalposXf_mc); // left line
+  TLine *line4a = new TLine(econst::hcalposYf_mc, econst::hcalposXi_mc, econst::hcalposYf_mc, econst::hcalposXf_mc); // right line
+  TLine *line1 = new TLine(hcalaa[2], hcalaa[0], hcalaa[3], hcalaa[0]); // bottom line
+  TLine *line2 = new TLine(hcalaa[2], hcalaa[1], hcalaa[3], hcalaa[1]); // top line
+  TLine *line3 = new TLine(hcalaa[2], hcalaa[0], hcalaa[2], hcalaa[1]); // left line
+  TLine *line4 = new TLine(hcalaa[3], hcalaa[0], hcalaa[3], hcalaa[1]); // right line
+
+  // Set the line color to black for visibility
+  line1a->SetLineColor(kBlack);
+  line2a->SetLineColor(kBlack);
+  line3a->SetLineColor(kBlack);
+  line4a->SetLineColor(kBlack);
+  line1->SetLineColor(kGreen);
+  line2->SetLineColor(kGreen);
+  line3->SetLineColor(kGreen);
+  line4->SetLineColor(kGreen);
+
+  // Create a canvas to draw the raw expected pos histograms
+  TCanvas *c1 = new TCanvas("c1", "Raw expected elastic positions", 1200, 600);
+  c1->Divide(2,1);
+  c1->cd(1);
+
+  hexpxy_p->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c1->cd(2);
+  hexpxy_n->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c1->Update();
+
+  c1->Write();
+
+  // Create a canvas to draw the raw expected pos histograms
+  TCanvas *c2 = new TCanvas("c2", Form("%0.1f sigma fid cut expected elastic positions",Nsig_fid_qual), 1200, 600);
+  c2->Divide(2,1);
+  c2->cd(1);
+
+  hexpxy_p_fid->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c2->cd(2);
+  hexpxy_n_fid->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c2->Update();
+
+  c2->Write();
 
   fout->Write();
 

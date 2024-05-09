@@ -33,10 +33,12 @@ std::string trim(const std::string& str) {
 
 //plot with cuts script, first step on systematics analysis. Configured for pass 2.
 void plotWithCuts_mc(int kine=8, 
-		     int mag=70, 
+		     int mag=100, 
 		     int pass=2, 
 		     bool skipcorrelations=true,
-		     bool addresscorr=false, 
+		     bool addresscorr=false,
+		     bool wide=false,
+		     bool effz=true,
 		     const char *replay_type = "alt" ) {
 
   // reading json configuration file
@@ -47,12 +49,16 @@ void plotWithCuts_mc(int kine=8,
   std::string rootfile_type = "";
   bool jboyd = false;
   bool alt = false;
+  bool alt2 = false;
   if( rtype.compare("jboyd")==0 ){
     rootfile_type = "_jboyd";
     jboyd = true;
   }else if( rtype.compare("alt")==0 ){
     rootfile_type = "_alt";
     alt = true;
+  }else if( rtype.compare("alt2")==0 ){
+      rootfile_type = "_alt2";
+      alt2 = true;
   }else if( rtype.compare("")!=0 )
     cout << "WARNING: invalid argument at replay_type. Valid entries include jboyd, alt, or nothing. Defaulting to nothing." << endl;
 
@@ -81,22 +87,31 @@ void plotWithCuts_mc(int kine=8,
       ulims.push_back(plot_lims[i]);
   }
 
-  //Get tight elastic cuts
-  std::string globalcuts = jmgr->GetValueFromSubKey_str( "post_cuts_mc", Form("sbs%d_%d",kine,mag) );
+  //Get wide/tight elastic cuts
+  std::string globalcuts;
+  if(wide){
+    globalcuts = jmgr->GetValueFromSubKey_str( "post_cuts_mc", Form("sbs%d_%d",kine,mag) );
+    cout << "Loaded wide cuts: " << globalcuts << endl;
+  }else{
+    globalcuts = jmgr->GetValueFromSubKey_str( "post_tcuts_mc", Form("sbs%d_%d",kine,mag) );
+    cout << "Loaded tight cuts: " << globalcuts << endl;
+  }
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
-
-  std::vector<std::string> cuts = util::parseCuts(globalcuts);
+  std::vector<std::string> wcuts = util::parseCuts(globalcuts);
+  std::vector<std::string> cuts;
 
   //Remove timing and tar cuts from globalcuts as MC is unreliable in this department and tar==LD2
   std::string parsedCutString;
-  for (const auto& cut : cuts) {
+  for (const auto& cut : wcuts) {
     std::string trimmedCut = trim(cut);
-    if (trimmedCut.find("coin") == std::string::npos && trimmedCut.find("tar") == std::string::npos && trimmedCut.find("mag") == std::string::npos) {
+    if (trimmedCut.find("coin") == std::string::npos && trimmedCut.find("tar") == std::string::npos && trimmedCut.find("mag") == std::string::npos && trimmedCut.find("bb_grinch_tdc_clus_size") == std::string::npos) {
       if (!parsedCutString.empty()) parsedCutString += "&&";
       parsedCutString += trimmedCut;
+      cuts.push_back(cut);
     }
   }
+
+  cout << endl << endl << parsedCutString << endl << endl;
 
   cout << "Parsed cuts: " << endl;
   for( size_t i=0; i<cuts.size(); ++i ) 
@@ -113,7 +128,7 @@ void plotWithCuts_mc(int kine=8,
 
   std::vector<std::string> branches = util::parseCuts(postbranches);
 
-  cout << "Parsed branches: " << endl;
+  cout << "Parsed branches with plot limits: " << endl;
   for( size_t i=0; i<branches.size(); ++i ){ 
     cout << branches[i] << " llim=" << llims[i] << " ulim=" << ulims[i] << " bins=" << plot_bins[i] << endl;
   }
@@ -140,15 +155,23 @@ void plotWithCuts_mc(int kine=8,
   }
 
   //set up files and paths
+  std::string effz_word = "";
+  if(effz)
+    effz_word = "_effz";
+
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string fin_path = outdir_path + Form("/parse/parse_mc_sbs%d_%dp_barebones%s.root",kine,mag,rootfile_type.c_str());
+  std::string fin_path = outdir_path + Form("/parse/parse_mc_sbs%d_%dp_barebones%s%s.root",kine,mag,rootfile_type.c_str(),effz_word.c_str());
   std::string fin_path_bg = outdir_path + Form("/parse/parse_mcbg_sbs%d_%dp_barebones.root",kine,mag);
 
   std::string skipcorrelations_word = "";
   if(skipcorrelations)
     skipcorrelations_word = "_thin";
 
-  std::string fout_path = outdir_path + Form("/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s.root",kine,mag,pass,skipcorrelations_word.c_str(),rootfile_type.c_str());
+  std::string wide_word = "";
+  if(wide)
+    wide_word = "_widecut";
+
+  std::string fout_path = outdir_path + Form("/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s%s%s.root",kine,mag,pass,skipcorrelations_word.c_str(),rootfile_type.c_str(),wide_word.c_str(),effz_word.c_str());
 
   //Get MC inelastic background from file
   TFile* inputFileBG = new TFile(fin_path_bg.c_str());
@@ -277,6 +300,8 @@ void plotWithCuts_mc(int kine=8,
     inputFile->Close();
     return;
   }
+
+  std::cout << std::endl << "Successfully opened tree from file " << fin_path << std::endl;
 
   //reopen output file and update
   outputFile = new TFile(fout_path.c_str(), "UPDATE");

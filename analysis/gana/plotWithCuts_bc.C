@@ -10,15 +10,14 @@
 #include <vector>
 #include <sstream>
 #include <string>
+#include "TStopwatch.h"
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
 //Known correlations. Elastic selection on dx:<branch> will ignore cuts on correlated variables.
 std::map<std::string, std::string> correlatedCuts = {
-  {"bb.sh.nclus", "bb.sh.nclus&&sbs.hcal.nclus"},
-  {"sbs.hcal.nclus", "sbs.hcal.nclus&&bb.sh.nclus"},
-  {"dy", "dy&&W2"},
-  {"W2", "W2&&dy"}
+  {"dy_bc", "dy_bc&&W2"},
+  {"W2", "W2&&dy_bc"}
 };
 
 // trim function for accurate parsing
@@ -31,15 +30,53 @@ std::string trim(const std::string& str) {
   return str.substr(first, (last - first + 1));
 }
 
-//plot with cuts script, first step on systematics analysis. Configured for pass 2.
-//bestclus uses bestclusterinfo from parse file. skipcorrelations doesn't plot cut vs cut plots. addresscorr removes cuts from dx vs cut TH2Ds where the cut is correlated (like dy and W2)
-void plotWithCuts(int kine=8, 
-		  int mag=70, 
-		  int pass=2, 
-		  bool skipcorrelations=true, 
-		  bool addresscorr=false,
-		  bool effz=true,
-		  bool wide=true) {
+// add _bc to get best cluster branches from parse file
+std::string addbc(std::string input) {
+  const std::string suffix = "_bc";
+  const std::string targets[4] = {"coin", "dy", "hcale", "hcalon"}; //branches that depend on hcal clusters
+
+  for (const auto& target : targets) {
+    std::string::size_type pos = 0;
+    std::string token = target + suffix;  // Create the new token with the suffix
+
+    // Continue searching the string for the target and replacing it
+    while ((pos = input.find(target, pos)) != std::string::npos) {
+      // Ensure we match whole words by checking character before and after the match
+      bool match = true;
+      if (pos != 0 && isalnum(input[pos - 1])) {
+	match = false; // Check for character before
+      }
+      size_t endPos = pos + target.length();
+      if (endPos < input.length() && isalnum(input[endPos])) {
+	match = false; // Check for character after
+      }
+
+      if (match) {
+	input.replace(pos, target.length(), token);
+	pos += token.length(); // Move past the newly added part to avoid infinite loops
+      } else {
+	pos += target.length(); // Move past the current word if it's part of a larger word
+      }
+    }
+  }
+
+  return input;
+}
+
+//plot with cuts script to work with best clusters, first step on systematics analysis. Configured for pass 2.
+//bestclus uses bestclusterinfo from parse file. skipcorrelationplots doesn't plot cut vs cut plots. addresscorr removes cuts from dx vs cut TH2Ds where the cut is correlated (like dy and W2)
+void plotWithCuts_bc(int kine=8, 
+		     int mag=70, 
+		     int pass=2, 
+		     bool skipcorrelationplots=true, 
+		     bool addresscorr=false,
+		     bool wide=false,
+		     bool effz=true) {
+
+
+  // Define a clock to check macro processing time
+  TStopwatch *st = new TStopwatch();
+  st->Start( kTRUE );
 
   // reading json configuration file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
@@ -52,6 +89,8 @@ void plotWithCuts(int kine=8,
   //double hcalfit_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m)
 
   //int Nbins_dx = hbins;
+
+  cout << "Running best cluster dx plots.." << endl << endl;
 
   cout << "Nbins_dx:" << hbins << " hcal llim: " << hcalfit_l << " hcal ulim: " << hcalfit_h << endl;
 
@@ -71,20 +110,22 @@ void plotWithCuts(int kine=8,
   }
 
   //Get wide/tight elastic cuts
-  std::string globalcuts;
+  std::string globalcuts_raw;
   if(wide){
-    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-    cout << "Loaded wide cuts: " << globalcuts << endl;
+    globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+    cout << "Loaded wide cuts: " << globalcuts_raw << endl;
   }else{
-    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-    cout << "Loaded tight cuts: " << globalcuts << endl;
+    globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+    cout << "Loaded tight cuts: " << globalcuts_raw << endl;
   }
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
+  std::string globalcuts = addbc(globalcuts_raw);
+
+  std::cout << std::endl << "Loaded best cluster cuts: " << globalcuts << std::endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
-  std::cout << "Parsed cuts: " << std::endl;
+  std::cout << std::endl << "Parsed cuts: " << std::endl;
 
   //Set up dy anticut bg histogram
   std::string dyanticut_noelas;
@@ -180,15 +221,15 @@ void plotWithCuts(int kine=8,
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
   std::string fin_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s.root",kine,pass,effz_word.c_str());
 
-  std::string skipcorrelations_word = "";
-  if(skipcorrelations)
-    skipcorrelations_word = "_thin";
+  std::string skipcorrelationplots_word = "";
+  if(skipcorrelationplots)
+    skipcorrelationplots_word = "_thin";
 
   std::string wide_word = "";
   if(wide)
     wide_word = "_widecut";
 
-  std::string fout_path = outdir_path + Form("/gmn_analysis/dx_correlations_sbs%d_mag%d_pass%d%s%s%s.root",kine,mag,pass,skipcorrelations_word.c_str(),wide_word.c_str(),effz_word.c_str());
+  std::string fout_path = outdir_path + Form("/gmn_analysis/dx_correlations_bc_sbs%d_mag%d_pass%d%s%s%s.root",kine,mag,pass,skipcorrelationplots_word.c_str(),wide_word.c_str(),effz_word.c_str());
 
   cout << "Setting up output path: " << fout_path << endl;
 
@@ -213,10 +254,10 @@ void plotWithCuts(int kine=8,
   TFile* outputFile = new TFile(fout_path.c_str(), "RECREATE");
 
   std::string histBaseName = "hdx_allcut";
-  TH1D* hist_base = new TH1D( histBaseName.c_str(), "dx;m", hbins, hcalfit_l, hcalfit_h );
+  TH1D* hist_base = new TH1D( histBaseName.c_str(), "dx (best cluster);m", hbins, hcalfit_l, hcalfit_h );
 
   // Draw the plot using the created histogram
-  tree->Draw(("dx>>" + histBaseName).c_str(), globalcuts.c_str(), "COLZ");
+  tree->Draw(("dx_bc>>" + histBaseName).c_str(), globalcuts.c_str(), "COLZ");
 
   // Write the histogram to the output file
   hist_base->Write();
@@ -224,10 +265,10 @@ void plotWithCuts(int kine=8,
   delete hist_base;
 
   std::string histAntidyName = "hdx_dyanti";
-  TH1D* hist_antidy = new TH1D( histAntidyName.c_str(), "dx, dy anticut;m", hbins, hcalfit_l, hcalfit_h );
+  TH1D* hist_antidy = new TH1D( histAntidyName.c_str(), "dx, dy anticut (best cluster);m", hbins, hcalfit_l, hcalfit_h );
 
   // Draw the plot using the created histogram
-  tree->Draw(("dx>>" + histAntidyName).c_str(), dyanticut_elas.c_str(), "COLZ");
+  tree->Draw(("dx_bc>>" + histAntidyName).c_str(), dyanticut_elas.c_str(), "COLZ");
 
   // Write the histogram to the output file
   hist_antidy->Write();
@@ -235,10 +276,10 @@ void plotWithCuts(int kine=8,
   delete hist_antidy;
 
   std::string histAnticoinName = "hdx_coinanti";
-  TH1D* hist_anticoin = new TH1D( histAnticoinName.c_str(), "dx, coin anticut;m", hbins, hcalfit_l, hcalfit_h );
+  TH1D* hist_anticoin = new TH1D( histAnticoinName.c_str(), "dx, coin anticut (best cluster);m", hbins, hcalfit_l, hcalfit_h );
 
   // Draw the plot using the created histogram
-  tree->Draw(("dx>>" + histAnticoinName).c_str(), coinanticut_elas.c_str(), "COLZ");
+  tree->Draw(("dx_bc>>" + histAnticoinName).c_str(), coinanticut_elas.c_str(), "COLZ");
 
   // Write the histogram to the output file
   hist_anticoin->Write();
@@ -299,17 +340,22 @@ void plotWithCuts(int kine=8,
       }
     }
     
-    cout << "Plotting dx versus branch " << branch << " with surviving uncorrelated cuts: " << cutString << endl << endl;
+    //Add best cluster affix for branches that depend on hcal clusters
+    std::string bcbranch = branch;
+    if(branch.compare("hcale")==0||branch.compare("dy")==0||branch.compare("coin")==0)
+      bcbranch += "_bc";
+
+    cout << "Plotting dx versus branch " << bcbranch << " with surviving uncorrelated cuts: " << cutString << endl << endl;
 
     //Create the histogram
-    //std::string histTitle = branch + " vs dx;" + branch + ";dx";
-    std::string histTitle = cutString + ";" + branch + ";dx";
-    std::string histName = "hist_" + branch;
+    //std::string histTitle = bcbranch + " vs dx;" + bcbranch + ";dx";
+    std::string histTitle = cutString + ";" + bcbranch + ";dx (best cluster)";
+    std::string histName = "hist_" + bcbranch;
 
     TH2D* hist = new TH2D(histName.c_str(), histTitle.c_str(), bins, llim, ulim, hbins, hcalfit_l, hcalfit_h);
 
     // Draw the plot using the created histogram
-    tree->Draw(("dx:" + branch + ">>" + histName).c_str(), cutString.c_str(), "COLZ");
+    tree->Draw(("dx_bc:" + bcbranch + ">>" + histName).c_str(), cutString.c_str(), "COLZ");
 
     // Write the histogram to the output file
     hist->Write();
@@ -319,7 +365,7 @@ void plotWithCuts(int kine=8,
 
   }
   
-  if(skipcorrelations){
+  if(skipcorrelationplots){
     cout << "All plots created. Correlation plots skipped. Output file located here: " << fout_path << endl;
     return;
   }
@@ -408,6 +454,11 @@ void plotWithCuts(int kine=8,
   outputFile->Close();
   delete outputFile;
 
-  cout << "All plots created. Output file located here: " << fout_path << endl;
+  cout << endl << "All plots created. Output file located here: " << fout_path << endl << endl;
+
+  st->Stop();
+
+  // Send time efficiency report to console
+  std::cout << "CPU time elapsed = " << st->CpuTime() << " s = " << st->CpuTime()/60.0 << " min. Real time = " << st->RealTime() << " s = " << st->RealTime()/60.0 << " min." << std::endl;
 
 }

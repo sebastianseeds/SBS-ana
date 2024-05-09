@@ -19,13 +19,14 @@ const Int_t maxBlk = 25;
 const Double_t W2max = 3.0; //very large compared to nucleon mass
 const Double_t coin_sigma_factor = 5.; //Wide coincidence timing cut
 const Double_t nsig_step = 0.1; //number of sigma to step through in dx until fiducial cut failure written to output tree
-const Double_t R_mclus = 0.3; //search region for clusters to add to highest energy cluster on multicluster analysis
+const Double_t R_mclus = 0.6; //search region for clusters to add to highest energy cluster on multicluster analysis
+const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety margin for fid cut quality plots
 
 //Specific wide cut for all parsing
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
 //MAIN
-void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool verbose=false, bool ld2_only = false )
+void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool verbose=false, bool ld2_only = true, bool effz=true, bool ep_fourvec=true, bool debug=false )
 {   
 
   // Define a clock to check macro processing time
@@ -81,8 +82,18 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   util::ReadRunList(runsheet_dir,ndruns,kine,"LD2",pass,verb,crund); //modifies nruns
 
   // outfile path
+  std::string debug_word = "";
+  if(debug)
+    debug_word = "_debug";
+  std::string effz_word = "";
+  if(effz)
+    effz_word = "_effz";
+  std::string four_word = "";
+  if(ep_fourvec)
+    four_word = "_fourvec";
+
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones.root",kine,pass);
+  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s%s%s.root",kine,pass,debug_word.c_str(),effz_word.c_str(),four_word.c_str());
 
   //set up output files
   TFile *fout = new TFile( parse_path.c_str(), "RECREATE" );
@@ -94,6 +105,12 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   TH2D *hdymag = new TH2D( "hdymag","dy vs sbsmag; \%; y_{HCAL}-y_{expect} (m)", 20, 0, 100, 800, -4, 4 );
   TH1D *hcidxfail_d = new TH1D( "hcidxfail_d","Cluster Index Failed vs Run; runnum", ndruns, 0, ndruns );
   TH1D *hcidxfail_h = new TH1D( "hcidxfail_h","Cluster Index Failed vs Run; runnum", nhruns, 0, nhruns );
+
+  TH2D *hexpxy_p = new TH2D( "hexpxy_p","proton hcal exp x vs hcal exp y; #sigma (m); x_{expect} (m)", 400, -2, 2, 600, -4, 2 );
+  TH2D *hexpxy_p_fid = new TH2D( "hexpxy_p_fid",Form("proton hcal exp x vs hcal exp y %0.1f#sigma fid cut; #sigma (m); x_{expect} (m)",Nsig_fid_qual), 400, -2, 2, 600, -4, 2 );
+
+  TH2D *hexpxy_n = new TH2D( "hexpxy_n","neutron hcal exp x vs hcal exp y; #sigma (m); x_{expect} (m)", 400, -2, 2, 600, -4, 2 );
+  TH2D *hexpxy_n_fid = new TH2D( "hexpxy_n_fid",Form("neutron hcal exp x vs hcal exp y %0.1f#sigma fid cut; #sigma (m); x_{expect} (m)",Nsig_fid_qual), 400, -2, 2, 600, -4, 2 );
 
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
@@ -389,6 +406,13 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
   Int_t curmag = -1;
   std::string curtar = "";
 
+  //Set up hcal active area with bounds that match database on pass
+  vector<Double_t> hcalaa;
+  if(pass<2)
+    hcalaa = cut::hcalaa_data_alt(1,1);
+  else
+    hcalaa = cut::hcalaa_mc(1,1); //verified 2.10.24
+
   for ( Int_t t=0; t<2; t++ ){ //loop over targets
     // t==0, lh2; t==1, ld2
     Int_t nruns = 1;
@@ -406,9 +430,17 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
       std::cout << std::endl << "Proceeding to LD2 data.." << std::endl << std::endl;
     }
 
+    int debug_total = 0;
+
     for (Int_t irun=0; irun<nruns; irun++) {
       
-      cout << "irun/nruns " << irun << "/" << nruns << endl;
+      cout << endl << "irun/nruns " << irun << "/" << nruns << endl << endl;
+
+      if(debug){
+	cout << "Debug mode enabled. Running roughly 10k events..." << endl;
+	if( debug_total>10000 )
+	  continue;
+      }
 
       // accessing run info
       Int_t runnum;
@@ -472,7 +504,12 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 
       //Obtain configuration pars from config file
       Double_t hcaltheta = config.GetHCALtheta_rad();
-      Double_t hcaldist = config.GetHCALdist();
+      Double_t hcaldist;
+      if(effz){
+	hcaldist = config.GetHCALeffdist();
+	cout << "Loading effective z offset " << hcaldist << "..." << endl;
+      }else
+	hcaldist = config.GetHCALdist();
       Double_t sbsdist = config.GetSBSdist();
       Double_t bbthr = config.GetBBtheta_rad(); //in radians
 
@@ -495,6 +532,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
       Double_t W2sig    = tune.GetW2sig();
       Double_t dx0_n    = tune.Getdx0_n();
       Double_t dx0_p    = tune.Getdx0_p();
+      Double_t dx_del   = tune.Getdx_del();
       Double_t dy0      = tune.Getdy0();
       Double_t dxsig_n  = tune.Getdxsig_n();
       Double_t dxsig_p  = tune.Getdxsig_p();
@@ -600,13 +638,6 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
       if(t==1)
 	Eloss_outgoing = econst::celldiameter/2.0/sin(bbthr) * econst::ld2tarrho * econst::ld2dEdx;
 
-      //Set up hcal active area with bounds that match database on pass
-      vector<Double_t> hcalaa;
-      if(pass<1)
-	hcalaa = cut::hcalaa_data_alt(1,1);
-      else
-	hcalaa = cut::hcalaa_mc(1,1); //verified 2.10.24
-
       // set nucleon defaults by target
       std::string nucleon;
       if( targ.compare("LH2")==0 )
@@ -682,10 +713,11 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	Double_t phNexp = ephi + physconst::pi;
 	Double_t Q2, Q2_uc, W2, W2_uc, nu, thNexp, pNexp, ebeam_o, tau, epsilon;
 	ebeam_o = vars::ebeam_o( ebeam_c, etheta, targ ); //Second energy correction accounting for energy loss leaving target
-       
-	//reconstruct track with angles (better resolution with GEMs)
+
+	//Use reconstructed angles as independent qty (usually preferable given GEM precision at most kinematics)
 	nu = pbeam.E() - pcent;
 	pNexp = vars::pN_expect( nu, nucleon );
+	//thNexp = acos((ebeam-pz[0])/pNexp);
 	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
 	pNhat = vars::pNhat_track( thNexp, phNexp );
 	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
@@ -696,6 +728,15 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	tau = vars::tau( Q2, nucleon );
 	epsilon = vars::epsilon( tau, etheta );
 
+	//Use four-momentum member functions for higher Q2 points (7,11)
+	if(ep_fourvec){
+	  pN = q + ptarg;
+	  pNhat = pN.Vect().Unit();
+	  Q2 = -q.M2();
+	  W2 = pN.M2();
+	  nu = q.E();
+	}
+
 	/////////////////////
 	//W2 elastic cut
 	bool failedW2 = W2>W2max;
@@ -703,6 +744,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  continue;
 
 	npassed++;
+	debug_total++;
 
 	Double_t comp_ev_fraction = (Double_t)npassed/(Double_t)nevent;
 	Double_t ev_fraction = (Double_t)npassed/(Double_t)nevents;
@@ -760,7 +802,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  }
 
 	  //Get score (no position info). Will be sorted later
-	  double cascore = util::assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile);
+	  double cascore = util::assignScore( ce, atime_diff, hcalce[(Int_t)hcalidx], coin_profile );
 	  clone_cluster_score.push_back(cascore);
 	  
 	  //Add energy cluster index and energy to pair
@@ -773,7 +815,7 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	    return a.first > b.first; // Using the first element of pair (energy) for comparison
 	  });
 
-///////////////////////
+	///////////////////////
 	//Multicluster analysis
 
 	// Step 1: Find the highest energy cluster from intime_cluster_indices
@@ -820,8 +862,8 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 	  mclus_y /= mclus_total_energy;
 	}
 
-	if( nclus_multicluster>1 )
-	  cout << "  Multiple correlated clusters = " << nclus_multicluster << " with variables: energy = " << mclus_e << ", x " << mclus_x << ", y " << mclus_y << endl;
+	// if( nclus_multicluster>1 )
+	//   cout << "  Multiple correlated clusters = " << nclus_multicluster << " with variables: energy = " << mclus_e << ", x " << mclus_x << ", y " << mclus_y << endl;
 
 	/////////////////////////
 
@@ -1015,9 +1057,18 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
 									     dysig, 
 									     xyhcalexp[0],
 									     xyhcalexp[1], 
-									     dx0_p,
+									     dx_del,
 									     hcalaa);
+
+	//Fill fiducial quality histograms
+	hexpxy_p->Fill(xyhcalexp[1],xyhcalexp[0]-dx_del);
+	hexpxy_n->Fill(xyhcalexp[1],xyhcalexp[0]);
 	
+	if(fiducial_factors.first>Nsig_fid_qual && fiducial_factors.second>Nsig_fid_qual){
+	  hexpxy_p_fid->Fill(xyhcalexp[1],xyhcalexp[0]-dx_del);
+	  hexpxy_n_fid->Fill(xyhcalexp[1],xyhcalexp[0]);
+	}
+
 	//H-arm active area cut (primary cluster)
 	bool hcalON = cut::hcalaaON(hcalx,hcaly,hcalaa);
 
@@ -1203,6 +1254,88 @@ void parse_barebones( Int_t kine=7, Int_t pass=2, Int_t cluster_method=4, bool v
     }//end run loop
 
   }//end target loop
+
+  // Draw fiducial quality histograms
+
+  // Add TLines to form the rectangle representing the active area
+  TLine *line1a = new TLine(econst::hcalposYi_mc, econst::hcalposXi_mc, econst::hcalposYf_mc, econst::hcalposXi_mc); // bottom line
+  TLine *line2a = new TLine(econst::hcalposYi_mc, econst::hcalposXf_mc, econst::hcalposYf_mc, econst::hcalposXf_mc); // top line
+  TLine *line3a = new TLine(econst::hcalposYi_mc, econst::hcalposXi_mc, econst::hcalposYi_mc, econst::hcalposXf_mc); // left line
+  TLine *line4a = new TLine(econst::hcalposYf_mc, econst::hcalposXi_mc, econst::hcalposYf_mc, econst::hcalposXf_mc); // right line
+  TLine *line1 = new TLine(hcalaa[2], hcalaa[0], hcalaa[3], hcalaa[0]); // bottom line
+  TLine *line2 = new TLine(hcalaa[2], hcalaa[1], hcalaa[3], hcalaa[1]); // top line
+  TLine *line3 = new TLine(hcalaa[2], hcalaa[0], hcalaa[2], hcalaa[1]); // left line
+  TLine *line4 = new TLine(hcalaa[3], hcalaa[0], hcalaa[3], hcalaa[1]); // right line
+
+  // Set the line color to black for visibility
+  line1a->SetLineColor(kBlack);
+  line2a->SetLineColor(kBlack);
+  line3a->SetLineColor(kBlack);
+  line4a->SetLineColor(kBlack);
+  line1->SetLineColor(kGreen);
+  line2->SetLineColor(kGreen);
+  line3->SetLineColor(kGreen);
+  line4->SetLineColor(kGreen);
+
+  // Create a canvas to draw the raw expected pos histograms
+  TCanvas *c1 = new TCanvas("c1", "Raw expected elastic positions", 1200, 600);
+  c1->Divide(2,1);
+  c1->cd(1);
+
+  hexpxy_p->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c1->cd(2);
+  hexpxy_n->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c1->Update();
+
+  c1->Write();
+
+  // Create a canvas to draw the raw expected pos histograms
+  TCanvas *c2 = new TCanvas("c2", Form("%0.1f sigma fid cut expected elastic positions",Nsig_fid_qual), 1200, 600);
+  c2->Divide(2,1);
+  c2->cd(1);
+
+  hexpxy_p_fid->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c2->cd(2);
+  hexpxy_n_fid->Draw("colz");
+  line1a->Draw("same");
+  line2a->Draw("same");
+  line3a->Draw("same");
+  line4a->Draw("same");
+  line1->Draw("same");
+  line2->Draw("same");
+  line3->Draw("same");
+  line4->Draw("same");
+
+  c2->Update();
+
+  c2->Write();
 
   fout->Write();
 

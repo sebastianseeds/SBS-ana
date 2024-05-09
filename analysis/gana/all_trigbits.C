@@ -24,9 +24,11 @@ const double adct_ll = -200.;
 
 // Forward Declarations
 void writeDataToFile(const std::map<int, std::set<int>>& runToTrigBits, int kine);
-
+void writeDataCtsToFile(const std::map<int, std::set<int>>& runToTrigBits,
+			const std::map<int, std::map<int, int>>& runToTrigBitCounts,
+			int kine);
 // Main
-void all_trigbits(int kine = 4) {
+void all_trigbits(int kine = 9) {
   std::vector<std::string> directories;
 
   switch(kine) {
@@ -47,12 +49,10 @@ void all_trigbits(int kine = 4) {
 		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS9/LH2/rootfiles"};
     break;
   case 11:
-    directories = {"/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/rootfiles/part1",
-		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LH2/rootfiles/part1",
-		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/rootfiles/part2",
-		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LH2/rootfiles/part2",
-		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/rootfiles/part3",
-		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LH2/rootfiles/part3"};
+    directories = {"/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/part1/rootfiles",
+		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/part2/rootfiles",
+		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/part3/rootfiles",
+		   "/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LH2/rootfiles"};
     break;
   case 8:
     directories = {"/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS8/LD2/rootfiles/SBS0percent", 
@@ -112,6 +112,7 @@ void all_trigbits(int kine = 4) {
   C->SetBranchAddress("sbs.hcal.atimeblk", &adct);
 
   std::map<int, std::set<int>> runToTrigBits;
+  std::map<int, std::map<int, int>> runToTrigBitCounts;
   std::set<int> uniqueRuns;  // To track unique run numbers
   std::set<int> processedRuns;  // To track processed run numbers
 
@@ -122,14 +123,19 @@ void all_trigbits(int kine = 4) {
   std::cout << "Looping over entries in chain.." << std::endl;
   Long64_t nentries = C->GetEntries();
   for (Long64_t i = 0; i < nentries; ++i) {
+
+    std::cout << "Processing event " << i << "/" << nentries << "\r";
+    std::cout.flush();
+
     C->GetEntry(i);
 
     runToTrigBits[runNumber].insert(trigBits);
     uniqueRuns.insert(runNumber);  // Track unique run numbers
+    runToTrigBitCounts[runNumber][trigBits]++; // Increment the count for this trigbit
 
     // Check if the run number has been printed before
     if (processedRuns.find(runNumber) == processedRuns.end()) {
-      std::cout << "Processing New Run Number: " << runNumber << std::endl;
+      std::cout << std::endl << "Processing New Run Number: " << runNumber << std::endl;
       std::cout.flush();
       processedRuns.insert(runNumber);
     }
@@ -203,6 +209,7 @@ void all_trigbits(int kine = 4) {
 
   // Write a text file to record these trigbits as well
   writeDataToFile(runToTrigBits,kine);
+  writeDataCtsToFile(runToTrigBits,runToTrigBitCounts,kine);
 
   // Display the graphs on a canvas
   TCanvas* c2 = new TCanvas("c2", "TDC and ADCT Analysis", 1600, 800);
@@ -338,4 +345,41 @@ void writeDataToFile(const std::map<int, std::set<int>>& runToTrigBits, int kine
   }
 
   outFile.close();  // Close the file
+}
+
+void writeDataCtsToFile(const std::map<int, std::set<int>>& runToTrigBits,
+			const std::map<int, std::map<int, int>>& runToTrigBitCounts,
+			int kine) {
+  std::ofstream outFile(Form("trigbits_per_run/trigger_bits_cts_by_run_sbs%d.txt", kine)); // Create and open the output file
+
+  if (!outFile.is_open()) {
+    std::cerr << "Failed to open the file for writing." << std::endl;
+    return;
+  }
+
+  outFile << "## <run number>, <fEvtHdr.fTrigBits>, <N Events>" << std::endl;
+
+  // Iterate over each pair in the runToTrigBits map
+  for (const auto& pair : runToTrigBits) {
+    int runNumber = pair.first;
+    const std::set<int>& trigBits = pair.second;
+
+    // Check if we have the count data for this run
+    auto countIt = runToTrigBitCounts.find(runNumber);
+    if (countIt != runToTrigBitCounts.end()) {
+      // We have counts for this run, write them to the file
+      const std::map<int, int>& trigBitCounts = countIt->second;
+
+      for (int bit : trigBits) {
+	outFile << runNumber << ", " << bit << ", " << trigBitCounts.at(bit) << std::endl; // Write run number, trig bit, and number of events
+      }
+    } else {
+      // No counts found for this run, could log an error or write out just the run number and trig bits
+      for (int bit : trigBits) {
+	outFile << runNumber << ", " << bit << ", " << "N/A" << std::endl; // Write run number, trig bit, and N/A for the counts
+      }
+    }
+  }
+
+  outFile.close(); // Close the file
 }

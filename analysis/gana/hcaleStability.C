@@ -1,0 +1,1062 @@
+//sseeds 4.22.24
+
+#include <TFile.h>
+#include <TH1D.h>
+#include <TH2D.h>
+#include <TF1.h>
+#include <TKey.h>
+#include <TClass.h>
+#include <iostream>
+#include <vector>
+#include <string>
+#include <TLatex.h>
+#include <algorithm>
+#include "../../include/gmn.h"
+#include "../../src/jsonmgr.C"
+
+//fitranges
+//sbs9 70p: -1.8 to 0.7
+//sbs8 50p: -1.4 to 0.7
+//sbs8 70p: -1.8 to 0.7
+//sbs8 100p: -2.1 to 0.7
+//sbs4 30p: -1.7 to 0.7, shiftX=0.0, neutronshift=-0.05
+//sbs4 50p: -2.1 to 0.7, shiftX=0.05, neutronshift=0.0
+//sbs7 85p: -1.4 to 0.5
+
+//Fit range override options
+double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
+double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
+
+//Plot range option shared by all fits
+double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
+double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
+
+double xrange_min_hcale = 0.;
+double xrange_max_hcale = 0.8;
+
+//Fit options
+std::string fitopt = "RMQ0";
+//std::string fitopt = "RBMQ0"; //R:setrange,B:predefinedTF1,M:improvefit,Q:quiet,0:nofitline
+//std::string fitopt = "RLQ0"; //L:loglikelihood for counts
+//std::string fitopt = "RLEMQ0"; //E:bettererrorest
+//std::string fitopt = "RWLEMQ0"; //WL:weightedloglikelihood for weighted counts (N/A here)
+//std::string fitopt = "RPEMQ0"; //P:pearsonloglikelihood for expected error (N/A here)
+
+//fit min entries
+int minEvents = 500;
+
+//Total fits using Interpolate with elastic signal histo and 4th order poly fit to bg
+TH1D *hdx_p;
+TH1D *hdx_n;
+TH1D *hdx_inel;
+TH1D *hdx_dyanti;
+TH1D *hdx_coinanti;
+
+Double_t fitFull(double *x, double *par){
+  double dx = x[0];
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double proton = proton_scale * hdx_p->Interpolate(dx);
+  double neutron = neutron_scale * hdx_n->Interpolate(dx);
+  return proton + neutron + fits::g_p4fit(x,&par[2]);
+}
+
+Double_t fitFullInel(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double bg_scale = par[2];
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0]);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0]);
+  double bg = bg_scale * hdx_inel->Interpolate(x[0]);
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + bg;
+}
+
+Double_t fitFull_nobg(double *x, double *par){
+  double dx = x[0];
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double proton = proton_scale * hdx_p->Interpolate(dx);
+  double neutron = neutron_scale * hdx_n->Interpolate(dx);
+  return proton + neutron;
+}
+
+Double_t fitFullShift(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + fits::g_p4fit(x, &par[4]);
+}
+
+Double_t fitFullShift_p2(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + fits::g_p2fit_cd(x, &par[4]);
+}
+
+Double_t fitFullShiftInel(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+  double bg_scale = par[4];
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  double bg = bg_scale * hdx_inel->Interpolate(x[0] - dx_shift_n);
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + bg;
+}
+
+Double_t fitFullShiftDyAnti(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+  double bg_scale = par[4];
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  double bg = bg_scale * hdx_dyanti->Interpolate(x[0]); //no shift for data BG
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + bg;
+}
+
+Double_t fitFullShiftCoinAnti(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+  double bg_scale = par[4];
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  double bg = bg_scale * hdx_coinanti->Interpolate(x[0]); //no shift for data BG
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + bg;
+}
+
+Double_t fitFullShift_nobg(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  
+  return proton + neutron;
+}
+
+// Forward declarations
+void handleError(TFile *file1, TFile *file2, std::string marker);
+void handleError(TFile *file1, std::string marker);
+std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+
+//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+void hcaleStability(int kine=8, 
+		    int mag=100, 
+		    int pass=2, 
+		    int N=12,
+		    double sliceCutMin=0.03,
+		    double sliceCutMax=0.08,
+		    std::string BG="pol2",
+		    bool backwards=false,
+		    bool bestclus=true, 
+		    bool thin=true,
+		    bool wide=false,
+		    bool effz=true,
+		    bool alt = true) {
+  //set draw params
+  gStyle->SetPalette(55);
+  gStyle->SetCanvasPreferGL(kTRUE);
+  gStyle->SetOptFit(0);
+  gStyle->SetOptStat(0);
+  gStyle->SetEndErrorSize(0);
+
+  //load json file
+  JSONManager *jmgr = new JSONManager("../../config/syst.json");
+
+  //Get tight elastic cuts
+  std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+
+  cout << "Loaded tight cuts: " << globalcuts << endl;
+
+  std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
+
+  std::cout << "Parsed cuts: " << std::endl;
+
+  //Get tight elastic cut strings and limits
+  std::string branches = jmgr->GetValueFromKey_str( Form("post_branches_p%d",pass) );
+  int hbins = jmgr->GetValueFromSubKey<int>( "hbins", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
+
+  vector<double> cut_lims;
+  vector<double> llims;
+  vector<double> ulims;
+
+  jmgr->GetVectorFromSubKey<double>(Form("cut_limits_p%d",pass),Form("sbs%d_%d",kine,mag),cut_lims);  
+  
+  for( size_t i=0; i<cut_lims.size(); ++i ){
+    if( i%2==0 )
+      llims.push_back(cut_lims[i]);
+    else
+      ulims.push_back(cut_lims[i]);
+  }
+
+  std::string bestclus_word = "";
+  if(bestclus)
+    bestclus_word = "_bc";
+
+  std::string thin_word = "";
+  if(thin)
+    thin_word = "_thin";
+
+  std::string alt_word = "";
+  if(alt)
+    alt_word = "_alt";
+
+  std::string wide_word = "";
+  if(wide)
+    wide_word = "_widecut";
+
+  std::string effz_word = "";
+  if(effz)
+    effz_word = "_effz";
+
+  std::string basePath = "/lustre19/expphy/volatile/halla/sbs/seeds";
+  std::string finPath = Form("%s/gmn_analysis/dx_correlations%s_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), bestclus_word.c_str(), kine, mag, pass, thin_word.c_str(), wide_word.c_str(), effz_word.c_str());
+  std::string fmcinPath = Form("%s/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s%s%s.root", basePath.c_str(), kine, mag, pass, thin_word.c_str(), alt_word.c_str(), wide_word.c_str(), effz_word.c_str());
+  std::string foutPath = Form("%s/gmn_analysis/hcalestab_gmn_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), kine, mag, pass, bestclus_word.c_str(), wide_word.c_str(), effz_word.c_str());
+
+  TFile* inputFile = new TFile(finPath.c_str());
+  if (!inputFile || inputFile->IsZombie()) 
+    handleError(inputFile,"inputFile");
+
+  //Get all histograms
+  TH1D *hdx_data = dynamic_cast<TH1D*>(inputFile->Get("hdx_allcut"));
+  hdx_data->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  std::string hcalehist_s = "hist_hcale";
+  if(bestclus)
+    hcalehist_s += "_bc";
+
+  TH2D *hdx_vs_hcale_data = dynamic_cast<TH2D*>(inputFile->Get(hcalehist_s.c_str()));
+  hdx_vs_hcale_data->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  int hdx_vs_hcale_data_N = hdx_vs_hcale_data->GetEntries();
+  std::string hcaleCuts = hdx_vs_hcale_data->GetTitle();
+  cout << endl << "Opened dx vs hcal E with cuts: " << hcaleCuts << endl << endl;
+
+  hdx_dyanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_dyanti"));
+  hdx_dyanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  hdx_coinanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_coinanti"));
+  hdx_coinanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  if (!hdx_data || !hdx_dyanti || !hdx_coinanti) 
+    handleError(inputFile,"hdx_data");
+
+  TFile* inputFileMC = new TFile(fmcinPath.c_str(), "READ");
+  if (!inputFileMC || inputFileMC->IsZombie())
+    handleError(inputFile,inputFileMC,"inputFileMC");
+
+  //fix the interpolate functions
+  hdx_p = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_p"));
+  hdx_p->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  hdx_n = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_n"));
+  hdx_n->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  TH2D *hdx_vs_hcale_n = dynamic_cast<TH2D*>(inputFileMC->Get("hist_hcale_n"));
+  hdx_vs_hcale_n->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  int hdx_vs_hcale_n_N = hdx_vs_hcale_n->GetEntries();
+
+  TH2D *hdx_vs_hcale_p = dynamic_cast<TH2D*>(inputFileMC->Get("hist_hcale_p"));
+  hdx_vs_hcale_p->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  int hdx_vs_hcale_p_N = hdx_vs_hcale_p->GetEntries();
+
+  hdx_inel = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_inel"));
+  hdx_inel->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  hdx_inel->Scale(10e33); //account for lack of overall normalization from g4sbs generator
+  if (!hdx_p || !hdx_n || !hdx_inel) 
+    handleError(inputFile,inputFileMC,"hdx");
+
+  TFile* outputFile = new TFile(foutPath.c_str(), "RECREATE");
+
+  TCanvas *canvas = new TCanvas("canvas", "Data and MC Histograms", 1800, 1200);
+  canvas->Divide(3, 3);  // Adjust the grid size according to the number of histograms
+
+  // Pad 1: hdx_data
+  canvas->cd(1);
+  hdx_data->Draw();
+
+  // Pad 2: hdx_vs_hcale_data
+  canvas->cd(2);
+  hdx_vs_hcale_data->Draw("COLZ");
+
+  // Pad 4: hdx_dyanti
+  canvas->cd(3);
+  hdx_dyanti->Draw();
+
+  // Pad 5: hdx_coinanti
+  canvas->cd(4);
+  hdx_coinanti->Draw();
+
+  // Pad 6: hdx_p
+  canvas->cd(5);
+  hdx_p->Draw();
+
+  // Pad 7: hdx_n
+  canvas->cd(6);
+  hdx_n->Draw();
+
+  // Pad 8: hdx_vs_hcale_n
+  canvas->cd(7);
+  hdx_vs_hcale_n->Draw("COLZ");
+
+  // Pad 10: hdx_vs_hcale_p
+  canvas->cd(8);
+  hdx_vs_hcale_p->Draw("COLZ");
+
+  // Pad 12: hdx_inel
+  canvas->cd(9);
+  hdx_inel->Draw();
+
+  // Update the canvas to reflect the drawings
+  canvas->Update();
+
+  // Setup report struct
+  struct ReportData {
+    TH1D* sliceHistogram = nullptr;
+    TH1D* slicePHistogram = nullptr;
+    TH1D* sliceNHistogram = nullptr;
+    double fitParams[7] = {}; // Array for fit parameters
+    double fitErrors[7] = {}; // Array for fit errors
+    double winLow = 0;
+    double winHigh = 0;
+    double nev = 0;
+    double mcpnev = 0;
+    double mcnnev = 0;
+    double scaleratio = 0;
+    double scaleratioerr = 0;
+    double chisqrndf = 0;
+    std::string type;
+
+    // Constructor for easier initialization (optional)
+    ReportData(TH1D* hist = nullptr, TH1D* histp = nullptr, TH1D* histn = nullptr, double wl = 0, double wh = 0, double nv = 0, double mvp = 0, double mvn = 0, double sr = 0, double se = 0, double cs = 0, std::string t = "")
+      : sliceHistogram(hist), slicePHistogram(histp), sliceNHistogram(histn), winLow(wl), winHigh(wh), nev(nv), mcpnev(mvp), mcnnev(mvn), scaleratio(sr), scaleratioerr(se), chisqrndf(cs), type(t) {
+      // Initialize fitParams and fitErrors with default values if needed
+      for (int i = 0; i < 7; ++i) {
+    	fitParams[i] = 0.0;
+    	fitErrors[i] = 0.0;
+      }
+    }
+  };
+
+  std::vector<ReportData> hcalereports;
+  hcalereports.resize(N);
+
+
+  // Loop over dx vs fiducial x
+  hdx_vs_hcale_data->GetXaxis()->SetRangeUser(xrange_min_hcale, xrange_max_hcale);
+  hdx_vs_hcale_data->GetYaxis()->SetRangeUser(hcalfit_l, hcalfit_h);
+
+  // Assuming current_llim and current_ulim are set to the desired x-axis range
+  int xbinLow_hcale = hdx_vs_hcale_data->GetXaxis()->FindBin(xrange_min_hcale);
+  int xbinWideLow_hcale = hdx_vs_hcale_data->GetXaxis()->FindBin(0.5); //Set beneath the cut to map the region
+  int xbinHigh_hcale = hdx_vs_hcale_data->GetXaxis()->FindBin(xrange_max_hcale);
+  int xbinCutMin_hcale = hdx_vs_hcale_data->GetXaxis()->FindBin(sliceCutMin);
+  int xbinCutMax_hcale = hdx_vs_hcale_data->GetXaxis()->FindBin(sliceCutMax);
+  if(sliceCutMax==0.)
+    xbinCutMax_hcale = xbinHigh_hcale;
+  int xbinBegin;
+
+  //cout << sliceCutMax << " " << xbinCutMax_hcale << " " << xrange_max_hcale << " " << xbinHigh_hcale << endl;
+
+  // Bins per range
+  int xbinRanges_hcale;
+  if(sliceCutMax>0 && sliceCutMin==0){
+    int modrange = xbinCutMax_hcale - xbinLow_hcale;
+    xbinBegin = xbinLow_hcale;
+    if(modrange<N)
+      N=modrange;
+    xbinRanges_hcale = modrange / N;
+  }else if(sliceCutMax==0 && sliceCutMin>0){
+    int modrange = xbinHigh_hcale - xbinCutMin_hcale;
+    xbinBegin = xbinCutMin_hcale;
+    if(modrange<N)
+      N=modrange;
+    xbinRanges_hcale = modrange / N;
+  }else if(sliceCutMax>0 && sliceCutMin>0){
+    int modrange = xbinCutMax_hcale - xbinCutMin_hcale;
+    xbinBegin = xbinCutMin_hcale;
+    if(modrange<N)
+      N=modrange;
+    xbinRanges_hcale = modrange / N;
+  }else{
+    int modrange = xbinHigh_hcale - xbinLow_hcale;
+    xbinBegin = xbinLow_hcale;
+    if(modrange<N)
+      N=modrange;
+    xbinRanges_hcale = modrange / N;
+  }
+
+  cout << "Bins in x per cut: " << xbinRanges_hcale << " on N = " << N << " cuts." << endl;
+
+  // Project the TH2D onto a TH1D for the specified x-axis range
+  TH1D* fullProjY_hcale = hdx_vs_hcale_data->ProjectionY("_py", xbinLow_hcale, xbinHigh_hcale);
+  TH1D* wideProjY_hcale = hdx_vs_hcale_data->ProjectionY("_wpy", xbinWideLow_hcale, xbinHigh_hcale);
+
+  // Use Integral() to get the total number of events within the specified range
+  int totalEvents_hcale = fullProjY_hcale->Integral();
+
+  std::pair<double,double> wideQualp2;
+
+  auto widep2par_vector = fitAndFineFit(wideProjY_hcale, "sliceFitWide", "fitFullShift_p2", 7, hcalfit_l, hcalfit_h, wideQualp2, 0, 0, fitopt.c_str());
+
+  double fixed_pshift = widep2par_vector[2].first;
+  double fixed_nshift = widep2par_vector[3].first;
+
+  cout << "Fit over full range of hcal E yield shifts p:n -> " << fixed_pshift << ":" << fixed_nshift << endl;
+
+  vector<double> cutx_hcale;
+
+  cout << "Looping over hcal E slices.." << endl;
+  for (int i = 0; i < N; ++i) {
+
+    int binStart;
+    int binEnd;
+
+    if(backwards){
+      binStart = xbinBegin;
+      binEnd = xbinHigh_hcale - i*xbinRanges_hcale;
+      cutx_hcale.push_back(hdx_vs_hcale_data->GetXaxis()->GetBinLowEdge(binEnd));
+
+    }else{
+      binStart = xbinBegin + i*xbinRanges_hcale;
+      binEnd = xbinHigh_hcale;
+      cutx_hcale.push_back(hdx_vs_hcale_data->GetXaxis()->GetBinLowEdge(binStart));
+
+    }
+
+    //cout << "Fiducial cut at x=" << cutx_hcale[i] << endl;
+
+    cout << "Cut from " << hdx_vs_hcale_data->GetXaxis()->GetBinLowEdge(binStart) << " to " << hdx_vs_hcale_data->GetXaxis()->GetBinLowEdge(binEnd) << endl;
+
+    //Get the data slices
+    TH1D *hdx_slice = hdx_vs_hcale_data->ProjectionY(Form("hdx_hcale_slice_%d", i+1), binStart, binEnd);
+    TH1D *dx_hcale_slice = hdx_vs_hcale_data->ProjectionY(Form("dxfidcut_%d", i+1), binStart, binEnd);
+
+    //Get the MC slices
+    TH1D *dx_hcale_p_slice = hdx_vs_hcale_p->ProjectionY(Form("dxfidcut_p_%d", i+1), binStart, binEnd);
+    TH1D *dx_hcale_n_slice = hdx_vs_hcale_n->ProjectionY(Form("dxfidcut_n_%d", i+1), binStart, binEnd);
+    hdx_p = hdx_vs_hcale_p->ProjectionY(Form("hdx_hcale_slice_p_%d", i+1), binStart, binEnd);
+    hdx_n = hdx_vs_hcale_n->ProjectionY(Form("hdx_hcale_slice_n_%d", i+1), binStart, binEnd);
+
+    //Get total entries on slice
+    int slice_nEntries = dx_hcale_slice->Integral();
+    int slicemcp_nEntries = dx_hcale_p_slice->Integral();
+    int slicemcn_nEntries = dx_hcale_n_slice->Integral();
+
+    //Rsf extraction using second order poly fit
+    std::pair<double,double> sliceQualp2;
+
+    auto slicep2par_vector = fitAndFineFit(hdx_slice, "sliceFit", "fitFullShift_p2", 7, hcalfit_l, hcalfit_h, sliceQualp2, fixed_pshift, fixed_nshift, fitopt.c_str());
+
+    double csndf = sliceQualp2.first/sliceQualp2.second;
+
+    double scaleratio = slicep2par_vector[1].first / slicep2par_vector[0].first;
+    double scaleratio_err = sqrt(pow(slicep2par_vector[1].second/slicep2par_vector[1].first, 2) + pow(slicep2par_vector[0].second/slicep2par_vector[0].first, 2)) * scaleratio;
+
+    double xshift_p = slicep2par_vector[2].first;
+    double xshift_n = slicep2par_vector[3].first;
+
+    //Write fit results to struct
+    hcalereports[i] = ReportData( dx_hcale_slice, 
+				 dx_hcale_p_slice,
+				 dx_hcale_n_slice,
+				 cutx_hcale[i],
+				 xrange_max_hcale,
+				 slice_nEntries,
+				 slicemcp_nEntries,
+				 slicemcn_nEntries,
+				 scaleratio,
+				 scaleratio_err,
+				 csndf,
+				 "dx vs hcale" );
+
+    //cout << endl << endl << "Writing out all dx vs fid fit pars: " << endl;
+    for (int par=0; par<7; ++par){
+      hcalereports[i].fitParams[par] = slicep2par_vector[par].first;
+      hcalereports[i].fitErrors[par] = slicep2par_vector[par].second;
+
+      //cout << "p" << par << " " << dxreports[i].fitParams[par] << " ";
+      
+    }
+    
+    //cout << endl << endl;
+
+  }
+ 
+  //Write out the dx histograms
+  
+  //get a clone for displays
+  TH2D* clonedHcale = (TH2D*)hdx_vs_hcale_data->Clone("clonedHcale");
+  double hcale_ymin = hcalfit_l;
+  double hcale_ymax = hcalfit_h;
+
+  TCanvas* c0 = new TCanvas("c0", "Slice Locations", 800,600);
+  c0->cd();
+  clonedHcale->Draw("colz");
+
+  for (auto& cut : cutx_hcale){
+    TLine* line = new TLine(cut, hcale_ymin, cut, hcale_ymax);
+    line->SetLineWidth(2);
+    line->SetLineColor(kRed); // Set line color to red
+    line->Draw();
+  }
+  c0->Update();
+
+  //set up vectors for later tgrapherrors
+  std::vector<double> Rsf_vec_hcale;
+  std::vector<double> Rsferr_vec_hcale;
+  std::vector<double> xval_vec_hcale;
+  std::vector<double> nev_vec_hcale;
+
+  TCanvas* canvasSlices_hcale = new TCanvas("dx slices over hcal E", "dx slices over hcal E", 1800, 1200);
+  
+  // Assuming N is the total number of histograms to be plotted on the canvas
+  int optimalRows_hcale = 1;
+  int optimalCols_hcale = 1;
+  
+  // Find the nearest square root for N to determine the grid size
+  int sqrtN_hcale = (int)std::sqrt(N);
+  for (int cols = sqrtN_hcale; cols <= N; ++cols) {
+    if (N % cols == 0) { // If cols is a factor of N
+      optimalCols_hcale = cols;
+      optimalRows_hcale = N / cols;
+      break; // Found the optimal layout
+    }
+  }
+  
+  canvasSlices_hcale->Divide(optimalCols_hcale, optimalRows_hcale); // Adjust the division based on reportSamples or desired layout
+  
+  TF1* bgfit_hcale[N];
+  
+  // loop over slices
+  for (int i = 0; i < N; ++i) {
+    if (hcalereports[i].sliceHistogram == nullptr)
+      continue;
+    
+    canvasSlices_hcale->cd(i + 1);
+    
+    //catch bad fit ranges and do not write
+    std::string tempTitle = hcalereports[i].sliceHistogram->GetTitle();      
+    if( tempTitle.compare("Null Histogram")==0 )
+      continue;
+    
+    //get mc nucleon parameters
+    double p_scale = hcalereports[i].fitParams[0];
+    double n_scale = hcalereports[i].fitParams[1];
+    double p_shift = hcalereports[i].fitParams[2];
+    double n_shift = hcalereports[i].fitParams[3];
+    
+    double MCev = hcalereports[i].mcpnev + hcalereports[i].mcnnev;
+    
+    // Simplify the histogram title
+    hcalereports[i].sliceHistogram->SetTitle(Form("%s %0.4f to %0.4f", hcalereports[0].type.c_str(), hcalereports[i].winLow, hcalereports[i].winHigh));
+    hcalereports[i].sliceHistogram->SetLineWidth(1);
+    hcalereports[i].sliceHistogram->Draw();
+    
+    // Retrieve the number of bins, and the x-axis limits of the slice histogram
+    int nbins = hcalereports[i].sliceHistogram->GetNbinsX();
+    double x_low = hcalereports[i].sliceHistogram->GetXaxis()->GetXmin();
+    double x_high = hcalereports[i].sliceHistogram->GetXaxis()->GetXmax();
+    
+    //get scale ratio, error, and midpoint for slice
+    double ratio = hcalereports[i].scaleratio;
+    double error = hcalereports[i].scaleratioerr;
+    double xval = hcalereports[i].winLow;
+    double nev = (totalEvents_hcale - hcalereports[i].nev)/totalEvents_hcale*100; //each cut removes data
+    
+    //fill vectors for later tgrapherrors
+    Rsf_vec_hcale.push_back(ratio);
+    Rsferr_vec_hcale.push_back(error);
+    xval_vec_hcale.push_back(xval);
+    nev_vec_hcale.push_back(nev); //Total remaining stats
+
+    // Draw the corresponding MC histograms
+    hdx_p = hcalereports[i].slicePHistogram; //update the MC slice for the later overall fit
+    TH1D *pMCslice = util::shiftHistogramX(hcalereports[i].slicePHistogram, p_shift);
+    pMCslice->Scale(p_scale);
+    
+    hdx_n = hcalereports[i].sliceNHistogram; //update the MC slice for the later overall fit
+    TH1D *nMCslice = util::shiftHistogramX(hcalereports[i].sliceNHistogram, n_shift);
+    nMCslice->Scale(n_scale);
+    
+    pMCslice->Draw("same");
+    nMCslice->Draw("same");
+
+    //cout << "bin " << i << " pshift " << p_shift << " nshift " << n_shift << endl;
+    
+    // Create a legend and add the remaining parameters
+    TLegend* legend = new TLegend(0.49, 0.59, 0.89, 0.89); // Adjust the position as needed
+    legend->SetMargin(0.1);
+    legend->AddEntry((TObject*)0, Form("Nev: %0.0f", hcalereports[i].nev), "");
+    legend->AddEntry((TObject*)0, Form("MCev: %0.0f", MCev), "");
+    legend->AddEntry((TObject*)0, Form("Ratio: %0.2f", ratio), "");
+    legend->AddEntry((TObject*)0, Form("Shift p/n: %0.2f/%0.2f", p_shift, n_shift), "");
+    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.2f", hcalereports[i].chisqrndf), "");
+    legend->Draw();
+    
+    bgfit_hcale[i] = new TF1(Form("bgfit_hcale_%d",i),fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);
+    //cout << "Background fit parameter" << endl;
+    for (int j=0; j<3; ++j){
+      bgfit_hcale[i]->SetParameter(j,hcalereports[i].fitParams[j+4]);
+      //cout << "   " << j << " = " << dxreports[i].fitParams[j+4] << endl;
+    }
+    
+    bgfit_hcale[i]->SetLineWidth(2);
+    bgfit_hcale[i]->Draw("same");
+    
+    TF1 *mcfit = new TF1(Form("mcfit_%d", i), fitFullShift_p2, hcalfit_l, hcalfit_h, 7);
+    mcfit->SetParameters(hcalereports[i].fitParams);
+    // Can set the error here, might be relevant later
+    // mcfit->SetParErrors(dxreports[i].fitErrors);
+    
+    // Create a new TH1D or fill an existing one with the values from TF1
+    TH1D* hFromTF1_hcale = new TH1D(Form("hFromTF1_hcale_%d", i), "Histogram from fid x TF1", nbins, x_low, x_high);
+    
+    for (int bin = 1; bin <= nbins; ++bin) {
+      double binCenter = hcalereports[i].sliceHistogram->GetBinCenter(bin);
+      double funcValue = mcfit->Eval(binCenter);
+      hFromTF1_hcale->SetBinContent(bin, funcValue);
+    }
+    
+    int transparentOrange = TColor::GetColorTransparent(kOrange-4, 0.3);
+    hFromTF1_hcale->SetLineColor(kOrange-4);
+    hFromTF1_hcale->SetLineWidth(0);
+    hFromTF1_hcale->SetFillColor(transparentOrange);
+    hFromTF1_hcale->SetFillStyle(1001);
+    hFromTF1_hcale->Draw("SAME LF2");
+    
+    canvasSlices_hcale->Update();
+  }//endloop over N (slices)
+  
+  canvasSlices_hcale->Write();
+  
+  //Create Graphs
+  int numValidPoints_hcale = Rsf_vec_hcale.size();
+
+  TGraphErrors* graphErrors_hcale = new TGraphErrors(numValidPoints_hcale);
+  for (int i = 0; i < numValidPoints_hcale; ++i) {
+    graphErrors_hcale->SetPoint(i, xval_vec_hcale[i], Rsf_vec_hcale[i]);
+    graphErrors_hcale->SetPointError(i, 0, Rsferr_vec_hcale[i]);
+  }
+  graphErrors_hcale->SetMarkerStyle(21);
+  graphErrors_hcale->SetMarkerColor(kOrange-4);
+  graphErrors_hcale->SetLineColor(kOrange-4);
+  graphErrors_hcale->SetTitle("R_{sf} vs. HCal E_{cut}; GeV; R_{sf}");
+
+  TGraph* graph_nev = new TGraph(numValidPoints_hcale);
+  for (int i = 0; i < numValidPoints_hcale; ++i) {
+    graph_nev->SetPoint(i, xval_vec_hcale[i], nev_vec_hcale[i]);
+  }
+  graph_nev->SetMarkerStyle(20);
+  graph_nev->SetMarkerColor(kGreen-5);
+  graph_nev->SetLineColor(kGreen-5);
+  graph_nev->SetTitle("Nev Left in Wide Cut vs. HCal E_{cut}; GeV; Nev");
+
+  // // Create a canvas and divide it into 2 sub-pads
+  // TCanvas* c1 = new TCanvas("c1", "Stacked Graphs", 800, 600);
+  // c1->Divide(1, 2); // Divide canvas into 1 column and 2 rows
+
+  // // Draw the first graph in the first pad
+  // c1->cd(1);
+  // graphErrors_hcale->Draw("AP");
+
+  // // Draw the second graph in the second pad
+  // c1->cd(2);
+  // graph_nev->Draw("AP");
+
+  // // Set the Y-axis of the second graph to start at zero
+  // Double_t ymax = 1.1 * *std::max_element(nev_vec_hcale.begin(), nev_vec_hcale.end());
+  // graph_nev->GetHistogram()->SetMinimum(0); // Set the minimum y-value to zero
+  // graph_nev->GetHistogram()->SetMaximum(ymax); // Adjust the maximum y-value
+
+  // // Update the canvas
+  // c1->Update();
+
+  //Create overlayed tgraph object
+  gROOT->Reset();
+  TCanvas *c2 = new TCanvas("c2","",800,500);
+  TPad *pad = new TPad("pad","",0,0,1,1);
+  //pad->SetFillColor(42);
+  pad->SetGrid();
+  pad->Draw();
+  pad->cd();
+
+  pad->GetFrame()->SetBorderSize(12);
+
+  graphErrors_hcale->GetYaxis()->SetLabelSize(0.04);
+  graphErrors_hcale->GetYaxis()->SetLabelFont(42);
+  graphErrors_hcale->GetYaxis()->SetTitleOffset(1.0);
+  graphErrors_hcale->GetYaxis()->SetTitleSize(0.04);
+  graphErrors_hcale->GetYaxis()->SetTitleFont(42); 
+
+  graphErrors_hcale->Draw("AP");
+
+  //create a transparent pad drawn on top of the main pad
+  c2->cd();
+  TPad *overlay = new TPad("overlay","",0,0,1,1);
+  overlay->SetFillStyle(4000);
+  overlay->SetFillColor(0);
+  overlay->SetFrameFillStyle(4000);
+  overlay->Draw();
+  overlay->cd();
+
+  graph_nev->GetHistogram()->GetYaxis()->SetLabelOffset(999);
+  graph_nev->GetHistogram()->GetYaxis()->SetTickLength(0);
+  graph_nev->GetHistogram()->GetYaxis()->SetTitleOffset(999);
+  graph_nev->SetTitle("");
+
+  graph_nev->Draw("AP");
+
+  Double_t xmin = graphErrors_hcale->GetXaxis()->GetXmin();
+  Double_t xmax = graphErrors_hcale->GetXaxis()->GetXmax();
+
+  Double_t ymin = graph_nev->GetHistogram()->GetMinimum();
+  Double_t ymax_nev = graph_nev->GetHistogram()->GetMaximum();
+
+  //Draw an axis on the right side
+  TGaxis *axis = new TGaxis(xmax, ymin, xmax, ymax_nev, ymin, ymax_nev, 510,"+L");
+  axis->SetTitle("ev cut (%)");
+  axis->SetTitleColor(kGreen-5);  
+  axis->SetTitleOffset(1.0);  
+  axis->SetLineColor(kGreen-5);
+  axis->SetLabelColor(kGreen-5);
+  axis->Draw();
+
+  // Add a legend
+  TLegend *leg = new TLegend(0.71, 0.45, 0.86, 0.55);
+  leg->AddEntry(graphErrors_hcale, "R_{sf}", "p");
+  leg->AddEntry(graph_nev, "N events", "p");
+  leg->AddEntry((TObject*)0, Form("ev tot: %d", totalEvents_hcale), "");
+  leg->Draw();
+
+  std::string displayname = "Cuts on dx vs hcale (all cuts)";
+  util::parseAndDisplayCuts(displayname.c_str(), hcaleCuts.c_str());
+
+
+  /*
+  // Now, let's create and draw TGraphErrors for each cut
+  // The number of valid points for this cut might be different from N if some were skipped
+  int numValidPoints_hcale = Rsf_vec_hcale.size();
+  
+  // Creating a TGraphErrors for the current cut
+  TGraphErrors* graphErrors_hcale = new TGraphErrors(numValidPoints_hcale);
+  graphErrors_hcale->SetTitle("Ratio vs fiducial x cut; N prot sig;R_{sf}");
+			
+  // Filling the TGraphErrors with data
+  for (int i = 0; i < numValidPoints_hcale; ++i) {
+    graphErrors_hcale->SetPoint(i, xval_vec_hcale[i], Rsf_vec_hcale[i]);
+    graphErrors_hcale->SetPointError(i, 0, Rsferr_vec_hcale[i]); // Assuming no error in x
+  }
+
+  // Set some graphical attributes
+  graphErrors_hcale->SetMarkerStyle(21);
+  graphErrors_hcale->SetMarkerColor(kOrange);
+  graphErrors_hcale->SetLineColor(kOrange);
+
+  // Drawing the graph
+  TCanvas* graphCanvas_hcale = new TCanvas("GraphCanvas_hcale", "Ratio vs fiducial x cut", 1600, 600);
+  graphCanvas_hcale->cd();
+
+  // double minY = 0.7; // Minimum y-axis value
+  // double maxY = 1.2; // Maximum y-axis value
+  // graphErrors->SetMinimum(minY);
+  // graphErrors->SetMaximum(maxY);
+
+  graphErrors_hcale->Draw("AP"); // Draw with markers and a line connecting points
+
+  // Save or Write the canvas as needed
+  // graphCanvas->SaveAs(Form("TGraphErrors_Cut_%d.png", r)); // Save to a file
+  graphCanvas_hcale->Write(); // Or write to an open ROOT file
+
+  //TCanvas *c1; util::parseAndDisplayCuts(c1,hcaleCuts.c_str());
+
+  std::string displayname = "Cuts on dx vs hcale (all slices)";
+  util::parseAndDisplayCuts(displayname.c_str(), hcaleCuts.c_str());
+
+*/
+
+/*
+  //Write out the fidy histograms
+
+  //set up vectors for later tgrapherrors
+  std::vector<double> Rsf_vec_fidy;
+  std::vector<double> Rsferr_vec_fidy;
+  std::vector<double> xval_vec_fidy;
+
+  TCanvas* canvasSlices_fidy = new TCanvas("dx slices over fiducial y", "dx slices over fiducial y", 1800, 1200);
+
+  // Assuming N is the total number of histograms to be plotted on the canvas
+  int optimalRows_fidy = 1;
+  int optimalCols_fidy = 1;
+
+  // Find the nearest square root for N to determine the grid size
+  int sqrtN_fidy = (int)std::sqrt(N);
+  for (int cols = sqrtN_fidy; cols <= N; ++cols) {
+    if (N % cols == 0) { // If cols is a factor of N
+      optimalCols_fidy = cols;
+      optimalRows_fidy = N / cols;
+      break; // Found the optimal layout
+    }
+  }
+
+  canvasSlices_fidy->Divide(optimalCols_fidy, optimalRows_fidy); // Adjust the division based on reportSamples or desired layout
+
+  TF1* bgfit_fidy[N];
+
+  // loop over slices
+  for (int i = 0; i < N; ++i) {
+    if (fidyreports[i].sliceHistogram == nullptr)
+      continue;
+
+    canvasSlices_fidy->cd(i + 1);
+
+    //catch bad fit ranges and do not write
+    std::string tempTitle = fidyreports[i].sliceHistogram->GetTitle();      
+    if( tempTitle.compare("Null Histogram")==0 )
+      continue;
+
+    //get mc nucleon parameters
+    double p_scale = fidyreports[i].fitParams[0];
+    double n_scale = fidyreports[i].fitParams[1];
+    double p_shift = fidyreports[i].fitParams[2];
+    double n_shift = fidyreports[i].fitParams[3];
+
+    double MCev = fidyreports[i].mcpnev + fidyreports[i].mcnnev;
+
+    // Simplify the histogram title
+    fidyreports[i].sliceHistogram->SetTitle(Form("%s %0.2f to %0.2f", fidyreports[0].type.c_str(), fidyreports[i].winLow, fidyreports[i].winHigh));
+    fidyreports[i].sliceHistogram->SetLineWidth(1);
+    fidyreports[i].sliceHistogram->Draw();
+
+    // Retrieve the number of bins, and the x-axis limits of the slice histogram
+    int nbins = fidyreports[i].sliceHistogram->GetNbinsX();
+    double x_low = fidyreports[i].sliceHistogram->GetXaxis()->GetXmin();
+    double x_high = fidyreports[i].sliceHistogram->GetXaxis()->GetXmax();
+
+    //get scale ratio, error, and midpoint for slice
+    double ratio = fidyreports[i].scaleratio;
+    double error = fidyreports[i].scaleratioerr;
+    double xval = fidyreports[i].winLow;
+
+    //fill vectors for later tgrapherrors
+    Rsf_vec_fidy.push_back(ratio);
+    Rsferr_vec_fidy.push_back(error);
+    xval_vec_fidy.push_back(xval);
+
+    // Draw the corresponding MC histograms
+    hdx_p = fidyreports[i].slicePHistogram; //update the MC slice for the later overall fit
+    TH1D *pMCslice = util::shiftHistogramX(fidyreports[i].slicePHistogram, p_shift);
+    pMCslice->Scale(p_scale);
+
+    hdx_n = fidyreports[i].sliceNHistogram; //update the MC slice for the later overall fit
+    TH1D *nMCslice = util::shiftHistogramX(fidyreports[i].sliceNHistogram, n_shift);
+    nMCslice->Scale(n_scale);
+      
+    pMCslice->Draw("same");
+    nMCslice->Draw("same");
+
+    // Create a legend and add the remaining parameters
+    TLegend* legend = new TLegend(0.59, 0.69, 0.89, 0.89); // Adjust the position as needed
+    legend->AddEntry((TObject*)0, Form("Nev: %0.0f", fidyreports[i].nev), "");
+    legend->AddEntry((TObject*)0, Form("MCev: %0.0f", MCev), "");
+    legend->AddEntry((TObject*)0, Form("Ratio: %0.4f #pm %0.4f", ratio, error), "");
+    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.4f", fidyreports[i].chisqrndf), "");
+    legend->Draw();
+
+    bgfit_fidy[i] = new TF1(Form("bgfit_fidy_%d",i),fits::g_p2fit,hcalfit_l,hcalfit_h,3);
+    //cout << "Background fit parameter" << endl;
+    for (int j=0; j<3; ++j){
+      bgfit_fidy[i]->SetParameter(j,fidyreports[i].fitParams[j+4]);
+      //cout << "   " << j << " = " << fidyreports[i].fitParams[j+4] << endl;
+    }
+
+    bgfit_fidy[i]->SetLineWidth(2);
+    bgfit_fidy[i]->Draw("same");
+
+    TF1 *mcfit = new TF1(Form("mcfit_%d", i), fitFullShift_p2, hcalfit_l, hcalfit_h, 7);
+    mcfit->SetParameters(fidyreports[i].fitParams);
+    // Can set the error here, might be relevant later
+    // mcfit->SetParErrors(fidyreports[i].fitErrors);
+
+    // Create a new TH1D or fill an existing one with the values from TF1
+    TH1D* hFromTF1_fidy = new TH1D(Form("hFromTF1_fidy_%d", i), "Histogram from fid y TF1", nbins, x_low, x_high);
+
+    for (int bin = 1; bin <= nbins; ++bin) {
+      double binCenter = fidyreports[i].sliceHistogram->GetBinCenter(bin);
+      double funcValue = mcfit->Eval(binCenter);
+      hFromTF1_fidy->SetBinContent(bin, funcValue);
+    }
+
+    int transparentBlue = TColor::GetColorTransparent(kBlue, 0.3);
+    hFromTF1_fidy->SetLineColor(kBlue);
+    hFromTF1_fidy->SetLineWidth(0);
+    hFromTF1_fidy->SetFillColor(transparentBlue);
+    hFromTF1_fidy->SetFillStyle(1001);
+    hFromTF1_fidy->Draw("SAME LF2");
+
+    canvasSlices_fidy->Update();
+  }//endloop over N (slices)
+
+  canvasSlices_fidy->Write();
+
+  // Now, let's create and draw TGraphErrors for each cut
+  // The number of valid points for this cut might be different from N if some were skipped
+  int numValidPoints_fidy = Rsf_vec_fidy.size();
+
+  // Creating a TGraphErrors for the current cut
+  TGraphErrors* graphErrors_fidy = new TGraphErrors(numValidPoints_fidy);
+  graphErrors_fidy->SetTitle("Ratio vs fiducial y cut; N prot sig;R_{sf}");
+
+  // Filling the TGraphErrors with data
+  for (int i = 0; i < numValidPoints_fidy; ++i) {
+    graphErrors_fidy->SetPoint(i, xval_vec_fidy[i], Rsf_vec_fidy[i]);
+    graphErrors_fidy->SetPointError(i, 0, Rsferr_vec_fidy[i]); // Assuming no error in x
+  }
+
+  // Set some graphical attributes
+  graphErrors_fidy->SetMarkerStyle(21);
+  graphErrors_fidy->SetMarkerColor(kBlue);
+  graphErrors_fidy->SetLineColor(kBlue);
+
+  // Drawing the graph
+  TCanvas* graphCanvas_fidy = new TCanvas("GraphCanvas_fidy", "Ratio vs fiducial y cut", 1600, 600);
+  graphCanvas_fidy->cd();
+
+  // double minY = 0.7; // Minimum y-axis value
+  // double maxY = 1.2; // Maximum y-axis value
+  // graphErrors->SetMinimum(minY);
+  // graphErrors->SetMaximum(maxY);
+
+  graphErrors_fidy->Draw("AP"); // Draw with markers and a line connecting points
+
+  // Save or Write the canvas as needed
+  // graphCanvas->SaveAs(Form("TGraphErrors_Cut_%d.png", r)); // Save to a file
+  graphCanvas_fidy->Write(); // Or write to an open ROOT file
+*/
+
+  cout << "Analysis complete. Output file written to " << foutPath  << endl;
+
+}
+
+
+/////////////
+/////////////
+/////////////
+/////////////
+/////////////
+
+
+void handleError(TFile *file1, TFile *file2, std::string marker) {
+    if (file1) file1->Close();
+    if (file2) file2->Close();
+    std::cerr << "Error: File opening or histogram retrieval failed at " << marker << "." << std::endl;
+}
+
+void handleError(TFile *file1, std::string marker) {
+    if (file1) file1->Close();
+    std::cerr << "Error: File opening or histogram retrieval failed at " << marker << "." << std::endl;
+}
+
+//Function to fit then fine fit and return all fit parameters
+std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0") {
+  TF1* fit = new TF1(fitName.c_str(), fitFormula.c_str(), hcalfit_l, hcalfit_h, paramCount);
+  //fit->SetNpx(5000);
+  for (int i=0; i<paramCount; ++i){ //reset parameters/errors for this set
+    fit->SetParameter(i,0);
+    fit->SetParError(i,0);
+  }
+  if(pshift==0&&nshift==0){
+    fit->SetParLimits(2,-7,7);
+    fit->SetParLimits(3,-7,7);
+  }else{
+    fit->FixParameter(2,pshift);
+    fit->FixParameter(3,nshift);
+  }
+
+  histogram->Fit(fit, fitOptions.c_str());
+
+  std::vector<std::pair<double, double>> parametersAndErrors(paramCount);
+  for (int i = 0; i < paramCount; ++i) {
+    parametersAndErrors[i].first = fit->GetParameter(i); // Parameter value
+    parametersAndErrors[i].second = fit->GetParError(i); // Parameter error
+  }
+
+  // Fine Fit
+  TF1* fineFit = new TF1((fitName + "_fine").c_str(), fitFormula.c_str(), hcalfit_l, hcalfit_h, paramCount);
+  std::vector<double> fineFitInitialParams(paramCount);
+  for (int i = 0; i < paramCount; ++i) {
+    fineFitInitialParams[i] = parametersAndErrors[i].first;
+  }
+
+  fineFit->SetParameters(fineFitInitialParams.data());
+  if(pshift==0&&nshift==0){
+    fineFit->SetParLimits(2,-7,7);
+    fineFit->SetParLimits(3,-7,7);
+  }else{
+    fineFit->FixParameter(2,pshift);
+    fineFit->FixParameter(3,nshift);
+    cout << "Fixing fineFit shift parameters at " << pshift << ", " << nshift << endl;
+  }
+
+  histogram->Fit(fineFit, fitOptions.c_str());
+
+  // Update parameters and errors with fine fit results
+  for (int i = 0; i < paramCount; ++i) {
+    parametersAndErrors[i].first = fineFit->GetParameter(i); // Fine fit parameter value
+    parametersAndErrors[i].second = fineFit->GetParError(i); // Fine fit parameter error
+  }
+
+  fitqual.first = fineFit->GetChisquare();
+  fitqual.second = fineFit->GetNDF();
+
+  delete fit; // Delete fit to avoid carry-over
+  delete fineFit; // Clean up
+  return parametersAndErrors;
+}

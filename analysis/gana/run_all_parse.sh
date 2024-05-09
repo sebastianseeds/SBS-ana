@@ -5,18 +5,13 @@
 ## Usage
 #./run_all_parse.sh <int: e' momentum method> <int: cluster selection method> <int: pass>
 
-epm=$1
-cluster_method=$2
-pass=$3
-verbose=$4
-
 nkine=6
 kine=(4 7 11 14 8 9)
 
 for ((i=0; i<$nkine; i++))
 do
 
-    root -l -b -q 'parse.C('${kine[i]}','$epm','$cluster_method','$pass','$verbose')'
+    root -l -b -q 'parse_barebones.C('${kine[i]}',2,4,false,true,true,false)'
 
 wait
 

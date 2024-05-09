@@ -38,7 +38,7 @@ Long64_t maxFileSize = 8000000000; //8 GB
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
 //MAIN
-void parse_mcbg_barebones( int kine=8, int mag = 70, bool verbose=false, bool norm_override=false, bool limit_size=false )
+void parse_mcbg_barebones( int kine=8, int mag = 100, bool verbose=false, bool norm_override=false, bool effz=true, bool limit_size=false )
 {   
 
   // Define a clock to check macro processing time
@@ -78,7 +78,12 @@ void parse_mcbg_barebones( int kine=8, int mag = 70, bool verbose=false, bool no
 
   //Obtain configuration pars from config file
   double hcaltheta = config.GetHCALtheta_rad();
-  double hcaldist = config.GetHCALdist();
+  double hcaldist;
+  if(effz){
+    hcaldist = config.GetHCALeffdist();
+    cout << "Loading effective z offset " << hcaldist << "..." << endl;
+  }else
+    hcaldist = config.GetHCALdist();  
   double sbsdist = config.GetSBSdist();
   double bbthr = config.GetBBtheta_rad(); //in radians
   double ebeam = config.GetEbeam();
@@ -90,6 +95,7 @@ void parse_mcbg_barebones( int kine=8, int mag = 70, bool verbose=false, bool no
   double W2sig    = tune.GetW2sig();
   double dx0_n    = tune.Getdx0_n();
   double dx0_p    = tune.Getdx0_p();
+  double dx_del   = tune.Getdx_del();
   double dy0      = tune.Getdy0();
   double dxsig_n  = tune.Getdxsig_n();
   double dxsig_p  = tune.Getdxsig_p();
@@ -560,7 +566,7 @@ void parse_mcbg_barebones( int kine=8, int mag = 70, bool verbose=false, bool no
 								     dysig, 
 								     xyhcalexp[0],
 								     xyhcalexp[1], 
-								     dx0_p,
+								     dx_del,
 								     hcalaa);
 	
 

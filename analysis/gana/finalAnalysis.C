@@ -18,6 +18,13 @@
 double hcalfit_l; //default defined by json
 double hcalfit_h; //default defined by json
 
+//fitranges
+//sbs9 70p: -1.8 to 0.7
+//sbs8 70p: -1.8 to 0.7
+//sbs4 30p: -1.7 to 0.7, shiftX=0.0, neutronshift=-0.05
+//sbs4 50p: -2.1 to 0.7, shiftX=0.05, neutronshift=0.0
+//sbs7 85p: -1.4 to 0.5
+
 //Fit range override options
 double hcalfit_l_or = -1.8; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
 double hcalfit_h_or = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
@@ -122,7 +129,7 @@ Double_t fitFullShift_p2(double *x, double *par){
   double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
   
   // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + fits::g_p2fit(x, &par[4]);
+  return proton + neutron + fits::g_p2fit_cd(x, &par[4]);
 }
 
 Double_t fitFullShiftInel(double *x, double *par){
@@ -220,7 +227,7 @@ Double_t fitSlices_p2(double *x, double *par){
   double neutron = neutron_scale * hdx_slice_n->Interpolate(x[0] - dx_shift_n);
   
   // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + fits::g_p2fit(x, &par[4]);
+  return proton + neutron + fits::g_p2fit_cd(x, &par[4]);
 }
 
 Double_t fitSlices_nobg(double *x, double *par){
@@ -313,21 +320,23 @@ std::string RemovePrefix(const std::string& originalString, const std::string& p
 //sbs7 85p: -1.4 to 0.5
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN
-void finalAnalysis(int kine=9, 
+void finalAnalysis(int kine=8, 
 		   int mag=70, 
 		   int pass=2, 
-		   double sb_min=-1.6, 
-		   double sb_max=0.5, 
+		   double sb_min=-1.7, 
+		   double sb_max=0.6, 
 		   double shiftX=0.0, 
 		   double neutronshift=0.0, 
 		   int N=12, 
-		   bool detail=true, 
+		   bool detail=false, 
 		   bool mc_slices=true, 
 		   bool blind=false, 
 		   bool bestclus=true, 
-		   bool thin=true, 
-		   bool fitrangeoverride=true, 
-		   bool alt = false) {
+		   bool thin=true,
+		   bool fitrangeoverride=true,
+		   bool widecut=false,
+		   bool effz=true,
+		   bool alt = true) {
   //set draw params
   gStyle->SetPalette(55);
   gStyle->SetCanvasPreferGL(kTRUE);
@@ -395,7 +404,7 @@ void finalAnalysis(int kine=9,
 
   std::string bestclus_word = "";
   if(bestclus)
-    bestclus_word = "_bestclus";
+    bestclus_word = "_bc";
 
   std::string thin_word = "";
   if(thin)
@@ -405,12 +414,19 @@ void finalAnalysis(int kine=9,
   if(alt)
     alt_word = "_alt";
 
+  std::string wide_word = "";
+  if(widecut)
+    wide_word = "_widecut";
+
+  std::string effz_word = "";
+  if(effz)
+    effz_word = "_effz";
+
   std::string basePath = "/lustre19/expphy/volatile/halla/sbs/seeds";
-  //std::string finPath = Form("%s/gmn_analysis/dx_correlations_sbs%d_mag%d_pass%d_rd2.root", basePath.c_str(), kine, mag, pass);
-  std::string finPath = Form("%s/gmn_analysis/dx_correlations_sbs%d_mag%d_pass%d%s%s.root", basePath.c_str(), kine, mag, pass, bestclus_word.c_str(), thin_word.c_str());
-  //std::string fmcinPath = Form("%s/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d_rd2.root", basePath.c_str(), kine, mag, pass);
-  std::string fmcinPath = Form("%s/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s.root", basePath.c_str(), kine, mag, pass, thin_word.c_str(), alt_word.c_str());
-  std::string foutPath = Form("%s/gmn_analysis/analyze_gmn_sbs%d_mag%d_pass%d%s%s.root", basePath.c_str(), kine, mag, pass, detailword.c_str(), bestclus_word.c_str());
+
+  std::string finPath = Form("%s/gmn_analysis/dx_correlations%s_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), bestclus_word.c_str(), kine, mag, pass, thin_word.c_str(),wide_word.c_str(), effz_word.c_str());
+  std::string fmcinPath = Form("%s/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s%s%s.root", basePath.c_str(), kine, mag, pass, thin_word.c_str(), alt_word.c_str(),wide_word.c_str(), effz_word.c_str());
+  std::string foutPath = Form("%s/gmn_analysis/analyze_gmn_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), kine, mag, pass, detailword.c_str(), bestclus_word.c_str(), effz_word.c_str());
 
   TFile* inputFile = new TFile(finPath.c_str());
   if (!inputFile || inputFile->IsZombie()) 
@@ -576,7 +592,7 @@ void finalAnalysis(int kine=9,
     bg_shiftFit->SetParError(i,shiftpar_vector[i+4].second);
   }
 
-  TF1 *bg_shiftp2Fit = new TF1("bg_shiftp2Fit",fits::g_p2fit,hcalfit_l,hcalfit_h,3);
+  TF1 *bg_shiftp2Fit = new TF1("bg_shiftp2Fit",fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);
   for (int i=0; i<3; ++i){
     bg_shiftp2Fit->SetParameter(i,shiftp2par_vector[i+4].first);
     bg_shiftp2Fit->SetParError(i,shiftp2par_vector[i+4].second);
@@ -670,10 +686,11 @@ void finalAnalysis(int kine=9,
     double scaleratioerr = 0;
     double chisqrndf = 0;
     std::string type;
+    std::string cuts;
 
     // Constructor for easier initialization (optional)
-    ReportData(TH1D* hist = nullptr, TH1D* histp = nullptr, TH1D* histn = nullptr, double wl = 0, double wh = 0, double nv = 0, double mvp = 0, double mvn = 0, double sr = 0, double se = 0, double cs = 0, std::string t = "")
-      : sliceHistogram(hist), slicePHistogram(histp), sliceNHistogram(histn), winLow(wl), winHigh(wh), nev(nv), mcpnev(mvp), mcnnev(mvn), scaleratio(sr), scaleratioerr(se), chisqrndf(cs), type(t) {
+    ReportData(TH1D* hist = nullptr, TH1D* histp = nullptr, TH1D* histn = nullptr, double wl = 0, double wh = 0, double nv = 0, double mvp = 0, double mvn = 0, double sr = 0, double se = 0, double cs = 0, std::string t = "", std::string cu = "")
+      : sliceHistogram(hist), slicePHistogram(histp), sliceNHistogram(histn), winLow(wl), winHigh(wh), nev(nv), mcpnev(mvp), mcnnev(mvn), scaleratio(sr), scaleratioerr(se), chisqrndf(cs), type(t), cuts(cu) {
       // Initialize fitParams and fitErrors with default values if needed
       for (int i = 0; i < 7; ++i) {
     	fitParams[i] = 0.0;
@@ -829,7 +846,15 @@ void finalAnalysis(int kine=9,
     TCanvas* th2dCanvas = new TCanvas(Form("canvas_%s", hist->GetName()), hist->GetTitle(), 800, 600);
     th2dCanvas->cd();
     TH2D *histout = (TH2D*)(hist->Clone("hdx_shifted_clone"));
-    std::string histTitle = hist->GetTitle();
+    std::string histCuts = hist->GetTitle();
+    std::string histTitle = hist->GetName();
+    // Check if the histogram name starts with "hist_" and remove it
+    if (histTitle.find("hist_") == 0) {
+      histTitle.erase(0, 5);
+    }
+    // Append " vs dx" to the modified title
+    histTitle += " vs dx";
+
     std::string histoutTitle = histTitle + Form(". Appx ev/slice: %d", eventsPerSlice);
     histout->SetTitle(histoutTitle.c_str());
     histout->GetXaxis()->SetRangeUser(xLow,xHigh);
@@ -975,7 +1000,8 @@ void finalAnalysis(int kine=9,
 					scaleratio[i],
 					scaleratio_err[i],
 					csndf,
-					histName );
+					histName,
+					histCuts);
 
       if( bin_low[i]==bin_high[i] || bin_high[i] > xbinHigh || bin_high[i] < bin_low[i] ){
 
@@ -1180,7 +1206,7 @@ void finalAnalysis(int kine=9,
       legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.4f", reports[r][i].chisqrndf), "");
       legend->Draw();
 
-      bgfit[i] = new TF1(Form("bgfit_%d",i),fits::g_p2fit,hcalfit_l,hcalfit_h,3);
+      bgfit[i] = new TF1(Form("bgfit_%d",i),fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);
       //cout << "Background fit parameter" << endl;
       for (int j=0; j<3; ++j){
 	bgfit[i]->SetParameter(j,reports[r][i].fitParams[j+4]);
@@ -1264,6 +1290,8 @@ void finalAnalysis(int kine=9,
   contributionsText->SetTextAlign(12); // Left align
   contributionsText->SetBorderSize(1);
   contributionsText->SetFillStyle(0); // Transparent
+
+  
 
   for (size_t i = 0; i < relativeErrors.size(); ++i) {
     char contributionText[255];
@@ -1353,8 +1381,41 @@ void finalAnalysis(int kine=9,
 						       E_beam,
 						       BB_angle,
 						       true);
-
   
+  //Just do error on W2 to estimate systematic inelastic background error for now
+  double interim_syst = sqrt(relativeErrors[5]); //5 is W2
+
+  auto GMn_and_error_budget = extract::extract_GMn_from_simc( Rsf_reported,
+							       totalFitError,
+							       interim_syst,
+							       0.,          
+							       E_beam,
+							       BB_angle,
+							       true);
+
+  cout << endl << endl << "//////////////////////////" << endl;
+  // Check if the vector has the expected number of elements to avoid out-of-range errors
+  if (GMn_and_error_budget.size() > 1) {
+    auto& corrected_GMn_tuple = GMn_and_error_budget[1]; // Access the tuple for corrected GMn
+
+    // Extracting values from the tuple for clarity
+    double corrected_GMn = std::get<0>(corrected_GMn_tuple);
+    double error_stat = std::get<1>(corrected_GMn_tuple);
+    double error_syst = std::get<2>(corrected_GMn_tuple);
+    double error_model = std::get<3>(corrected_GMn_tuple);
+    double error_total = std::get<4>(corrected_GMn_tuple);
+
+    // Output the values
+    std::cout << "Corrected GMn: " << corrected_GMn << " GeV\n"
+              << "Statistical Error: " << error_stat << " GeV\n"
+              << "Systematic Error: " << error_syst << " GeV\n"
+              << "Model Error: " << error_model << " GeV\n"
+              << "Total Error: " << error_total << " GeV\n";
+  } else {
+    std::cout << "Error: GMn and error budget vector does not contain enough elements.\n";
+  }
+  cout << endl << endl << "//////////////////////////" << endl;
+
   // Add a blank line for spacing before the overall
   contributionsText->AddText(" ");
 
@@ -1525,7 +1586,7 @@ void createAndSaveCanvasWithFitsAndResiduals(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, 
   leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f #pm %0.3f",np_par_ratio, np_par_ratio_error), "");
   leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f",np_sum_ratio, np_sum_ratio_error), "");
   if(shiftfit)
-    //leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[2].first, pars[3].first), "");
+  leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[3].first, pars[2].first), "");
   // leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f",fit->GetChisquare()/fit->GetNDF()), "");
   leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f/%d",fit->GetChisquare(),fit->GetNDF()), "");
   leg->Draw("same");
@@ -1679,7 +1740,7 @@ void createAndSaveCanvasWithFitsAndResiduals_nobg(TH1D* hdx, TH1D* hdxp, TH1D* h
   // if(shiftfit)
   leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f #pm %0.3f",np_par_ratio, np_par_ratio_error), "");
   leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f",np_sum_ratio, np_sum_ratio_error), "");
-  //leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[2].first, pars[3].first), "");
+  leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[3].first, pars[2].first), "");
   // leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f",fit->GetChisquare()/fit->GetNDF()), "");
   leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f/%d",fit->GetChisquare(),fit->GetNDF()), "");
   leg->Draw("same");
@@ -1841,7 +1902,7 @@ void createAndSaveCanvasWithFitsAndResiduals_altbg(TH1D* hdx, TH1D* hdxp, TH1D* 
   // leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f (fit and sum statistical error)",np_sum_ratio, np_sum_ratio_error), "");
   leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f #pm %0.3f",np_par_ratio, np_par_ratio_error), "");
   leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f",np_sum_ratio, np_sum_ratio_error), "");
-  //leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[2].first, pars[3].first), "");
+  leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[3].first, pars[2].first), "");
   leg->AddEntry( (TObject*)0, Form("bg scale: %0.3f", pars[4].first), "");
   //leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f",fit->GetChisquare()/fit->GetNDF()), "");
   leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f/%d",fit->GetChisquare(),fit->GetNDF()), "");
