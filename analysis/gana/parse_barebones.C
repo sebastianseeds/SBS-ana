@@ -1,6 +1,7 @@
 //sseeds 10.23.23 - Updated parsing script to cut both inelastic events and unused branches. Configured only to parse data files, not MC. Event parsing using wide globalcuts, wide W2 cuts, and wide coin (HCal/BBCal) cuts. Branch parsing includes only branches that sseeds is using for his gmn analysis
 //Update 2.2.24 - Same method, made simpler without class references for troubleshooting
 //Added multicluster analysis
+//Update 5.13.24 - Added track variables to assess validity and set LD2 OR LH2
 
 #include <vector>
 #include <iostream>
@@ -17,7 +18,8 @@
 const Int_t maxClus = 35; //larger than max per tree
 const Int_t maxBlk = 25;
 const Double_t W2max = 3.0; //very large compared to nucleon mass
-const Double_t coin_sigma_factor = 5.; //Wide coincidence timing cut
+const Double_t coin_sigma_factor = 5.; //Wide coincidence timing cut 
+const Double_t intime_cut_override = 10.; //override the intime cut for kinematics with many fields settings
 const Double_t nsig_step = 0.1; //number of sigma to step through in dx until fiducial cut failure written to output tree
 const Double_t R_mclus = 0.6; //search region for clusters to add to highest energy cluster on multicluster analysis
 const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety margin for fid cut quality plots
@@ -26,7 +28,16 @@ const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety mar
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
 //MAIN
-void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool verbose=false, bool ld2_only = true, bool effz=true, bool ep_fourvec=true, bool debug=false )
+void parse_barebones( Int_t kine=9, 
+		      Int_t pass=2, 
+		      Int_t cluster_method=4,
+		      bool coin_override=true,
+		      bool verbose=false, 
+		      bool lh2opt = false, 
+		      bool ld2opt = true, 
+		      bool effz=true, 
+		      bool ep_fourvec=false, 
+		      bool debug=false )
 {   
 
   // Define a clock to check macro processing time
@@ -37,6 +48,10 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
   if( pass==0 )
     pass=1;
 
+  //Use the intime algorithm if the intime cut is to be used
+  if( coin_override )
+    cluster_method=3;
+
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/parse.json");
 
@@ -46,6 +61,11 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
   vector<Double_t> coin_profile;
   jmgr->GetVectorFromSubKey<Double_t>(Form("coin_profile_p%d",pass),Form("sbs%d",kine),coin_profile);
   Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset_p%d",pass), Form("sbs%d",kine) );
+
+  if( cluster_method==4 )
+    cout << "Loaded coincidence time profile. Mean " << coin_profile[1] << ", sigma " << coin_profile[2] << ". Intime around " << coin_sigma_factor*coin_profile[2] << "." << endl;
+  else if( cluster_method==3 )
+    cout << "Using intime method for cluster selection." << endl;
 
   //Necessary for loop over directories in sbs8
   std::vector<TString> directories_h = {
@@ -91,9 +111,14 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
   std::string four_word = "";
   if(ep_fourvec)
     four_word = "_fourvec";
+  std::string tar_word = "";
+  if(lh2opt && !ld2opt)
+    tar_word = "_lh2";
+  else if(!lh2opt && ld2opt)
+    tar_word = "_ld2";
 
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s%s%s.root",kine,pass,debug_word.c_str(),effz_word.c_str(),four_word.c_str());
+  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s%s%s%s.root",kine,pass,debug_word.c_str(),effz_word.c_str(),four_word.c_str(),tar_word.c_str());
 
   //set up output files
   TFile *fout = new TFile( parse_path.c_str(), "RECREATE" );
@@ -251,6 +276,9 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
   Double_t bb_tr_ph_out;
   Double_t bb_tr_r_th_out;
   Double_t bb_tr_r_x_out;
+  Double_t bb_tr_r_ph_out;
+  Double_t bb_tr_r_y_out;
+  Double_t bb_tr_chi2_out;
   Double_t bb_ps_e_out;
   Double_t bb_ps_rowblk_out;
   Double_t bb_ps_colblk_out;
@@ -388,6 +416,9 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
   P->Branch("bb_tr_ph", &bb_tr_ph_out, "bb_tr_ph/D");
   P->Branch("bb_tr_r_x", &bb_tr_r_x_out, "bb_tr_r_x/D");
   P->Branch("bb_tr_r_th", &bb_tr_r_th_out, "bb_tr_r_th/D");
+  P->Branch("bb_tr_r_y", &bb_tr_r_y_out, "bb_tr_r_y/D");
+  P->Branch("bb_tr_r_ph", &bb_tr_r_ph_out, "bb_tr_r_ph/D");
+  P->Branch("bb_tr_chi2", &bb_tr_chi2_out, "bb_tr_chi2/D");
   P->Branch("bb_ps_e", &bb_ps_e_out, "bb_ps_e/D");
   P->Branch("bb_ps_rowblk", &bb_ps_rowblk_out, "bb_ps_rowblk/D");
   P->Branch("bb_ps_colblk", &bb_ps_colblk_out, "bb_ps_colblk/D");
@@ -417,8 +448,10 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
     // t==0, lh2; t==1, ld2
     Int_t nruns = 1;
 
-    // skip hydrogen if bool enabled to do so
-    if( ld2_only && t==0 )
+    // only process target of interest
+    if( !lh2opt && t==0 )
+      continue;
+    if( !ld2opt && t==1 )
       continue;
 
     if( t==0 ){
@@ -592,9 +625,9 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
       Double_t ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
       Double_t vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
       Double_t xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
-      Double_t r_x[econst::maxtrack],r_th[econst::maxtrack];
-      std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph","r_x","r_th"};
-      std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt,&r_x,&r_th};
+      Double_t r_x[econst::maxtrack],r_th[econst::maxtrack],r_y[econst::maxtrack],r_ph[econst::maxtrack],tr_chi2[econst::maxtrack];
+      std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph","r_x","r_th","r_y","r_ph","chi2"};
+      std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt,&r_x,&r_th,&r_y,&r_ph,&tr_chi2};
       rvars::setbranch(C,"bb.tr",trvar,trvarlink);
 
       // tdctrig branches
@@ -791,9 +824,14 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
 	  double ce = hcalce[c];
 
 	  //using hcal atime until after pass2, wide cut around sigma factor
-	  bool passedCoin = abs(atime_diff-coin_profile[1])<coin_sigma_factor*coin_profile[2];
+	  bool passedCoin;
+	    
+	  if( coin_override )
+	    passedCoin = abs(atime_diff)<intime_cut_override;
+	  else
+	    passedCoin = abs(atime_diff-coin_profile[1])<coin_sigma_factor*coin_profile[2];
 	  
-	  //Replicate the in-time algorithm with new cluster to be sorted later
+	  //Replicate the in-time algorithm with new cluster to be sorted later. All cluster elements included
 	  clone_cluster_intime.push_back(ce);
 	  if( !passedCoin ){
 	    clone_cluster_intime[c] = 0;
@@ -894,7 +932,7 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
 	  }
 	  if( clone_cluster_intime[c]>intime ){
 	    intime = clone_cluster_intime[c];
-	    intime_idx = c;
+	    intime_idx = c; //The dimension of clone_cluster_intime is always the whole cluster
 	  }
 	}
 
@@ -1230,6 +1268,9 @@ void parse_barebones( Int_t kine=8, Int_t pass=2, Int_t cluster_method=4, bool v
 	bb_tr_ph_out = phtr[0];
 	bb_tr_r_x_out = r_x[0];
 	bb_tr_r_th_out = r_th[0];
+	bb_tr_r_y_out = r_y[0];
+	bb_tr_r_ph_out = r_ph[0];
+	bb_tr_chi2_out = tr_chi2[0];
 	bb_ps_e_out = ePS;
 	bb_ps_rowblk_out = rblkPS;
 	bb_ps_colblk_out = cblkPS;

@@ -16,17 +16,19 @@
 
 //fitranges
 //sbs9 70p: -1.8 to 0.7
+//sbs8 50p: -1.4 to 0.7
 //sbs8 70p: -1.8 to 0.7
+//sbs8 100p: -2.1 to 0.7
 //sbs4 30p: -1.6 to 0.8
 //sbs4 50p: -2.1 to 0.7
 //sbs7 85p: -1.4 to 0.5
 
 //Fit range override options
-double hcalfit_l = -1.4; //lower fit/bin limit for hcal dx plots (m)
+double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
 double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
 
 //Plot range option shared by all fits
-double hcalr_l = -1.4; //lower fit/bin limit for hcal dx plots (m)
+double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
 double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
 
 double xrange_min_W2 = 0.0;
@@ -185,14 +187,14 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
 void W2Stability(int kine=8, 
-		 int mag=50, 
+		 int mag=100, 
 		 int pass=2, 
 		 int N=12,
 		 double mean=0.94,
 		 double sigma=0.24,
-		 double start_sigma=1.0,
+		 double start_sigma=0.5,
 		 double lhs_sig_fac=0.0,
-		 double max_sigma=2.5,
+		 double max_sigma=2.0,
 		 double llim_override = 0.22,
 		 std::string BG="pol2",
 		 bool bestclus=true, 
@@ -216,9 +218,14 @@ void W2Stability(int kine=8,
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
   //Get tight elastic cuts
-  std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  std::string globalcuts;
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
+  if(wide)
+    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  else
+    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+
+  cout << "Loaded cuts: " << globalcuts << endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
@@ -493,6 +500,11 @@ void W2Stability(int kine=8,
     double scaleratio = slicep2par_vector[1].first / slicep2par_vector[0].first;
     double scaleratio_err = sqrt(pow(slicep2par_vector[1].second/slicep2par_vector[1].first, 2) + pow(slicep2par_vector[0].second/slicep2par_vector[0].first, 2)) * scaleratio;
 
+    cout << scaleratio_err << endl;
+
+    if(scaleratio_err>0.05)
+      scaleratio_err=0;
+
     double xshift_p = slicep2par_vector[2].first;
     double xshift_n = slicep2par_vector[3].first;
 
@@ -679,9 +691,9 @@ void W2Stability(int kine=8,
     legend->SetMargin(0.1);
     legend->AddEntry((TObject*)0, Form("Nev: %0.0f", W2reports[i].nev), "");
     legend->AddEntry((TObject*)0, Form("MCev: %0.0f", MCev), "");
-    legend->AddEntry((TObject*)0, Form("Ratio: %0.2f", ratio), "");
+    legend->AddEntry((TObject*)0, Form("Ratio: %0.4f", ratio), "");
     legend->AddEntry((TObject*)0, Form("Shift p/n: %0.2f/%0.2f", p_shift, n_shift), "");
-    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.2f", W2reports[i].chisqrndf), "");
+    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.3f", W2reports[i].chisqrndf), "");
     legend->Draw();
     
     bgfit_W2[i] = new TF1(Form("bgfit_W2_%d",i),fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);

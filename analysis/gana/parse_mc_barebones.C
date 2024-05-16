@@ -23,8 +23,8 @@ const int maxBlk = 25;
 const double W2max = 3.0; //very large compared to nucleon mass
 const double coin_sigma_factor = 5.; //Wide coincidence timing cut
 const double nsig_step = 0.1; //number of sigma to step through in dx until fiducial cut failure written to output tree
-const int cluster_method = 4; //Hard coded to scoring (same as data)
-const double hcal_v_offset = 0.; //Should be no offset in MC data
+const int cluster_method = 4; //Generally useless since we just take the primary cluster in MC
+const double hcal_v_offset = 0.; //Should be no offset after pass1 
 const double R_mclus = 0.3; //Total radius outside of primary tree cluster where additional clusters are absorbed
 const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety margin for fid cut quality plots
 
@@ -43,7 +43,14 @@ const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 //For now, use alt for all kine except 7, 14, 11
 
 //MAIN
-void parse_mc_barebones( int kine=8, int mag = 100, const char *replay_type = "alt", bool verbose=false, bool norm_override=false, bool effz=true, bool ep_fourvec=true, bool limit_size=false )
+void parse_mc_barebones( int kine = 4, 
+			 int mag = 30, 
+			 const char *replay_type = "alt", 
+			 bool verbose=false, 
+			 bool norm_override=false, 
+			 bool effz=true, 
+			 bool ep_fourvec=false, 
+			 bool limit_size=false )
 {   
 
   // Define a clock to check macro processing time
@@ -422,6 +429,9 @@ void parse_mc_barebones( int kine=8, int mag = 100, const char *replay_type = "a
   double bb_tr_ph_out;
   double bb_tr_r_th_out;
   double bb_tr_r_x_out;
+  double bb_tr_r_ph_out;
+  double bb_tr_r_y_out;
+  double bb_tr_chi2_out;
   double bb_ps_e_out;
   double bb_ps_rowblk_out;
   double bb_ps_colblk_out;
@@ -566,6 +576,9 @@ void parse_mc_barebones( int kine=8, int mag = 100, const char *replay_type = "a
   P->Branch("bb_tr_ph", &bb_tr_ph_out, "bb_tr_ph/D");
   P->Branch("bb_tr_r_x", &bb_tr_r_x_out, "bb_tr_r_x/D");
   P->Branch("bb_tr_r_th", &bb_tr_r_th_out, "bb_tr_r_th/D");
+  P->Branch("bb_tr_r_y", &bb_tr_r_y_out, "bb_tr_r_y/D");
+  P->Branch("bb_tr_r_ph", &bb_tr_r_ph_out, "bb_tr_r_ph/D");
+  P->Branch("bb_tr_chi2", &bb_tr_chi2_out, "bb_tr_chi2/D");
   P->Branch("bb_ps_e", &bb_ps_e_out, "bb_ps_e/D");
   P->Branch("bb_ps_rowblk", &bb_ps_rowblk_out, "bb_ps_rowblk/D");
   P->Branch("bb_ps_colblk", &bb_ps_colblk_out, "bb_ps_colblk/D");
@@ -780,9 +793,9 @@ void parse_mc_barebones( int kine=8, int mag = 100, const char *replay_type = "a
       double ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
       double vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
       double xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
-      double r_x[econst::maxtrack],r_th[econst::maxtrack];
-      std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph","r_x","r_th"};
-      std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt,&r_x,&r_th};
+      double r_x[econst::maxtrack],r_th[econst::maxtrack],r_y[econst::maxtrack],r_ph[econst::maxtrack],tr_chi2[econst::maxtrack];
+      std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph","r_x","r_th","r_y","r_ph","chi2"};
+      std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt,&r_x,&r_th,&r_y,&r_ph,&tr_chi2};
       rvars::setbranch(C,"bb.tr",trvar,trvarlink);
 
       // tdctrig branches
@@ -1424,6 +1437,9 @@ void parse_mc_barebones( int kine=8, int mag = 100, const char *replay_type = "a
 	bb_tr_ph_out = phtr[0];
 	bb_tr_r_x_out = r_x[0];
 	bb_tr_r_th_out = r_th[0];
+	bb_tr_r_y_out = r_y[0];
+	bb_tr_r_ph_out = r_ph[0];
+	bb_tr_chi2_out = tr_chi2[0];
 	bb_ps_e_out = ePS;
 	bb_ps_rowblk_out = rblkPS;
 	bb_ps_colblk_out = cblkPS;

@@ -1,4 +1,4 @@
-//sseeds 4.22.24
+//sseeds 1.22.23
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -14,23 +14,11 @@
 #include "../../include/gmn.h"
 #include "../../src/jsonmgr.C"
 
-//fitranges
-//sbs9 70p: -1.8 to 0.7
-//sbs8 70p: -1.8 to 0.7
-//sbs4 30p: -1.6 to 0.8
-//sbs4 50p: -2.1 to 0.7
-//sbs7 85p: -1.4 to 0.5
+//Fit range
+double hcalfit_l; //default defined by json
+double hcalfit_h; //default defined by json
 
-//Fit range override options
-double hcalfit_l = -1.4; //lower fit/bin limit for hcal dx plots (m)
-double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
-
-//Plot range option shared by all fits
-double hcalr_l = -1.4; //lower fit/bin limit for hcal dx plots (m)
-double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
-
-double xrange_min_W2 = 0.0;
-double xrange_max_W2 = 3.0;
+double wideband_offset = 0.3; //adds and subtracts this value from the fit limits for pol4 and sideband fits
 
 //Fit options
 std::string fitopt = "RMQ0";
@@ -40,50 +28,34 @@ std::string fitopt = "RMQ0";
 //std::string fitopt = "RWLEMQ0"; //WL:weightedloglikelihood for weighted counts (N/A here)
 //std::string fitopt = "RPEMQ0"; //P:pearsonloglikelihood for expected error (N/A here)
 
-//fit min entries
-int minEvents = 500;
+//get random seed
+string passkey = "hytp";
 
 //Total fits using Interpolate with elastic signal histo and 4th order poly fit to bg
 TH1D *hdx_p;
 TH1D *hdx_n;
+TH1D *hdx_p_wide;
+TH1D *hdx_n_wide;
 TH1D *hdx_inel;
-TH1D *hdx_dyanti;
-TH1D *hdx_coinanti;
+TH1D *hdx_antidy;
+TH1D *hdx_anticoin;
 
-Double_t fitFull(double *x, double *par){
-  double dx = x[0];
+Double_t fit_gausBG(double *x, double *par) {
+  // MC float params for scaling and shifting
   double proton_scale = par[0];
   double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
-  return proton + neutron + fits::g_p4fit(x,&par[2]);
-}
-
-Double_t fitFullInel(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double bg_scale = par[2];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram
 
   // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0]);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0]);
-  double bg = bg_scale * hdx_inel->Interpolate(x[0]);
+  double proton = proton_scale * hdx_p_wide->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n_wide->Interpolate(x[0] - dx_shift_n);
   
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + bg;
+  // Sum of components
+  return proton + neutron + fits::g_gfit(x, &par[4]);
 }
 
-Double_t fitFull_nobg(double *x, double *par){
-  double dx = x[0];
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
-  return proton + neutron;
-}
-
-Double_t fitFullShift(double *x, double *par){
+Double_t fit_pol4BG(double *x, double *par){
   // MC float params
   double proton_scale = par[0];
   double neutron_scale = par[1];
@@ -91,14 +63,14 @@ Double_t fitFullShift(double *x, double *par){
   double dx_shift_n = par[3]; // Shift for neutron histogram  
 
   // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  double proton = proton_scale * hdx_p_wide->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n_wide->Interpolate(x[0] - dx_shift_n);
   
   // Use the remaining parameters for fits::g_p4fit, starting from par[4]
   return proton + neutron + fits::g_p4fit(x, &par[4]);
 }
 
-Double_t fitFullShift_p2(double *x, double *par){
+Double_t fit_pol2BG(double *x, double *par){
   // MC float params
   double proton_scale = par[0];
   double neutron_scale = par[1];
@@ -113,7 +85,22 @@ Double_t fitFullShift_p2(double *x, double *par){
   return proton + neutron + fits::g_p2fit_cd(x, &par[4]);
 }
 
-Double_t fitFullShiftInel(double *x, double *par){
+Double_t fit_pol1BG(double *x, double *par){
+  // MC float params
+  double proton_scale = par[0];
+  double neutron_scale = par[1];
+  double dx_shift_p = par[2]; // Shift for proton histogram
+  double dx_shift_n = par[3]; // Shift for neutron histogram  
+
+  // Apply shifts before interpolation
+  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
+  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
+  
+  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  return proton + neutron + fits::g_p1fit(x, &par[4]);
+}
+
+Double_t fit_inelBG(double *x, double *par){
   // MC float params
   double proton_scale = par[0];
   double neutron_scale = par[1];
@@ -130,7 +117,7 @@ Double_t fitFullShiftInel(double *x, double *par){
   return proton + neutron + bg;
 }
 
-Double_t fitFullShiftDyAnti(double *x, double *par){
+Double_t fit_dyantiBG(double *x, double *par){
   // MC float params
   double proton_scale = par[0];
   double neutron_scale = par[1];
@@ -141,13 +128,13 @@ Double_t fitFullShiftDyAnti(double *x, double *par){
   // Apply shifts before interpolation
   double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
   double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  double bg = bg_scale * hdx_dyanti->Interpolate(x[0]); //no shift for data BG
+  double bg = bg_scale * hdx_antidy->Interpolate(x[0]); //no shift for data BG
   
   // Use the remaining parameters for fits::g_p4fit, starting from par[4]
   return proton + neutron + bg;
 }
 
-Double_t fitFullShiftCoinAnti(double *x, double *par){
+Double_t fit_coinantiBG(double *x, double *par){
   // MC float params
   double proton_scale = par[0];
   double neutron_scale = par[1];
@@ -158,13 +145,13 @@ Double_t fitFullShiftCoinAnti(double *x, double *par){
   // Apply shifts before interpolation
   double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
   double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  double bg = bg_scale * hdx_coinanti->Interpolate(x[0]); //no shift for data BG
+  double bg = bg_scale * hdx_anticoin->Interpolate(x[0]); //no shift for data BG
   
   // Use the remaining parameters for fits::g_p4fit, starting from par[4]
   return proton + neutron + bg;
 }
 
-Double_t fitFullShift_nobg(double *x, double *par){
+Double_t fit_noBG(double *x, double *par){
   // MC float params
   double proton_scale = par[0];
   double neutron_scale = par[1];
@@ -178,60 +165,107 @@ Double_t fitFullShift_nobg(double *x, double *par){
   return proton + neutron;
 }
 
+Double_t SBpol4rej_b; //Central-band fit begin
+Double_t SBpol4rej_e; //Central-band fit end
+
+//Fourth order poly with sideband limits
+Double_t sbBGfit(double *x, double *par){
+
+  Double_t yint = par[0];
+  Double_t p1 = par[1];
+  Double_t p2 = par[2];
+  Double_t p3 = par[3];
+  Double_t p4 = par[4];
+
+  if(x[0]>SBpol4rej_b && x[0]<SBpol4rej_e) { 
+    TF1::RejectPoint();
+    return 0;
+  }
+
+  return yint+p1*x[0]+p2*pow(x[0],2)+p3*pow(x[0],3)+p4*pow(x[0],4);
+}
+
 // Forward declarations
 void handleError(TFile *file1, TFile *file2, std::string marker);
 void handleError(TFile *file1, std::string marker);
-std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+void createAndSaveCanvasWithFitsAndResiduals(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, TF1* bg, const std::vector<std::pair<double,double>> pars, std::pair<double,double> qual, const char* type, const char* savePath, int pol, double &elastics, std::pair<double,double> &rsf);
+void createAndSaveCanvasWithFitsAndResiduals_nobg(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, const std::vector<std::pair<double,double>> pars, std::pair<double,double> qual, const char* type, const char* savePath, double &elastics, std::pair<double,double> &rsf);
+void createAndSaveCanvasWithFitsAndResiduals_altbg(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, TH1D* hdxinel, const std::vector<std::pair<double,double>> pars, std::pair<double,double> qual, const char* type, const char* savePath, std::string bgtype, double &elastics, std::pair<double,double> &rsf);
+std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, const std::string& fitOptions = "RBMQ0");
+std::vector<std::pair<double, double>> fitAndFineFit_fixshift(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+void subtractBackground(TH1D* hist, TF1* bgFit);
+int FindCutIndex(const std::string& branches, const std::string& searchStr);
+std::string RemovePrefix(const std::string& originalString, const std::string& prefix);
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+/////////////////
+/////////////////
+/////////////////
+/////////////////
+/////////////////
+/////////////////
+/////////////////
+
+//MAIN. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN
 void BGStability(int kine=8, 
-		 int mag=50, 
+		 int mag=70, 
 		 int pass=2, 
+		 double nshift_override=0.0, 
+		 double pshift_override=0.0, 
+		 bool blind=true, 
 		 bool bestclus=true, 
 		 bool thin=true,
-		 bool wide=false,
+		 bool widecut=false,
 		 bool effz=true,
 		 bool alt = true) {
   //set draw params
-  gStyle->SetPalette(kViridis);
+  gStyle->SetPalette(55);
   gStyle->SetCanvasPreferGL(kTRUE);
   gStyle->SetOptFit(0);
   gStyle->SetOptStat(0);
   gStyle->SetEndErrorSize(0);
 
-  if(start_sigma>max_sigma){
-    cout << "ERROR: starting sigma value for analysis greater than max sigma value." << endl;
-    return;
-  }
+  // Set up configuration and tune objects to load analysis parameters
+  SBSconfig config(kine,0);
+
+  // Obtain configuration pars from config class
+  double E_beam = config.GetEbeam();
+  double BB_angle = config.GetBBtheta_rad(); // In radians
 
   //load json file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
-  //Get tight elastic cuts
-  std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  //Get dx plot details
+  hcalfit_l = jmgr->GetValueFromSubKey<double>( "hcalfit_l", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
+  hcalfit_h = jmgr->GetValueFromSubKey<double>( "hcalfit_h", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
+  std::cout << "Loaded hcal fit limits lower(upper): " << hcalfit_l << "(" << hcalfit_h << ")" << std::endl;
+
+  //set sideband
+  SBpol4rej_b = -1.4; 
+  SBpol4rej_e = 0.4;
+
+  //Get tight elastic cuts
+  std::string globalcuts;
+  if(!widecut){
+    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+    cout << "Loaded wide cuts: " << globalcuts << endl;
+
+  }else{
+    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+    cout << "Loaded tight cuts: " << globalcuts << endl;
+
+  }
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
   std::cout << "Parsed cuts: " << std::endl;
+  for ( size_t i=0; i<cuts.size(); ++i )
+    cout << cuts[i] << endl;
 
-  //Get tight elastic cut strings and limits
-  std::string branches = jmgr->GetValueFromKey_str( Form("post_branches_p%d",pass) );
-  int hbins = jmgr->GetValueFromSubKey<int>( "hbins", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
-
-  vector<double> cut_lims;
-  vector<double> llims;
-  vector<double> ulims;
-
-  jmgr->GetVectorFromSubKey<double>(Form("cut_limits_p%d",pass),Form("sbs%d_%d",kine,mag),cut_lims);  
-  
-  for( size_t i=0; i<cut_lims.size(); ++i ){
-    if( i%2==0 )
-      llims.push_back(cut_lims[i]);
-    else
-      ulims.push_back(cut_lims[i]);
-  }
+  //get paths and set random seed
+  Double_t blind_factor = 1.;
+  if(blind)
+    blind_factor = util::generateRandomNumber(passkey);
 
   std::string bestclus_word = "";
   if(bestclus)
@@ -246,7 +280,7 @@ void BGStability(int kine=8,
     alt_word = "_alt";
 
   std::string wide_word = "";
-  if(wide)
+  if(widecut)
     wide_word = "_widecut";
 
   std::string effz_word = "";
@@ -254,616 +288,379 @@ void BGStability(int kine=8,
     effz_word = "_effz";
 
   std::string basePath = "/lustre19/expphy/volatile/halla/sbs/seeds";
-  std::string finPath = Form("%s/gmn_analysis/dx_correlations%s_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), bestclus_word.c_str(), kine, mag, pass, thin_word.c_str(), wide_word.c_str(), effz_word.c_str());
-  std::string fmcinPath = Form("%s/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s%s%s.root", basePath.c_str(), kine, mag, pass, thin_word.c_str(), alt_word.c_str(), wide_word.c_str(), effz_word.c_str());
-  std::string foutPath = Form("%s/gmn_analysis/W2stab_gmn_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), kine, mag, pass, bestclus_word.c_str(), wide_word.c_str(), effz_word.c_str());
+
+  std::string finPath = Form("%s/gmn_analysis/dx_correlations%s_sbs%d_mag%d_pass%d%s%s%s.root", basePath.c_str(), bestclus_word.c_str(), kine, mag, pass, thin_word.c_str(),wide_word.c_str(), effz_word.c_str());
+  std::string fmcinPath = Form("%s/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s%s%s.root", basePath.c_str(), kine, mag, pass, thin_word.c_str(), alt_word.c_str(),wide_word.c_str(), effz_word.c_str());
+  std::string foutPath = Form("%s/gmn_analysis/bgstab_sbs%d_mag%d_pass%d%s%s.root", basePath.c_str(), kine, mag, pass, bestclus_word.c_str(), effz_word.c_str());
 
   TFile* inputFile = new TFile(finPath.c_str());
   if (!inputFile || inputFile->IsZombie()) 
     handleError(inputFile,"inputFile");
 
-  //Get all histograms
-  TH1D *hdx_data = dynamic_cast<TH1D*>(inputFile->Get("hdx_allcut"));
+  // //ADDING WHAT THE F IS HAPPENING SECTION
+
+  // TH2D *hdx_vs_W2_data_raw = dynamic_cast<TH2D*>(inputFile->Get("hist_W2"));
+  // TH2D *hdx_vs_W2_data = (TH2D*)(hdx_vs_W2_data_raw->Clone("hdx_vs_W2_data"));
+  
+  // // Set the range of x from 0.22 to 1.24
+  // int bin1 = hdx_vs_W2_data->GetXaxis()->FindBin(0.22);
+  // int bin2 = hdx_vs_W2_data->GetXaxis()->FindBin(1.24);
+
+  // // Create a 1D projection over the range of x specified
+  // TH1D *hdx_projection = hdx_vs_W2_data->ProjectionY("hdx_projection", bin1, bin2);
+
+  // /////
+
+  //Get histograms from data plot file
+  TH1D *hdx_data_raw = dynamic_cast<TH1D*>(inputFile->Get("hdx_allcut"));
+  TH1D *hdx_data = (TH1D*)(hdx_data_raw->Clone("hdx_data"));
+  //TH1D *hdx_data = (TH1D*)(hdx_projection->Clone("hdx_data"));
   hdx_data->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  TH1D *hdx_data_wide = (TH1D*)(hdx_data_raw->Clone("hdx_data_wide"));
+  hdx_data_wide->GetXaxis()->SetRangeUser(hcalfit_l-wideband_offset,hcalfit_h+wideband_offset);
+  TH1D *hdx_data_sb = (TH1D*)(hdx_data_raw->Clone("hdx_data_sb"));
+  hdx_data_sb->GetXaxis()->SetRangeUser(hcalfit_l-wideband_offset,hcalfit_h+wideband_offset);
+  TH1D *hdx_sb_nobg = (TH1D*)(hdx_data_raw->Clone("hdx_sb_nobg"));
+  hdx_sb_nobg->GetXaxis()->SetRangeUser(hcalfit_l-wideband_offset,hcalfit_h+wideband_offset);
 
-  TH2D *hdx_vs_W2_data = dynamic_cast<TH2D*>(inputFile->Get("hist_W2"));
-  hdx_vs_W2_data->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-  int hdx_vs_W2_data_N = hdx_vs_W2_data->GetEntries();
-  std::string W2Cuts = hdx_vs_W2_data->GetTitle();
-  cout << endl << "Opened dx vs W2 with cuts: " << W2Cuts << endl << endl; 
+  //Get anticut histograms
+  TH1D *hdx_antidy_raw = dynamic_cast<TH1D*>(inputFile->Get("hdx_dyanti"));
+  hdx_antidy = (TH1D*)(hdx_antidy_raw->Clone("hdx_antidy"));
+  hdx_antidy->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  TH1D *hdx_antidy_clone = (TH1D*)(hdx_antidy_raw->Clone("hdx_antidy_clone"));
+  hdx_antidy_clone->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
 
-  hdx_dyanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_dyanti"));
-  hdx_dyanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  TH1D *hdx_anticoin_raw = dynamic_cast<TH1D*>(inputFile->Get("hdx_coinanti"));
+  hdx_anticoin = (TH1D*)(hdx_anticoin_raw->Clone("hdx_anticoin"));
+  hdx_anticoin->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  TH1D *hdx_anticoin_clone = (TH1D*)(hdx_anticoin_raw->Clone("hdx_anticoin_clone"));
+  hdx_anticoin_clone->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
 
-  hdx_coinanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_coinanti"));
-  hdx_coinanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-
-  if (!hdx_data || !hdx_dyanti || !hdx_coinanti) 
+  if (!hdx_data_raw || !hdx_antidy_raw || !hdx_anticoin_raw) 
     handleError(inputFile,"hdx_data");
 
+  //get histograms from MC plot file
   TFile* inputFileMC = new TFile(fmcinPath.c_str(), "READ");
   if (!inputFileMC || inputFileMC->IsZombie())
     handleError(inputFile,inputFileMC,"inputFileMC");
 
   //fix the interpolate functions
-  hdx_p = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_p"));
+  TH1D *hdx_p_raw = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_p"));
+  hdx_p = (TH1D*)(hdx_p_raw->Clone("hdx_p"));
+  TH1D *hdx_p_clone = (TH1D*)(hdx_p_raw->Clone("hdx_p_clone"));
   hdx_p->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  hdx_p_wide = (TH1D*)(hdx_p_raw->Clone("hdx_p"));
+  hdx_p_wide->GetXaxis()->SetRangeUser(hcalfit_l-wideband_offset,hcalfit_h+wideband_offset);
 
-  hdx_n = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_n"));
+  TH1D *hdx_n_raw = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_n"));
+  hdx_n = (TH1D*)(hdx_n_raw->Clone("hdx_n"));
+  TH1D *hdx_n_clone = (TH1D*)(hdx_n_raw->Clone("hdx_n_clone"));
   hdx_n->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  hdx_n_wide = (TH1D*)(hdx_n_raw->Clone("hdx_n"));
+  hdx_n_wide->GetXaxis()->SetRangeUser(hcalfit_l-wideband_offset,hcalfit_h+wideband_offset);
 
-  TH2D *hdx_vs_W2_n = dynamic_cast<TH2D*>(inputFileMC->Get("hist_W2_n"));
-  hdx_vs_W2_n->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-  int hdx_vs_W2_n_N = hdx_vs_W2_n->GetEntries();
-
-  TH2D *hdx_vs_W2_p = dynamic_cast<TH2D*>(inputFileMC->Get("hist_W2_p"));
-  hdx_vs_W2_p->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-  int hdx_vs_W2_p_N = hdx_vs_W2_p->GetEntries();
-
-  hdx_inel = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_inel"));
+  TH1D *hdx_inel_raw = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_inel"));
+  hdx_inel = (TH1D*)(hdx_inel_raw->Clone("hdx_inel"));
   hdx_inel->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  TH1D *hdx_inel_clone = (TH1D*)(hdx_inel_raw->Clone("hdx_inel_clone"));
+  hdx_inel_clone->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  //Handle missing histograms
+  if (!hdx_p_raw || !hdx_n_raw || !hdx_inel_raw || !hdx_data_raw) 
+    handleError(inputFile,inputFileMC,"hdx");
 
   hdx_inel->Scale(10e33); //account for lack of overall normalization from g4sbs generator
-  if (!hdx_p || !hdx_n || !hdx_inel) 
-    handleError(inputFile,inputFileMC,"hdx");
 
   TFile* outputFile = new TFile(foutPath.c_str(), "RECREATE");
 
-  TCanvas *canvas = new TCanvas("canvas", "Data and MC Histograms", 1800, 1200);
-  canvas->Divide(3, 3);  // Adjust the grid size according to the number of histograms
+  //test canvas
+  TH1D *hdx_data_test = (TH1D*)(hdx_data_raw->Clone("hdx_data_test"));
+  TH1D *hdx_p_test = (TH1D*)(hdx_p_raw->Clone("hdx_p_test"));
+  TH1D *hdx_n_test = (TH1D*)(hdx_n_raw->Clone("hdx_n_test"));
+  TH1D *hdx_inel_test = (TH1D*)(hdx_inel_raw->Clone("hdx_inel_test"));
+  TH1D *hdx_antidy_test = (TH1D*)(hdx_antidy_raw->Clone("hdx_antidy_test"));
+  TH1D *hdx_anticoin_test = (TH1D*)(hdx_anticoin_raw->Clone("hdx_anticoin_test"));
 
-  // Pad 1: hdx_data
-  canvas->cd(1);
-  hdx_data->Draw();
-
-  // Pad 2: hdx_vs_W2_data
-  canvas->cd(2);
-  hdx_vs_W2_data->Draw("COLZ");
-
-  // Pad 4: hdx_dyanti
-  canvas->cd(3);
-  hdx_dyanti->Draw();
-
-  // Pad 5: hdx_coinanti
-  canvas->cd(4);
-  hdx_coinanti->Draw();
-
-  // Pad 6: hdx_p
-  canvas->cd(5);
-  hdx_p->Draw();
-
-  // Pad 7: hdx_n
-  canvas->cd(6);
-  hdx_n->Draw();
-
-  // Pad 8: hdx_vs_W2_n
-  canvas->cd(7);
-  hdx_vs_W2_n->Draw("COLZ");
-
-  // Pad 10: hdx_vs_W2_p
-  canvas->cd(8);
-  hdx_vs_W2_p->Draw("COLZ");
-
-  // Pad 12: hdx_inel
-  canvas->cd(9);
-  hdx_inel->Draw();
-
-  // Update the canvas to reflect the drawings
-  canvas->Update();
-
-  // Setup report struct
-  struct ReportData {
-    TH1D* sliceHistogram = nullptr;
-    TH1D* slicePHistogram = nullptr;
-    TH1D* sliceNHistogram = nullptr;
-    double fitParams[7] = {}; // Array for fit parameters
-    double fitErrors[7] = {}; // Array for fit errors
-    double winLow = 0;
-    double winHigh = 0;
-    double nev = 0;
-    double mcpnev = 0;
-    double mcnnev = 0;
-    double scaleratio = 0;
-    double scaleratioerr = 0;
-    double chisqrndf = 0;
-    std::string type;
-
-    // Constructor for easier initialization (optional)
-    ReportData(TH1D* hist = nullptr, TH1D* histp = nullptr, TH1D* histn = nullptr, double wl = 0, double wh = 0, double nv = 0, double mvp = 0, double mvn = 0, double sr = 0, double se = 0, double cs = 0, std::string t = "")
-      : sliceHistogram(hist), slicePHistogram(histp), sliceNHistogram(histn), winLow(wl), winHigh(wh), nev(nv), mcpnev(mvp), mcnnev(mvn), scaleratio(sr), scaleratioerr(se), chisqrndf(cs), type(t) {
-      // Initialize fitParams and fitErrors with default values if needed
-      for (int i = 0; i < 7; ++i) {
-    	fitParams[i] = 0.0;
-    	fitErrors[i] = 0.0;
-      }
-    }
-  };
-
-  std::vector<ReportData> W2reports;
-  W2reports.resize(N);
-
-  // Loop over dx vs W2
-  hdx_vs_W2_data->GetXaxis()->SetRangeUser(xrange_min_W2, xrange_max_W2);
-  hdx_vs_W2_data->GetYaxis()->SetRangeUser(hcalfit_l, hcalfit_h);
-
-  // Get plot limits
-  int xbinLow_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(xrange_min_W2);
-  int xbinHigh_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(xrange_max_W2); 
-
-  cout << "W2 plot limits: " << xbinLow_W2 << " to " << xbinHigh_W2 << endl;
-
-  // Get cut region
-  int xbinmean_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(mean);
-  double xCutMax = mean + (max_sigma*sigma);
-  double xCutMin = mean - (max_sigma*sigma);
-  int xbinCutMax_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(xCutMax);
-  int xbinCutMin_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(xCutMin);
-  double startcut = start_sigma * sigma;
-  int xbinCutStart_low_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(mean-startcut);
-  int xbinCutStart_high_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(mean+startcut);
-  int xbinllimoverride_W2 = hdx_vs_W2_data->GetXaxis()->FindBin(llim_override);
-
-  cout << "Bin at starting sigma RHS = " << xbinCutStart_high_W2 << endl;
-
-  int NbinsRight = xbinCutMax_W2 - xbinmean_W2;
-  
-  cout << "Mean bin " << xbinmean_W2 << " with rightmost bin " << xbinCutMax_W2 << ".." << endl;
-
-  cout << "N bins right of mean " << NbinsRight << ".." << endl;
-
-  //Adjust total number of bins if not enough available on the TH2D
-  if(NbinsRight<N)
-    N=NbinsRight;
-
-  int xbinRanges_W2 = NbinsRight / N;
-
-  cout << "Each added range per cut: " << xbinRanges_W2 << ".." << endl;
-
-  cout << "Added bins in x per cut: " << 2*xbinRanges_W2 << " on N = " << N << " cuts." << endl;
-
-  // Project the TH2D onto a TH1D for the specified x-axis range
-  TH1D* fullProjY_W2 = hdx_vs_W2_data->ProjectionY("_py", xbinLow_W2, xbinHigh_W2);
-  TH1D* wideProjY_W2 = hdx_vs_W2_data->ProjectionY("_wpy");
-
-  // Use Integral() to get the total number of events within the specified range
-  int totalEvents_W2 = fullProjY_W2->Integral();
-
-  std::pair<double,double> wideQualp2;
-
-  auto widep2par_vector = fitAndFineFit(wideProjY_W2, "sliceFitWide", "fitFullShift_p2", 7, hcalfit_l, hcalfit_h, wideQualp2, 0, 0, fitopt.c_str());
-
-  double fixed_pshift = widep2par_vector[2].first;
-  double fixed_nshift = widep2par_vector[3].first;
-
-  cout << "Fit over full W2 range yield shifts p:n -> " << fixed_pshift << ":" << fixed_nshift << endl;
-
-  vector<double> cutx_low_W2;
-  vector<double> cutx_high_W2;
-
-  cout << "Looping over W2 ranges.." << endl;
-  for (int i = 0; i < N; ++i) {
-
-    int binStart = xbinCutStart_low_W2 - (i+1)*lhs_sig_fac*xbinRanges_W2;
-    int binEnd = xbinCutStart_high_W2 + (i+1)*xbinRanges_W2;
-
-    if(llim_override>0)
-      binStart = xbinllimoverride_W2;
-
-    if(binStart<xbinLow_W2 || binEnd>xbinHigh_W2){
-      cout << "ERROR: cut ranges exceed length of TH2D in x." << endl;
-      return;
-
-    }
-
-    cutx_low_W2.push_back(hdx_vs_W2_data->GetXaxis()->GetBinLowEdge(binStart));
-    cutx_high_W2.push_back(hdx_vs_W2_data->GetXaxis()->GetBinLowEdge(binEnd+1));
-
-    cout << "Cut range from x=" << hdx_vs_W2_data->GetXaxis()->GetBinLowEdge(binStart) << " to " << hdx_vs_W2_data->GetXaxis()->GetBinLowEdge(binEnd+1) << " (bin " << binStart << " to bin " << binEnd << ")" << endl;
-
-    //Get the data slices
-    TH1D *hdx_slice = hdx_vs_W2_data->ProjectionY(Form("hdx_W2_slice_%d", i+1), binStart, binEnd);
-    TH1D *dx_W2_slice = hdx_vs_W2_data->ProjectionY(Form("dxfidcut_%d", i+1), binStart, binEnd);
-
-    //Get the MC slices
-    TH1D *dx_W2_p_slice = hdx_vs_W2_p->ProjectionY(Form("dxfidcut_p_%d", i+1), binStart, binEnd);
-    TH1D *dx_W2_n_slice = hdx_vs_W2_n->ProjectionY(Form("dxfidcut_n_%d", i+1), binStart, binEnd);
-    hdx_p = hdx_vs_W2_p->ProjectionY(Form("hdx_W2_slice_p_%d", i+1), binStart, binEnd);
-    hdx_n = hdx_vs_W2_n->ProjectionY(Form("hdx_W2_slice_n_%d", i+1), binStart, binEnd);
-
-    //Get total entries on slice
-    int slice_nEntries = dx_W2_slice->Integral();
-    int slicemcp_nEntries = dx_W2_p_slice->Integral();
-    int slicemcn_nEntries = dx_W2_n_slice->Integral();
-
-    //Rsf extraction using second order poly fit
-    std::pair<double,double> sliceQualp2;
-
-    auto slicep2par_vector = fitAndFineFit(hdx_slice, "sliceFit", "fitFullShift_p2", 7, hcalfit_l, hcalfit_h, sliceQualp2, fixed_pshift, fixed_nshift, fitopt.c_str());
-
-    double csndf = sliceQualp2.first/sliceQualp2.second;
-
-    double scaleratio = slicep2par_vector[1].first / slicep2par_vector[0].first;
-    double scaleratio_err = sqrt(pow(slicep2par_vector[1].second/slicep2par_vector[1].first, 2) + pow(slicep2par_vector[0].second/slicep2par_vector[0].first, 2)) * scaleratio;
-
-    double xshift_p = slicep2par_vector[2].first;
-    double xshift_n = slicep2par_vector[3].first;
-
-    //Write fit results to struct
-    W2reports[i] = ReportData( dx_W2_slice, 
-				 dx_W2_p_slice,
-				 dx_W2_n_slice,
-				 cutx_low_W2[i],
-				 cutx_high_W2[i],
-				 slice_nEntries,
-				 slicemcp_nEntries,
-				 slicemcn_nEntries,
-				 scaleratio,
-				 scaleratio_err,
-				 csndf,
-				 "dx vs W2" );
-
-    for (int par=0; par<7; ++par){
-      W2reports[i].fitParams[par] = slicep2par_vector[par].first;
-      W2reports[i].fitErrors[par] = slicep2par_vector[par].second;
-
-      
-    }
-   
-  }
- 
-  //Write out the dx histograms
-  
-  //get a clone for displays
-  TH2D* clonedW2 = (TH2D*)hdx_vs_W2_data->Clone("clonedW2");
-  double W2_ymin = hcalfit_l;
-  double W2_ymax = hcalfit_h;
-
-  TCanvas* c0 = new TCanvas("c0", "Slice Locations", 800,600);
-  c0->cd();
-  clonedW2->Draw("colz");
-
-  int numberOfLines = cutx_low_W2.size(); // Assuming cutx_low_W2 and cutx_high_W2 are same size
-  int gradientSteps = numberOfLines;
-  int* colorGradient = new int[gradientSteps];
-  double r1 = 1.0, g1 = 0.0, b1 = 0.0; // Starting color (red)
-  double r2 = 0.0, g2 = 0.0, b2 = 1.0; // Ending color (blue)
-  for (int i = 0; i < gradientSteps; ++i) {
-    colorGradient[i] = TColor::GetColor(
-  					static_cast<Float_t>(r1 + (r2 - r1) * i / (gradientSteps - 1)),
-  					static_cast<Float_t>(g1 + (g2 - g1) * i / (gradientSteps - 1)),
-  					static_cast<Float_t>(b1 + (b2 - b1) * i / (gradientSteps - 1))
-  					);
-  }
-
-  int lineThickness = 1; // Start line thickness
-
-  // Drawing lines with increasing thickness for lower limits
-  for (int i = 0; i < numberOfLines; ++i) {
-    TLine* line = new TLine(cutx_low_W2[i], W2_ymin, cutx_low_W2[i], W2_ymax);
-    line->SetLineColor(colorGradient[i]); // Set line color dynamically
-    line->SetLineWidth(2); // Set line thickness dynamically
-    line->Draw();
-    ++lineThickness; // Increase line thickness for next line
-  }
-
-  TLine* override_line;
-  if(llim_override>0){
-    override_line = new TLine(llim_override, W2_ymin, llim_override, W2_ymax);
-    override_line->SetLineColor(kMagenta);
-    override_line->SetLineWidth(2);
-    override_line->Draw();
-  }
-
-  lineThickness = 1; // Reset line thickness for upper limits
-
-  // Drawing lines with increasing thickness for upper limits
-  for (int i = 0; i < numberOfLines; ++i) {
-    TLine* line = new TLine(cutx_high_W2[i], W2_ymin, cutx_high_W2[i], W2_ymax);
-    line->SetLineColor(colorGradient[i]); // Set line color dynamically
-    line->SetLineWidth(2); // Set line thickness dynamically
-    line->Draw();
-    ++lineThickness; // Increase line thickness for next line
-  }
-
-  c0->Update();
-
-  // for (auto& cut : cutx_low_W2){
-  //   TLine* line = new TLine(cut, W2_ymin, cut, W2_ymax);
-  //   line->SetLineColor(kRed); // Set line color to red
-  //   line->Draw();
-  // }
-
-  // for (auto& cut : cutx_high_W2){
-  //   TLine* line = new TLine(cut, W2_ymin, cut, W2_ymax);
-  //   line->SetLineColor(kRed); // Set line color to red
-  //   line->Draw();
-  // }
-
-  c0->Update();
-
-  //set up vectors for later tgrapherrors
-  std::vector<double> Rsf_vec_W2;
-  std::vector<double> Rsferr_vec_W2;
-  std::vector<double> xval_vec_W2;
-  std::vector<double> sig_vec_W2;
-  std::vector<double> nev_vec_W2;
-
-  TCanvas* canvasSlices_W2 = new TCanvas("dx slices over W2", "dx slices over W2", 1800, 1200);
-  
-  // Assuming N is the total number of histograms to be plotted on the canvas
-  int optimalRows_W2 = 1;
-  int optimalCols_W2 = 1;
-  
-  // Find the nearest square root for N to determine the grid size
-  int sqrtN_W2 = (int)std::sqrt(N);
-  for (int cols = sqrtN_W2; cols <= N; ++cols) {
-    if (N % cols == 0) { // If cols is a factor of N
-      optimalCols_W2 = cols;
-      optimalRows_W2 = N / cols;
-      break; // Found the optimal layout
-    }
-  }
-  
-  canvasSlices_W2->Divide(optimalCols_W2, optimalRows_W2); // Adjust the division based on reportSamples or desired layout
-  
-  TF1* bgfit_W2[N];
-  
-  // loop over slices
-  for (int i = 0; i < N; ++i) {
-    if (W2reports[i].sliceHistogram == nullptr)
-      continue;
+  // Normalize histograms to unity
+  hdx_p_test->Scale(1.5 / hdx_p_test->Integral());
+  hdx_n_test->Scale(0.5 / hdx_n_test->Integral());
+  hdx_inel_test->Scale(1.0 / hdx_inel_test->Integral());
+  hdx_antidy_test->Scale(1.0 / hdx_antidy_test->Integral());
+  hdx_anticoin_test->Scale(1.0 / hdx_anticoin_test->Integral());
+  hdx_data_test->Scale(3.0 / hdx_data_test->Integral());
     
-    canvasSlices_W2->cd(i + 1);
+  // Create a canvas to plot histograms
+  TCanvas *canvas = new TCanvas("canvas", "Histograms Normalized to Unity", 800, 600);
     
-    //catch bad fit ranges and do not write
-    std::string tempTitle = W2reports[i].sliceHistogram->GetTitle();      
-    if( tempTitle.compare("Null Histogram")==0 )
-      continue;
+  // Set histogram drawing options
+  hdx_p_test->SetLineColor(kRed);
+  hdx_n_test->SetLineColor(kBlue);
+  hdx_inel_test->SetLineColor(kGreen);
+  hdx_antidy_test->SetLineColor(kMagenta);
+  hdx_anticoin_test->SetLineColor(kOrange);
+  hdx_data_test->SetLineWidth(2);
+  hdx_data_test->SetLineColor(kBlack);
     
-    //get mc nucleon parameters
-    double p_scale = W2reports[i].fitParams[0];
-    double n_scale = W2reports[i].fitParams[1];
-    double p_shift = W2reports[i].fitParams[2];
-    double n_shift = W2reports[i].fitParams[3];
+  // Draw histograms on the same canvas
+  hdx_p_test->GetYaxis()->SetRangeUser(0,0.04);
+  hdx_p_test = util::shiftHistogramX(hdx_p_test, 0.2);
+  hdx_p_test->SetTitle("dx;m");
+  hdx_p_test->Draw("HIST");
+  hdx_n_test = util::shiftHistogramX(hdx_n_test, 0.2);
+  hdx_n_test->Draw("HIST SAME");
+  hdx_inel_test->Draw("HIST SAME");
+  hdx_antidy_test->DrawNormalized("HIST SAME");
+  hdx_anticoin_test->DrawNormalized("HIST SAME");
+  hdx_data_test->Draw("HIST SAME");
     
-    double MCev = W2reports[i].mcpnev + W2reports[i].mcnnev;
-    
-    // Simplify the histogram title
-    W2reports[i].sliceHistogram->SetTitle(Form("%s %0.4f to %0.4f", W2reports[0].type.c_str(), W2reports[i].winLow, W2reports[i].winHigh));
-    W2reports[i].sliceHistogram->SetLineWidth(1);
-    W2reports[i].sliceHistogram->Draw();
-    
-    // Retrieve the number of bins, and the x-axis limits of the slice histogram
-    int nbins = W2reports[i].sliceHistogram->GetNbinsX();
-    double x_low = W2reports[i].sliceHistogram->GetXaxis()->GetXmin();
-    double x_high = W2reports[i].sliceHistogram->GetXaxis()->GetXmax();
-    
-    //get scale ratio, error, and midpoint for slice
-    double ratio = W2reports[i].scaleratio;
-    double error = W2reports[i].scaleratioerr;
-    double xval = W2reports[i].winLow;
-    double sig = (i+1)*((max_sigma-start_sigma)/N)+start_sigma;
-    double nev = (totalEvents_W2 - W2reports[i].nev)/totalEvents_W2*100;
-
-    //fill vectors for later tgrapherrors
-    Rsf_vec_W2.push_back(ratio);
-    Rsferr_vec_W2.push_back(error);
-    xval_vec_W2.push_back(xval);
-    sig_vec_W2.push_back(sig);
-    nev_vec_W2.push_back(nev); //Total remaining stats
-
-    // Draw the corresponding MC histograms
-    hdx_p = W2reports[i].slicePHistogram; //update the MC slice for the later overall fit
-    TH1D *pMCslice = util::shiftHistogramX(W2reports[i].slicePHistogram, p_shift);
-    pMCslice->Scale(p_scale);
-    
-    hdx_n = W2reports[i].sliceNHistogram; //update the MC slice for the later overall fit
-    TH1D *nMCslice = util::shiftHistogramX(W2reports[i].sliceNHistogram, n_shift);
-    nMCslice->Scale(n_scale);
-    
-    pMCslice->Draw("same");
-    nMCslice->Draw("same");
-
-    //cout << "bin " << i << " pshift " << p_shift << " nshift " << n_shift << endl;
-    
-    // Create a legend and add the remaining parameters
-    TLegend* legend = new TLegend(0.49, 0.59, 0.89, 0.89); // Adjust the position as needed
-    legend->SetMargin(0.1);
-    legend->AddEntry((TObject*)0, Form("Nev: %0.0f", W2reports[i].nev), "");
-    legend->AddEntry((TObject*)0, Form("MCev: %0.0f", MCev), "");
-    legend->AddEntry((TObject*)0, Form("Ratio: %0.2f", ratio), "");
-    legend->AddEntry((TObject*)0, Form("Shift p/n: %0.2f/%0.2f", p_shift, n_shift), "");
-    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.2f", W2reports[i].chisqrndf), "");
-    legend->Draw();
-    
-    bgfit_W2[i] = new TF1(Form("bgfit_W2_%d",i),fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);
-    //cout << "Background fit parameter" << endl;
-    for (int j=0; j<3; ++j){
-      bgfit_W2[i]->SetParameter(j,W2reports[i].fitParams[j+4]);
-      //cout << "   " << j << " = " << dxreports[i].fitParams[j+4] << endl;
-    }
-    
-    bgfit_W2[i]->SetLineWidth(2);
-    bgfit_W2[i]->Draw("same");
-    
-    TF1 *mcfit = new TF1(Form("mcfit_%d", i), fitFullShift_p2, hcalfit_l, hcalfit_h, 7);
-    mcfit->SetParameters(W2reports[i].fitParams);
-    // Can set the error here, might be relevant later
-    // mcfit->SetParErrors(dxreports[i].fitErrors);
-    
-    // Create a new TH1D or fill an existing one with the values from TF1
-    TH1D* hFromTF1_W2 = new TH1D(Form("hFromTF1_W2_%d", i), "Histogram from fid x TF1", nbins, x_low, x_high);
-    
-    for (int bin = 1; bin <= nbins; ++bin) {
-      double binCenter = W2reports[i].sliceHistogram->GetBinCenter(bin);
-      double funcValue = mcfit->Eval(binCenter);
-      hFromTF1_W2->SetBinContent(bin, funcValue);
-    }
-    
-    int transparentBlue = TColor::GetColorTransparent(kBlue, 0.3);
-    hFromTF1_W2->SetLineColor(kBlue);
-    hFromTF1_W2->SetLineWidth(0);
-    hFromTF1_W2->SetFillColor(transparentBlue);
-    hFromTF1_W2->SetFillStyle(1001);
-    hFromTF1_W2->Draw("SAME LF2");
-    
-    canvasSlices_W2->Update();
-  }//endloop over N (slices)
-  
-  canvasSlices_W2->Write();
-  
-  // Now, let's create and draw TGraphErrors for each cut
-  // The number of valid points for this cut might be different from N if some were skipped
-  int numValidPoints_W2 = Rsf_vec_W2.size();
-  
-TGraphErrors* graphErrors_W2 = new TGraphErrors(numValidPoints_W2);
-  for (int i = 0; i < numValidPoints_W2; ++i) {
-    graphErrors_W2->SetPoint(i, sig_vec_W2[i], Rsf_vec_W2[i]);
-    graphErrors_W2->SetPointError(i, 0, Rsferr_vec_W2[i]);
-  }
-  graphErrors_W2->SetMarkerStyle(21);
-  graphErrors_W2->SetMarkerColor(kBlue);
-  graphErrors_W2->SetLineColor(kBlue);
-  if(llim_override)
-    graphErrors_W2->SetTitle(Form("R_{sf} vs. N sig (#sigma = %.3f m, llim = %.3f m); N sig; R_{sf}",sigma,llim_override));
-  else
-    graphErrors_W2->SetTitle(Form("R_{sf} vs. N sig (#sigma = %.3f m); N sig; R_{sf}",sigma));
-
-  TGraph* graph_nev = new TGraph(numValidPoints_W2);
-  for (int i = 0; i < numValidPoints_W2; ++i) {
-    graph_nev->SetPoint(i, sig_vec_W2[i], nev_vec_W2[i]);
-  }
-  graph_nev->SetMarkerStyle(20);
-  graph_nev->SetMarkerColor(kGreen-5);
-  graph_nev->SetLineColor(kGreen-5);
-  graph_nev->SetTitle(Form("Nev Left in Wide Cut vs. N sig (#sigma = %.3f m); N sig; Nev",sigma));
-
-  // // Create a canvas and divide it into 2 sub-pads
-  // TCanvas* c1 = new TCanvas("c1", "Stacked Graphs", 800, 600);
-  // c1->Divide(1, 2); // Divide canvas into 1 column and 2 rows
-
-  // // Draw the first graph in the first pad
-  // c1->cd(1);
-  // graphErrors_W2->Draw("AP");
-
-  // // Draw the second graph in the second pad
-  // c1->cd(2);
-  // graph_nev->Draw("AP");
-
-  // // Set the Y-axis of the second graph to start at zero
-  // Double_t ymax = 1.1 * *std::max_element(nev_vec_W2.begin(), nev_vec_W2.end());
-  // graph_nev->GetHistogram()->SetMinimum(0); // Set the minimum y-value to zero
-  // graph_nev->GetHistogram()->SetMaximum(ymax); // Adjust the maximum y-value
-
-  // // Update the canvas
-  // c1->Update();
-
-  //Create overlayed tgraph object
-  gROOT->Reset();
-  TCanvas *c2 = new TCanvas("c2","",800,500);
-  TPad *pad = new TPad("pad","",0,0,1,1);
-  //pad->SetFillColor(42);
-  pad->SetGrid();
-  pad->Draw();
-  pad->cd();
-
-  pad->GetFrame()->SetBorderSize(12);
-
-  graphErrors_W2->GetYaxis()->SetLabelSize(0.04);
-  graphErrors_W2->GetYaxis()->SetLabelFont(42);
-  graphErrors_W2->GetYaxis()->SetTitleOffset(1.0);
-  graphErrors_W2->GetYaxis()->SetTitleSize(0.04);
-  graphErrors_W2->GetYaxis()->SetTitleFont(42); 
-
-  graphErrors_W2->Draw("AP");
-
-  //create a transparent pad drawn on top of the main pad
-  c2->cd();
-  TPad *overlay = new TPad("overlay","",0,0,1,1);
-  overlay->SetFillStyle(4000);
-  overlay->SetFillColor(0);
-  overlay->SetFrameFillStyle(4000);
-  overlay->Draw();
-  overlay->cd();
-
-  graph_nev->GetHistogram()->GetYaxis()->SetLabelOffset(999);
-  graph_nev->GetHistogram()->GetYaxis()->SetTickLength(0);
-  graph_nev->GetHistogram()->GetYaxis()->SetTitleOffset(999);
-  graph_nev->SetTitle("");
-
-  graph_nev->Draw("AP");
-
-  Double_t xmin = graphErrors_W2->GetXaxis()->GetXmin();
-  Double_t xmax = graphErrors_W2->GetXaxis()->GetXmax();
-
-  Double_t ymin = graph_nev->GetHistogram()->GetMinimum();
-  Double_t ymax_nev = graph_nev->GetHistogram()->GetMaximum();
-
-  //Draw an axis on the right side
-  TGaxis *axis = new TGaxis(xmax, ymin, xmax, ymax_nev, ymin, ymax_nev, 510,"+L");
-  axis->SetTitle("ev cut (%)");
-  axis->SetTitleColor(kGreen-5);  
-  axis->SetTitleOffset(1.0);  
-  axis->SetLineColor(kGreen-5);
-  axis->SetLabelColor(kGreen-5);
-  axis->Draw();
-
   // Add a legend
-  TLegend *leg = new TLegend(0.71, 0.45, 0.86, 0.55);
-  leg->AddEntry(graphErrors_W2, "R_{sf}", "p");
-  leg->AddEntry(graph_nev, "N events", "p");
-  leg->AddEntry((TObject*)0, Form("ev tot: %d", totalEvents_W2), "");
-  leg->Draw();
+  TLegend *legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+  legend->AddEntry(hdx_p_test, "simc proton", "l");
+  legend->AddEntry(hdx_n_test, "simc neutron", "l");
+  legend->AddEntry(hdx_inel_test, "bg distribution", "l");
+  legend->AddEntry(hdx_antidy_test, "hdx_antidy_test", "l");
+  legend->AddEntry(hdx_anticoin_test, "hdx_anticoin_test", "l");
+  legend->AddEntry(hdx_data_test, "data", "l");
+  legend->Draw();
+    
+  // Update the canvas
+  canvas->Update();
+    
+  // Optionally, save the canvas to a file
+  //canvas->SaveAs("normalized_histograms_test.png");
 
-  std::string displayname = "Cuts on dx vs W2 (all sigma ranges)";
-  util::parseAndDisplayCuts(displayname.c_str(), W2Cuts.c_str());
+  //Run through various fits with different background methods
 
-  cout << "Analysis complete. Output file written to " << foutPath  << endl;
+  //For now, best fit to data. Use to get shifts for all other fits.
+  std::pair<double,double> qualp2;
+  auto p2par_vector = fitAndFineFit(hdx_data, "pol2BG", "fit_pol2BG", 7, hcalfit_l, hcalfit_h, qualp2, fitopt.c_str());
+  
+  //Get the same shift for all BG comparisons
+  double pshift = p2par_vector[2].first;
+  double nshift = p2par_vector[3].first;
 
-  /*
+  //If a set is given as override arguments, take those
+  if(pshift_override!=0)
+    pshift = pshift_override;
+  if(nshift_override!=0)
+    nshift = nshift_override;
 
-  // Creating a TGraphErrors for the current cut
-  TGraphErrors* graphErrors_W2 = new TGraphErrors(numValidPoints_W2);
-  graphErrors_W2->SetTitle("Ratio vs W2 cut range; N sig;R_{sf}");
-			
-  // Filling the TGraphErrors with data
-  for (int i = 0; i < numValidPoints_W2; ++i) {
-    graphErrors_W2->SetPoint(i, sig_vec_W2[i], Rsf_vec_W2[i]);
-    graphErrors_W2->SetPointError(i, 0, Rsferr_vec_W2[i]); // Assuming no error in x
+  //Redo the pol2 fit if overrides exist
+  if(pshift_override!=0 || nshift_override!=0){
+    p2par_vector = fitAndFineFit_fixshift(hdx_data, "pol2BG", "fit_pol2BG", 7, hcalfit_l, hcalfit_h, qualp2, pshift, nshift, fitopt.c_str());
+    cout << "Overriding p and n shift parameters!" << endl;
   }
 
-  // Set some graphical attributes
-  graphErrors_W2->SetMarkerStyle(21);
-  graphErrors_W2->SetMarkerColor(kBlue);
-  graphErrors_W2->SetLineColor(kBlue);
+  std::pair<double,double> qualp1;
+  auto p1par_vector = fitAndFineFit_fixshift(hdx_data, "pol1BG", "fit_pol1BG", 6, hcalfit_l, hcalfit_h, qualp1, pshift, nshift, fitopt.c_str());
 
-  // Drawing the graph
-  TCanvas* graphCanvas_W2 = new TCanvas("GraphCanvas_W2", "Ratio vs W2 cut range", 1600, 600);
-  graphCanvas_W2->cd();
+  std::pair<double,double> qualp4;
+  auto p4par_vector = fitAndFineFit_fixshift(hdx_data_wide, "pol4BG", "fit_pol4BG", 9, hcalfit_l-wideband_offset, hcalfit_h+wideband_offset, qualp4, pshift, nshift, fitopt.c_str());
 
-  // double minY = 0.7; // Minimum y-axis value
-  // double maxY = 1.2; // Maximum y-axis value
-  // graphErrors->SetMinimum(minY);
-  // graphErrors->SetMaximum(maxY);
+  std::pair<double,double> qualgaus;
+  auto gauspar_vector = fitAndFineFit_fixshift(hdx_data_wide, "gausBG", "fit_gausBG", 7, hcalfit_l-wideband_offset, hcalfit_h+wideband_offset, qualgaus, pshift, nshift, fitopt.c_str());
 
-  graphErrors_W2->Draw("AP"); // Draw with markers and a line connecting points
+  //This returns parameters for the sideband pol4 background only
+  std::pair<double,double> qualsb;
+  auto sbpar_vector = fitAndFineFit_fixshift(hdx_data_wide, "sbBG", "sbBGfit", 5, hcalfit_l-wideband_offset, hcalfit_h+wideband_offset, qualsb, pshift, nshift, fitopt.c_str());
 
-  // Save or Write the canvas as needed
-  // graphCanvas->SaveAs(Form("TGraphErrors_Cut_%d.png", r)); // Save to a file
-  graphCanvas_W2->Write(); // Or write to an open ROOT file
+  std::pair<double,double> qualinel;
+  auto inelpar_vector = fitAndFineFit_fixshift(hdx_data, "inelBG", "fit_inelBG", 5, hcalfit_l, hcalfit_h, qualinel, pshift, nshift, fitopt.c_str());
 
-  //TCanvas *c1; util::parseAndDisplayCuts(c1,W2Cuts.c_str());
+  std::pair<double,double> qualantidy;
+  auto antidypar_vector = fitAndFineFit_fixshift(hdx_data, "antidyBG", "fit_dyantiBG", 5, hcalfit_l, hcalfit_h, qualantidy, pshift, nshift, fitopt.c_str());
 
-  std::string displayname = "Cuts on dx vs W2 (all ranges)";
-  util::parseAndDisplayCuts(displayname.c_str(), W2Cuts.c_str());
+  std::pair<double,double> qualanticoin;
+  auto anticoinpar_vector = fitAndFineFit_fixshift(hdx_data, "anticoinBG", "fit_coinantiBG", 5, hcalfit_l, hcalfit_h, qualanticoin, pshift, nshift, fitopt.c_str());
+
+  // Make background functions
+  TF1 *bg_gausFit = new TF1("bg_gausFit",fits::g_gfit,hcalfit_l-wideband_offset,hcalfit_h+wideband_offset,3);
+  for (int i=0; i<3; ++i){
+    bg_gausFit->SetParameter(i,gauspar_vector[i+4].first);
+    bg_gausFit->SetParError(i,gauspar_vector[i+4].second);
+  }
+
+  TF1 *bg_p4Fit = new TF1("bg_pol4Fit",fits::g_p4fit,hcalfit_l-wideband_offset,hcalfit_h+wideband_offset,5);
+  for (int i=0; i<5; ++i){
+    bg_p4Fit->SetParameter(i,p4par_vector[i+4].first);
+    bg_p4Fit->SetParError(i,p4par_vector[i+4].second);
+  }
+
+  TF1 *bg_p2Fit = new TF1("bg_pol2Fit",fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);
+  for (int i=0; i<3; ++i){
+    bg_p2Fit->SetParameter(i,p2par_vector[i+4].first);
+    bg_p2Fit->SetParError(i,p2par_vector[i+4].second);
+  }
+
+  TF1 *bg_p1Fit = new TF1("bg_pol1Fit",fits::g_p1fit,hcalfit_l,hcalfit_h,2);
+  for (int i=0; i<2; ++i){
+    bg_p1Fit->SetParameter(i,p1par_vector[i+4].first);
+    bg_p1Fit->SetParError(i,p1par_vector[i+4].second);
+  }
+
+  TF1 *bg_sbFit = new TF1("bg_sbFit",fits::g_p4fit,hcalfit_l-wideband_offset,hcalfit_h+wideband_offset,5);
+  for (int i=0; i<5; ++i){
+    bg_sbFit->SetParameter(i,sbpar_vector[i].first);
+    bg_sbFit->SetParError(i,sbpar_vector[i].second);
+  }
+
+  //Print the canvas
+  //pol4 fit to bg
+  double elastics_gaus;
+  std::pair<double,double> rsf_gaus;
+  createAndSaveCanvasWithFitsAndResiduals(hdx_data, hdx_p_clone, hdx_n_clone, bg_gausFit, gauspar_vector, qualgaus, "gaus BG", "~/gmn_plots/new_gausfit.pdf", -1, elastics_gaus, rsf_gaus);
+
+  //pol4 fit to bg
+  double elastics_p4;
+  std::pair<double,double> rsf_p4;
+
+  createAndSaveCanvasWithFitsAndResiduals(hdx_data, hdx_p_clone, hdx_n_clone, bg_p4Fit, p4par_vector, qualp4, "pol4 BG", "~/gmn_plots/new_p4fit.pdf", 4, elastics_p4, rsf_p4);
+
+  //pol2 fit to bg
+  double elastics_p2;
+  std::pair<double,double> rsf_p2;
+  createAndSaveCanvasWithFitsAndResiduals(hdx_data, hdx_p_clone, hdx_n_clone, bg_p2Fit, p2par_vector, qualp2, "pol2 BG", "~/gmn_plots/new_p2fit.pdf", 2, elastics_p2, rsf_p2);
+
+  //pol1 fit to bg
+  double elastics_p1;
+  std::pair<double,double> rsf_p1;
+  createAndSaveCanvasWithFitsAndResiduals(hdx_data, hdx_p_clone, hdx_n_clone, bg_p1Fit, p1par_vector, qualp1, "pol1 BG", "~/gmn_plots/new_p1fit.pdf", 1, elastics_p1, rsf_p1);
+
+  // //inel bg
+  double elastics_inel;
+  std::pair<double,double> rsf_inel;
+  createAndSaveCanvasWithFitsAndResiduals_altbg(hdx_data, hdx_p_clone, hdx_n_clone, hdx_inel_clone, inelpar_vector, qualinel, "inel BG", "~/gmn_plots/new_inelfit.pdf", "inel", elastics_inel, rsf_inel);
+  
+  //dy anticut bg
+  double elastics_antidy;
+  std::pair<double,double> rsf_antidy;
+  createAndSaveCanvasWithFitsAndResiduals_altbg(hdx_data, hdx_p_clone, hdx_n_clone, hdx_antidy_clone, antidypar_vector, qualantidy, "antidy BG", "~/gmn_plots/new_antidy.pdf", "dy", elastics_antidy, rsf_antidy);
+  
+  // //coin anticut bg
+  double elastics_anticoin;
+  std::pair<double,double> rsf_anticoin;
+  createAndSaveCanvasWithFitsAndResiduals_altbg(hdx_data, hdx_p_clone, hdx_n_clone, hdx_anticoin_clone, anticoinpar_vector, qualanticoin, "anticoin BG", "~/gmn_plots/new_anticoin.pdf", "coin", elastics_anticoin, rsf_anticoin);
+
+  //subtract bg fits
+  subtractBackground(hdx_sb_nobg,bg_sbFit);
+  std::pair<double,double> qualnobg;
+  auto sbpar_nobg_vector = fitAndFineFit(hdx_sb_nobg, "noBG", "fit_noBG", 4, hcalfit_l-wideband_offset, hcalfit_h+wideband_offset, qualnobg, fitopt.c_str());
+  
+  double elastics_sb_nobg;
+  std::pair<double,double> rsf_nobg;
+  createAndSaveCanvasWithFitsAndResiduals_nobg(hdx_data_sb, hdx_p_clone, hdx_n_clone, sbpar_nobg_vector, qualnobg, "shiftfit sideband BG subtracted", "~/gmn_plots/new_sbnobg.pdf", elastics_sb_nobg, rsf_nobg);
 
 
-  cout << "Analysis complete. Output file written to " << foutPath  << endl;
+  ///////////////////
+  ///////////////////
+  ///////////////////
+  ///////////////////
+  ///////////////////
+  ///////////////////
+  ///////////////////
+  ///////////////////
+  //Get Error estimates
 
-  */
+  //get arb error from analytical bg fits
+  double Rsf_reported = (rsf_gaus.first + rsf_p4.first + rsf_p2.first) / 3;
+
+  // Calculate the standard deviation of the first elements
+  double variance = (std::pow(rsf_gaus.first - Rsf_reported, 2) +
+		     std::pow(rsf_p4.first - Rsf_reported, 2) +
+		     std::pow(rsf_p2.first - Rsf_reported, 2)) / 3;
+  double systerr = std::sqrt(variance);
+
+  double staterr = rsf_p2.second;
+
+
+  cout << Rsf_reported << " " << systerr << " " << staterr << " " << endl;
+
+  // auto GMn_and_error_budget = extract::extract_GMn_from_simc( Rsf_reported,
+  // 							      totalFitError,
+  // 							      interim_syst,
+  // 							      0.,          
+  // 							      E_beam,
+  // 							      BB_angle,
+  // 							      true);
+
+  auto GMn_and_error_budget = extract::extract_GMn_from_simc( Rsf_reported,
+  							      staterr,
+							      systerr,
+  							      0.,          
+  							      E_beam,
+  							      BB_angle,
+  							      true);
+
+  cout << endl << endl << "//////////////////////////" << endl;
+  // Check if the vector has the expected number of elements to avoid out-of-range errors
+
+  auto& corrected_GMn_tuple = GMn_and_error_budget[1]; // Access the tuple for corrected GMn
+
+  // Extracting values from the tuple for clarity
+  double corrected_GMn = std::get<0>(corrected_GMn_tuple);
+  double error_stat = std::get<1>(corrected_GMn_tuple);
+  double error_syst = std::get<2>(corrected_GMn_tuple);
+  double error_model = std::get<3>(corrected_GMn_tuple);
+  double error_total = std::get<4>(corrected_GMn_tuple);
+
+  // Output the values
+  std::cout << "Corrected GMn: " << corrected_GMn << " GeV\n"
+	    << "Statistical Error: " << error_stat << " GeV\n"
+	    << "Systematic Error: " << error_syst << " GeV\n"
+	    << "Model Error: " << error_model << " GeV\n"
+	    << "Total Error: " << error_total << " GeV\n";
+
+
+  // Create a canvas for displaying parameters
+  TCanvas* paramCanvas = new TCanvas("paramCanvas", "Test GMn and Error", 800, 600);
+  paramCanvas->cd();
+  TPaveText* paramText = new TPaveText(0.1, 0.1, 0.9, 0.9); // Normalized coordinates
+
+  // Add a header
+  paramText->AddText("Test GMn and Error:");
+  paramText->AddText(" ");
+  //paramText->AddLine();
+    
+  // Adding each parameter to the TPaveText
+  paramText->AddText(Form("Corrected GMn: %0.3f GeV", corrected_GMn));
+  paramText->AddText(Form("Statistical Error: %0.3f GeV", error_stat));
+  paramText->AddText(Form("Systematic Error: %0.3f GeV", error_syst));
+  paramText->AddText(Form("Model Error: %0.3f GeV", error_model));
+  paramText->AddText(Form("Total Error: %0.3f GeV", error_total));
+
+  // Set text alignment and fill color
+  //paramText->SetTextAlign(12); // Align text to left
+  //paramText->SetFillColor(0);  // Transparent background
+
+  // Draw the TPaveText on the canvas
+  paramText->Draw();
+
+
+  // Create a canvas for displaying cuts
+  TCanvas* cutCanvas = new TCanvas("cutCanvas", "Cuts", 800, 600);
+  cutCanvas->cd();
+  TPaveText* cutsText = new TPaveText(0.1, 0.1, 0.9, 0.9); // coordinates are normalized
+
+  cutsText->AddText("Cuts Used:");
+  cutsText->AddLine();
+  for (const auto& cut : cuts) {
+    cutsText->AddText(cut.c_str());
+  }
+
+  cutsText->SetTextAlign(12); // Align text to left
+  cutsText->SetFillColor(0);  // Transparent background
+  cutsText->Draw();
+
+  // Write the canvas to the output file
+  cutCanvas->Write();
+  
+
+  outputFile->Write();
+  //outputFile->Close();
+
+  cout << "All plots created. Output file located here: " << foutPath << endl;
 
 }
-
 
 /////////////
 /////////////
@@ -883,17 +680,482 @@ void handleError(TFile *file1, std::string marker) {
     std::cerr << "Error: File opening or histogram retrieval failed at " << marker << "." << std::endl;
 }
 
+void createAndSaveCanvasWithFitsAndResiduals(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, TF1* bg, const std::vector<std::pair<double,double>> pars, std::pair<double,double> qual, const char* type, const char* savePath, int pol, double &elastics, std::pair<double,double> &rsf) {
+
+  //Clone the dx histo for bg sub
+  TH1D *hdx_histplot = (TH1D*)(hdx->Clone("hdx_histplot"));
+  TH1D *hdx_clone = (TH1D*)(hdx->Clone("hdx_clone"));
+  TH1D *hdx_p_clone = (TH1D*)(hdxp->Clone("hdx_p_clone"));
+  TH1D *hdx_n_clone = (TH1D*)(hdxn->Clone("hdx_n_clone"));
+
+  //Recreate the fit
+  TF1* fit;
+  if(pol==4)
+    fit = new TF1("fitp4", fit_pol4BG, hcalfit_l-wideband_offset, hcalfit_h+wideband_offset, 9);
+  else if(pol==2)
+    fit = new TF1("fitp2", fit_pol2BG, hcalfit_l, hcalfit_h, 7);
+  else if(pol==1)
+    fit = new TF1("fitp1", fit_pol1BG, hcalfit_l, hcalfit_h, 6);
+  else if(pol==-1)
+    fit = new TF1("fitgaus", fit_gausBG, hcalfit_l, hcalfit_h, 7);
+
+  for (size_t i = 0; i < pars.size(); ++i) {
+    fit->SetParameter(i, pars[i].first);
+    fit->SetParError(i, pars[i].second);
+  }
+
+  fit->SetChisquare(qual.first);
+  fit->SetNDF(qual.second);
+
+  // Create a canvas with two pads
+  TCanvas *cTotal = new TCanvas(savePath, Form("Data with Fits and Residuals %s",type), 1200, 800);
+  TPad *pad1 = new TPad("pad1", "Pad with the fit", 0.0, 0.3, 1.0, 1.0);
+  TPad *pad2 = new TPad("pad2", "Pad with the residuals", 0.0, 0.0, 1.0, 0.3);
+  pad1->SetBottomMargin(0); // Upper and lower plot are joined
+  pad2->SetTopMargin(0);
+  pad2->SetBottomMargin(0.2);
+  pad1->Draw();
+  pad2->Draw();
+
+  // First pad: Draw the histogram with the fits
+  pad1->cd();
+  hdx_histplot->SetLineColor(kBlack);
+  hdx_histplot->SetLineWidth(1);
+  hdx_histplot->SetTitle(Form("dx, %s;m",type));
+  hdx_histplot->Draw("hist");
+  hdx->SetLineColor(kBlack);
+  hdx->SetLineWidth(1);
+  hdx->Draw("E same");
+  fit->SetLineColor(kGreen);
+  fit->SetLineWidth(1);
+  fit->Draw("same");
+  hdx_p_clone = util::shiftHistogramX(hdx_p,pars[2].first);
+  hdx_p_clone->Scale(pars[0].first);
+  hdx_p_clone->SetLineColor(kRed-5);
+  hdx_p_clone->SetLineWidth(2);
+  hdx_p_clone->Draw("E same");
+  hdx_n_clone = util::shiftHistogramX(hdx_n,pars[3].first);
+  hdx_n_clone->Scale(pars[1].first);
+  hdx_n_clone->SetLineColor(kBlue-5);
+  hdx_n_clone->SetLineWidth(2);
+  hdx_n_clone->Draw("E same");
+
+  // Set background function
+  bg->SetLineColor(kBlack);
+  bg->SetFillColorAlpha(kGray,0.35);
+  bg->SetFillStyle(1001);
+  bg->Draw("same");
+
+  double psumerror;
+  double psum = hdx_p_clone->IntegralAndError(0, hdx_p_clone->GetNbinsX() + 1, psumerror, "");
+
+  double pscaleerror = pars[0].second;
+  double pscale = pars[0].first;
+
+  double nsumerror;
+  double nsum = hdx_n_clone->IntegralAndError(0, hdx_n_clone->GetNbinsX() + 1, nsumerror, "");
+
+  double nscaleerror = pars[1].second;
+  double nscale = pars[1].first;
+
+  double np_sum_ratio = nsum/psum;
+  double np_par_ratio = nscale/pscale;
+  double np_sum_ratio_error = np_sum_ratio * sqrt(pow(psumerror/psum, 2) + pow(nsumerror/nsum, 2));
+  double np_par_ratio_error = np_par_ratio * sqrt(pow(pscaleerror/pscale, 2) + pow(nscaleerror/nscale, 2));
+
+  rsf.first = np_par_ratio;
+  rsf.second = np_par_ratio_error;
+
+  // Construct legend within function
+  TLegend* leg = new TLegend(0.5, 0.5, 0.89, 0.89);
+  leg->AddEntry(hdx, "Data", "l");
+  leg->AddEntry(fit, "Fit", "l");
+  leg->AddEntry(bg, "Background", "l");
+  leg->AddEntry(hdx_p_clone, "Proton SIMC MC", "l");
+  leg->AddEntry(hdx_n_clone, "Neutron SIMC MC", "l");
+  leg->AddEntry( (TObject*)0, "", "");
+  leg->AddEntry( (TObject*)0, Form("data N events : %0.0f",hdx->GetEntries()), "");
+  leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f #pm %0.3f",np_par_ratio, np_par_ratio_error), "");
+  leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f",np_sum_ratio, np_sum_ratio_error), "");
+  leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[3].first, pars[2].first), "");
+  leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f/%d",fit->GetChisquare(),fit->GetNDF()), "");
+  leg->Draw("same");
+
+  // Construct residuals
+  //add the p and n histograms together for comparison
+  TH1D* sumHistogram = new TH1D(Form("sumHistogram_%s",type), "Sum of Histograms", hdx_p_clone->GetNbinsX(), hdx_p_clone->GetXaxis()->GetXmin(), hdx_p_clone->GetXaxis()->GetXmax());
+  sumHistogram->Add(hdx_p_clone, hdx_n_clone);
+
+  //Background subraction and total elastic statistics
+  elastics = 0;
+  for (int bin = 1; bin <= hdx->GetNbinsX(); ++bin) {
+    double bgValue = bg->Eval(hdx_clone->GetXaxis()->GetBinCenter(bin));
+    if( hdx_clone->GetBinContent(bin) > bgValue )
+      elastics += hdx_clone->GetBinContent(bin) - bgValue;
+    hdx_clone->SetBinContent(bin, hdx_clone->GetBinContent(bin) - bgValue);
+    hdx_clone->SetBinError(bin, hdx_clone->GetBinError(bin));
+  }
+
+  TH1D *hRes = util::makeResidualHistoWithError(Form("dx_%s",type),hdx_clone,sumHistogram,true,false);
+  TH1D *hRes_histplot = (TH1D*)(hRes->Clone(Form("hRes_histplot_%s",type)));
+
+  hRes_histplot->SetTitle("");
+  hRes_histplot->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  double dxMaxValue = hdx_clone->GetMaximum();
+  hRes->GetYaxis()->SetRangeUser(-dxMaxValue/4,dxMaxValue/4);
+  hRes_histplot->GetYaxis()->SetRangeUser(-dxMaxValue/4,dxMaxValue/4);
+
+  hRes_histplot->SetLineColor(kRed);
+  hRes_histplot->SetLineWidth(2);
+  hRes->SetLineColor(kBlack);
+  hRes->SetMarkerStyle(1);
+  hRes->SetLineWidth(1);
+
+  // Second pad: Draw the residuals
+  pad2->cd();
+  hRes_histplot->Draw("hist");
+  hRes_histplot->GetYaxis()->SetTitle("Residuals");
+  hRes_histplot->GetYaxis()->SetTitleSize(0.07);
+  hRes_histplot->GetYaxis()->SetTitleOffset(0.5);
+  hRes_histplot->GetYaxis()->SetLabelSize(0.07);
+  hRes_histplot->GetXaxis()->SetTitleSize(0.07);
+  hRes_histplot->GetXaxis()->SetLabelSize(0.07);
+  hRes_histplot->GetXaxis()->SetTitle("x_{hcal}-x_{exp}");
+  hRes->Draw("E same");
+
+  // Draw a line at y=0 for residuals
+  TF1 *zeroLine = new TF1("zeroLine", "0", hRes->GetXaxis()->GetXmin(), hRes->GetXaxis()->GetXmax());
+  zeroLine->SetLineColor(kBlack);
+  zeroLine->SetLineStyle(2);
+  zeroLine->Draw("same");
+
+  // Update the canvas
+  cTotal->cd();
+  cTotal->Update();
+
+  // Save the canvas to a file
+  cTotal->SaveAs(savePath);
+}
+
+//Create canvas for reporting
+void createAndSaveCanvasWithFitsAndResiduals_nobg(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, const std::vector<std::pair<double,double>> pars, std::pair<double,double> qual, const char* type, const char* savePath, double &elastics, std::pair<double,double> &rsf) {
+
+  //Clone the dx histos
+  TH1D *hdx_histplot = (TH1D*)(hdx->Clone("hdx_histplot"));
+  TH1D *hdx_clone = (TH1D*)(hdx->Clone("hdx_clone"));
+  TH1D *hdx_p_clone = (TH1D*)(hdxp->Clone("hdx_p_clone"));
+  TH1D *hdx_n_clone = (TH1D*)(hdxn->Clone("hdx_n_clone"));
+
+  //Recreate the fit
+  TF1* fit = new TF1("fit_noBG", fit_noBG, hcalfit_l-wideband_offset, hcalfit_h+wideband_offset, 4);
+  
+  for (size_t i = 0; i < pars.size(); ++i) {
+    fit->SetParameter(i, pars[i].first);
+    fit->SetParError(i, pars[i].second);
+  }
+
+  fit->SetChisquare(qual.first);
+  fit->SetNDF(qual.second);
+
+  // Create a canvas with two pads
+  TCanvas *cTotal = new TCanvas(savePath, Form("No BG Data with Fits and Residuals %s",type), 1200, 800);
+  TPad *pad1 = new TPad("pad1", "Pad with the fit", 0.0, 0.3, 1.0, 1.0);
+  TPad *pad2 = new TPad("pad2", "Pad with the residuals", 0.0, 0.0, 1.0, 0.3);
+  pad1->SetBottomMargin(0); // Upper and lower plot are joined
+  pad2->SetTopMargin(0);
+  pad2->SetBottomMargin(0.2);
+  pad1->Draw();
+  pad2->Draw();
+
+  // First pad: Draw the histogram with the fits
+  pad1->cd();
+  hdx_histplot->SetLineColor(kBlack);
+  hdx_histplot->SetLineWidth(1);
+  hdx_histplot->SetTitle(Form("dx, %s;m",type));
+  hdx_histplot->Draw("hist");
+  hdx->SetLineColor(kBlack);
+  hdx->SetLineWidth(1);
+  hdx->Draw("E same");
+  fit->SetLineColor(kGreen);
+  fit->SetLineWidth(1);
+  fit->Draw("same");
+  hdx_p_clone = util::shiftHistogramX(hdx_p,pars[2].first);
+  hdx_p_clone->Scale(pars[0].first);
+  hdx_p_clone->SetLineColor(kRed-5);
+  hdx_p_clone->SetLineWidth(2);
+  hdx_p_clone->Draw("E same");
+  hdx_n_clone = util::shiftHistogramX(hdx_n,pars[3].first);
+  hdx_n_clone->Scale(pars[1].first);
+  hdx_n_clone->SetLineColor(kBlue-5);
+  hdx_n_clone->SetLineWidth(2);
+  hdx_n_clone->Draw("E same");
+
+  double psumerror;
+  double psum = hdx_p_clone->IntegralAndError(0, hdx_p_clone->GetNbinsX() + 1, psumerror, "");
+
+  double pscaleerror = pars[0].second;
+  double pscale = pars[0].first;
+
+  double nsumerror;
+  double nsum = hdx_n_clone->IntegralAndError(0, hdx_n_clone->GetNbinsX() + 1, nsumerror, "");
+
+  double nscaleerror = pars[1].second;
+  double nscale = pars[1].first;
+
+  double np_sum_ratio = nsum/psum;
+  double np_par_ratio = nscale/pscale;
+  double np_sum_ratio_error = np_sum_ratio * sqrt(pow(psumerror/psum, 2) + pow(nsumerror/nsum, 2));
+  double np_par_ratio_error = np_par_ratio * sqrt(pow(pscaleerror/pscale, 2) + pow(nscaleerror/nscale, 2));
+
+  rsf.first = np_par_ratio;
+  rsf.second = np_par_ratio_error;
+
+  // Construct legend within function
+  TLegend* leg = new TLegend(0.45, 0.5, 0.89, 0.89);
+  leg->AddEntry(hdx, "Data", "l");
+  leg->AddEntry(fit, "Fit", "l");
+  leg->AddEntry(hdx_p_clone, "Proton SIMC MC", "l");
+  leg->AddEntry(hdx_n_clone, "Neutron SIMC MC", "l");
+  leg->AddEntry( (TObject*)0, "", "");
+  leg->AddEntry( (TObject*)0, Form("data N events : %0.0f",hdx->GetEntries()), "");
+  leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f #pm %0.3f",np_par_ratio, np_par_ratio_error), "");
+  leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f",np_sum_ratio, np_sum_ratio_error), "");
+  leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[3].first, pars[2].first), "");
+  leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f/%d",fit->GetChisquare(),fit->GetNDF()), "");
+  leg->Draw("same");
+
+  // Construct residuals
+  //add the p and n histograms together for comparison
+  TH1D* sumHistogram = new TH1D(Form("sumHistogram_%s",type), "Sum of Histograms", hdx_p_clone->GetNbinsX(), hdx_p_clone->GetXaxis()->GetXmin(), hdx_p_clone->GetXaxis()->GetXmax());
+  sumHistogram->Add(hdx_p_clone, hdx_n_clone);
+
+  //Total elastic statistics
+  elastics = 0;
+  for (int bin = 1; bin <= hdx->GetNbinsX(); ++bin)
+    elastics += hdx_clone->GetBinContent(bin);
+  
+  TH1D *hRes = util::makeResidualHistoWithError(Form("dx_%s",type),hdx_clone,sumHistogram,true,false);
+  TH1D *hRes_histplot = (TH1D*)(hRes->Clone(Form("hRes_histplot_%s",type)));
+
+  hRes_histplot->SetTitle("");
+  //hRes->SetName(Form("hr_%s",savePath));
+  hRes_histplot->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  double dxMaxValue = hdx_clone->GetMaximum();
+  hRes->GetYaxis()->SetRangeUser(-dxMaxValue/4,dxMaxValue/4);
+  hRes_histplot->GetYaxis()->SetRangeUser(-dxMaxValue/4,dxMaxValue/4);
+
+  hRes_histplot->SetLineColor(kRed);
+  hRes_histplot->SetLineWidth(2);
+  hRes->SetMarkerStyle(1);
+  hRes->SetLineColor(kBlack);
+  hRes->SetLineWidth(1);
+
+  // Second pad: Draw the residuals
+  pad2->cd();
+  hRes_histplot->Draw("hist");
+  hRes_histplot->GetYaxis()->SetTitle("Residuals");
+  hRes_histplot->GetYaxis()->SetTitleSize(0.07);
+  hRes_histplot->GetYaxis()->SetTitleOffset(0.5);
+  hRes_histplot->GetYaxis()->SetLabelSize(0.07);
+  hRes_histplot->GetXaxis()->SetTitleSize(0.07);
+  hRes_histplot->GetXaxis()->SetLabelSize(0.07);
+  hRes_histplot->GetXaxis()->SetTitle("x_{hcal}-x_{exp}");
+  hRes->Draw("E same");
+
+  // Draw a line at y=0 for residuals
+  TF1 *zeroLine = new TF1("zeroLine", "0", hRes->GetXaxis()->GetXmin(), hRes->GetXaxis()->GetXmax());
+  zeroLine->SetLineColor(kBlack);
+  zeroLine->SetLineStyle(2);
+  zeroLine->Draw("same");
+
+  // Update the canvas
+  cTotal->cd();
+  cTotal->Update();
+
+  // Save the canvas to a file
+  cTotal->SaveAs(savePath);
+}
+
+//Create canvas for reporting, expects a that the peaks are allowed to slide
+void createAndSaveCanvasWithFitsAndResiduals_altbg(TH1D* hdx, TH1D* hdxp, TH1D* hdxn, TH1D* hdxaltbg, const std::vector<std::pair<double,double>> pars, std::pair<double,double> qual, const char* type, const char* savePath, std::string bgtype, double &elastics, std::pair<double,double> &rsf) {
+
+  //Clone the dx histos
+  TH1D *hdx_histplot = (TH1D*)(hdx->Clone("hdx_histplot"));
+  TH1D *hdx_clone = (TH1D*)(hdx->Clone("hdx_clone"));
+  TH1D *hdx_p_clone = (TH1D*)(hdxp->Clone("hdx_p_clone"));
+  TH1D *hdx_n_clone = (TH1D*)(hdxn->Clone("hdx_n_clone"));
+  //TH1D *hdx_altbg_clone = (TH1D*)(hdxaltbg->Clone("hdx_altbg_clone"));
+
+  //Recreate the fit
+  TF1* fit;
+  if(bgtype.compare("inel")==0){
+    fit = new TF1("fitinel", fit_inelBG, hcalfit_l, hcalfit_h, 5);
+  }else if(bgtype.compare("dy")==0){
+    fit = new TF1("fitdy", fit_dyantiBG, hcalfit_l, hcalfit_h, 5);
+  }else if(bgtype.compare("coin")==0){
+    fit = new TF1("fitcoin", fit_coinantiBG, hcalfit_l, hcalfit_h, 5);
+  }else{
+    cout << "ERROR: Invalid MC background type. Must be inel, antidy, or anticoin." << endl;
+    return;
+  }
+
+  for (size_t i = 0; i < pars.size(); ++i) {
+    fit->SetParameter(i, pars[i].first);
+    fit->SetParError(i, pars[i].second);
+  }
+
+  fit->SetChisquare(qual.first);
+  fit->SetNDF(qual.second);
+
+  // Create a canvas with two pads
+  TCanvas *cTotal = new TCanvas(savePath, Form("MC BG Data with Fits and Residuals %s",type), 1200, 800);
+  TPad *pad1 = new TPad("pad1", "Pad with the fit", 0.0, 0.3, 1.0, 1.0);
+  TPad *pad2 = new TPad("pad2", "Pad with the residuals", 0.0, 0.0, 1.0, 0.3);
+  pad1->SetBottomMargin(0); // Upper and lower plot are joined
+  pad2->SetTopMargin(0);
+  pad2->SetBottomMargin(0.2);
+  pad1->Draw();
+  pad2->Draw();
+
+  // First pad: Draw the histogram with the fits
+  pad1->cd();
+  hdx_histplot->SetLineColor(kBlack);
+  hdx_histplot->SetLineWidth(1);
+  hdx_histplot->SetTitle(Form("dx, %s;m",type));
+  hdx_histplot->Draw("hist");
+  hdx->SetLineColor(kBlack);
+  hdx->SetLineWidth(1);
+  hdx->Draw("E same");
+  fit->SetLineColor(kGreen);
+  fit->SetLineWidth(1);
+  fit->Draw("same");
+  hdx_p_clone = util::shiftHistogramX(hdx_p,pars[2].first);
+  hdx_p_clone->Scale(pars[0].first);
+  hdx_p_clone->SetLineColor(kRed-5);
+  hdx_p_clone->SetLineWidth(2);
+  hdx_p_clone->Draw("E same");
+  hdx_n_clone = util::shiftHistogramX(hdx_n,pars[3].first);
+  hdx_n_clone->Scale(pars[1].first);
+  hdx_n_clone->SetLineColor(kBlue-5);
+  hdx_n_clone->SetLineWidth(2);
+  hdx_n_clone->Draw("E same");
+
+  // Set background function
+  TH1D *hdx_altbg_clone = util::shiftHistogramX(hdxaltbg,pars[3].first);
+  hdx_altbg_clone->Scale(pars[4].first);
+  hdx_altbg_clone->SetLineColor(kBlack);
+  hdx_altbg_clone->SetFillColorAlpha(kGray,0.35);
+  hdx_altbg_clone->SetFillStyle(1001);
+  hdx_altbg_clone->Draw("same");
+
+  double psumerror;
+  double psum = hdx_p_clone->IntegralAndError(0, hdx_p_clone->GetNbinsX() + 1, psumerror, "");
+
+  double pscaleerror = pars[0].second;
+  double pscale = pars[0].first;
+
+  double nsumerror;
+  double nsum = hdx_n_clone->IntegralAndError(0, hdx_n_clone->GetNbinsX() + 1, nsumerror, "");
+
+  double nscaleerror = pars[1].second;
+  double nscale = pars[1].first;
+
+  double np_sum_ratio = nsum/psum;
+  double np_par_ratio = nscale/pscale;
+  double np_sum_ratio_error = np_sum_ratio * sqrt(pow(psumerror/psum, 2) + pow(nsumerror/nsum, 2));
+  double np_par_ratio_error = np_par_ratio * sqrt(pow(pscaleerror/pscale, 2) + pow(nscaleerror/nscale, 2));
+
+  rsf.first = np_par_ratio;
+  rsf.second = np_par_ratio_error;
+
+  // Construct legend within function
+  TLegend* leg = new TLegend(0.5, 0.5, 0.89, 0.89);
+  leg->AddEntry( hdx, "Data", "l" );
+  leg->AddEntry( fit, "Fit", "l" );
+  leg->AddEntry( hdx_p_clone, "Proton SIMC MC", "l" );
+  leg->AddEntry( hdx_n_clone, "Neutron SIMC MC", "l" );
+  leg->AddEntry( hdx_altbg_clone, Form("BG, %s",bgtype.c_str()), "l" );
+  leg->AddEntry( (TObject*)0, "", "");
+  leg->AddEntry( (TObject*)0, Form("data N events : %0.0f",hdx->GetEntries()), "");
+  leg->AddEntry( (TObject*)0, Form("n/p scale ratio R_{sf} : %0.3f #pm %0.3f",np_par_ratio, np_par_ratio_error), "");
+  leg->AddEntry( (TObject*)0, Form("n/p yield ratio R'' : %0.3f #pm %0.3f",np_sum_ratio, np_sum_ratio_error), "");
+  leg->AddEntry( (TObject*)0, Form("dx shift pars, n/p : %0.3f / %0.3f ", pars[3].first, pars[2].first), "");
+  leg->AddEntry( (TObject*)0, Form("bg scale: %0.3f", pars[4].first), "");
+  leg->AddEntry( (TObject*)0, Form("#chi^{2}/ndf: %0.3f/%d",fit->GetChisquare(),fit->GetNDF()), "");
+  leg->Draw("same");
+
+  // Construct residuals
+  //add the p and n histograms together for comparison
+  TH1D* sumHistogram = new TH1D(Form("sumHistogram_%s",type), "Sum of Histograms", hdx_p_clone->GetNbinsX(), hdx_p_clone->GetXaxis()->GetXmin(), hdx_p_clone->GetXaxis()->GetXmax());
+  sumHistogram->Add(hdx_p_clone, hdx_n_clone);
+
+  //subtract the background and get elastic stats
+  elastics = 0;
+  for (int bin = 1; bin <= hdx_clone->GetNbinsX(); ++bin) {
+    // Get the value at the current bin in bg_hist
+    double bgValue = hdx_altbg_clone->GetBinContent(bin);
+    if( hdx_clone->GetBinContent(bin) > bgValue )
+      elastics += hdx_clone->GetBinContent(bin) - bgValue;
+    // Subtract bgValue from the current bin content of hdx_clone and update it
+    hdx_clone->SetBinContent(bin, hdx_clone->GetBinContent(bin) - bgValue);
+    // Assuming you want to combine errors in quadrature
+    double hdxError = hdx_clone->GetBinError(bin);
+    double bgError = hdx_altbg_clone->GetBinError(bin);
+    hdx_clone->SetBinError(bin, sqrt(hdxError*hdxError + bgError*bgError));
+  }
+
+  TH1D *hRes = util::makeResidualHistoWithError(Form("dx_%s",type),hdx_clone,sumHistogram,true,false);
+  TH1D *hRes_histplot = (TH1D*)(hRes->Clone(Form("hRes_histplot_%s",type)));
+
+  hRes_histplot->SetTitle("");
+  //hRes->SetName(Form("hr_%s",savePath));
+  hRes_histplot->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+
+  double dxMaxValue = hdx_clone->GetMaximum();
+  hRes->GetYaxis()->SetRangeUser(-dxMaxValue/4,dxMaxValue/4);
+  hRes_histplot->GetYaxis()->SetRangeUser(-dxMaxValue/4,dxMaxValue/4);
+
+  hRes_histplot->SetLineColor(kRed);
+  hRes_histplot->SetLineWidth(2);
+  hRes->SetMarkerStyle(1);
+  hRes->SetLineColor(kBlack);
+  hRes->SetLineWidth(1);
+
+  // Second pad: Draw the residuals
+  pad2->cd();
+  hRes_histplot->Draw("hist");
+  hRes_histplot->GetYaxis()->SetTitle("Residuals");
+  hRes_histplot->GetYaxis()->SetTitleSize(0.07);
+  hRes_histplot->GetYaxis()->SetTitleOffset(0.5);
+  hRes_histplot->GetYaxis()->SetLabelSize(0.07);
+  hRes_histplot->GetXaxis()->SetTitleSize(0.07);
+  hRes_histplot->GetXaxis()->SetLabelSize(0.07);
+  hRes_histplot->GetXaxis()->SetTitle("x_{hcal}-x_{exp}");
+  hRes->Draw("E same");
+
+  // Draw a line at y=0 for residuals
+  TF1 *zeroLine = new TF1("zeroLine", "0", hRes->GetXaxis()->GetXmin(), hRes->GetXaxis()->GetXmax());
+  zeroLine->SetLineColor(kBlack);
+  zeroLine->SetLineStyle(2);
+  zeroLine->Draw("same");
+
+  // Update the canvas
+  cTotal->cd();
+  cTotal->Update();
+
+  // Save the canvas to a file
+  cTotal->SaveAs(savePath);
+}
+
 //Function to fit then fine fit and return all fit parameters
-std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0") {
+std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, const std::string& fitOptions = "RBMQ0") {
   TF1* fit = new TF1(fitName.c_str(), fitFormula.c_str(), hcalfit_l, hcalfit_h, paramCount);
   //fit->SetNpx(5000);
   for (int i=0; i<paramCount; ++i){ //reset parameters/errors for this set
     fit->SetParameter(i,0);
     fit->SetParError(i,0);
-  }
-  if(!(pshift==0&&nshift==0)){
-    fit->FixParameter(2,pshift);
-    fit->FixParameter(3,nshift);
   }
 
   histogram->Fit(fit, fitOptions.c_str());
@@ -910,16 +1172,8 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
   for (int i = 0; i < paramCount; ++i) {
     fineFitInitialParams[i] = parametersAndErrors[i].first;
   }
-
   fineFit->SetParameters(fineFitInitialParams.data());
-  if(!(pshift==0&&nshift==0)){
-    fit->FixParameter(2,pshift);
-    fit->FixParameter(3,nshift);
-  }
-
   histogram->Fit(fineFit, fitOptions.c_str());
-
-  cout << fineFit->GetParameter(6) << endl;
 
   // Update parameters and errors with fine fit results
   for (int i = 0; i < paramCount; ++i) {
@@ -933,4 +1187,95 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
   delete fit; // Delete fit to avoid carry-over
   delete fineFit; // Clean up
   return parametersAndErrors;
+}
+
+//Function to fit then fine fit and return all fit parameters
+std::vector<std::pair<double, double>> fitAndFineFit_fixshift(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0") {
+  TF1* fit = new TF1(fitName.c_str(), fitFormula.c_str(), hcalfit_l, hcalfit_h, paramCount);
+  //fit->SetNpx(5000);
+  for (int i=0; i<paramCount; ++i){ //reset parameters/errors for this set
+    fit->SetParameter(i,0);
+    fit->SetParError(i,0);
+  }
+  fit->FixParameter(2,pshift); //fix x shift for proton
+  fit->FixParameter(3,nshift); //fix x shift for neutron
+
+  histogram->Fit(fit, fitOptions.c_str());
+
+  std::vector<std::pair<double, double>> parametersAndErrors(paramCount);
+  for (int i = 0; i < paramCount; ++i) {
+    parametersAndErrors[i].first = fit->GetParameter(i); // Parameter value
+    parametersAndErrors[i].second = fit->GetParError(i); // Parameter error
+  }
+
+  // Fine Fit
+  TF1* fineFit = new TF1((fitName + "_fine").c_str(), fitFormula.c_str(), hcalfit_l, hcalfit_h, paramCount);
+  std::vector<double> fineFitInitialParams(paramCount);
+  for (int i = 0; i < paramCount; ++i) {
+    fineFitInitialParams[i] = parametersAndErrors[i].first;
+  }
+  fineFit->FixParameter(2,pshift); //keep fixed x shift
+  fineFit->FixParameter(3,nshift); //keep fixed x shift
+
+  fineFit->SetParameters(fineFitInitialParams.data());
+  histogram->Fit(fineFit, fitOptions.c_str());
+
+  // Update parameters and errors with fine fit results
+  for (int i = 0; i < paramCount; ++i) {
+    parametersAndErrors[i].first = fineFit->GetParameter(i); // Fine fit parameter value
+    parametersAndErrors[i].second = fineFit->GetParError(i); // Fine fit parameter error
+  }
+
+  fitqual.first = fineFit->GetChisquare();
+  fitqual.second = fineFit->GetNDF();
+
+  delete fit; // Delete fit to avoid carry-over
+  delete fineFit; // Clean up
+  return parametersAndErrors;
+}
+
+//simple background subtraction function
+void subtractBackground(TH1D* hist, TF1* bgFit) {
+  if (!hist || !bgFit) {
+    std::cerr << "Error: Null pointer passed to subtractBackground." << std::endl;
+    return;
+  }
+
+  for (int bin = 1; bin <= hist->GetNbinsX(); ++bin) {
+    double bgValue = bgFit->Eval(hist->GetXaxis()->GetBinCenter(bin));
+    double content = hist->GetBinContent(bin) - bgValue;
+    double error = hist->GetBinError(bin); // Assuming you want to keep the original error
+
+    hist->SetBinContent(bin, content);
+    hist->SetBinError(bin, error);
+
+  }
+}
+
+int FindCutIndex(const std::string& branches, const std::string& searchStr) {
+  std::istringstream iss(branches);
+  std::string token;
+  int count = 0;
+
+  // Split the branches string by "&&" and search for the smaller string
+  while (std::getline(iss, token, '&')) {
+    // Check if the next character is also '&' to correctly skip "&&" delimiters
+    if(iss.peek() == '&') iss.ignore();
+
+    // Check if the token contains the searchStr
+    if (token.find(searchStr) != std::string::npos) {
+      return count; // Return the current count (index) if found
+    }
+    ++count; // Increment count for each passed "&&"
+  }
+  return -1; // Return -1 if the searchStr is not found
+}
+
+std::string RemovePrefix(const std::string& originalString, const std::string& prefix) {
+    if (originalString.substr(0, prefix.length()) == prefix) {
+        // If the string starts with the prefix, remove it
+        return originalString.substr(prefix.length());
+    }
+    // If the string does not start with the prefix, return it unchanged
+    return originalString;
 }

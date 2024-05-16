@@ -66,7 +66,7 @@ std::string addbc(std::string input) {
 //plot with cuts script to work with best clusters, first step on systematics analysis. Configured for pass 2.
 //bestclus uses bestclusterinfo from parse file. skipcorrelationplots doesn't plot cut vs cut plots. addresscorr removes cuts from dx vs cut TH2Ds where the cut is correlated (like dy and W2)
 void plotWithCuts_bc(int kine=8, 
-		     int mag=70, 
+		     int mag=50, 
 		     int pass=2, 
 		     bool skipcorrelationplots=true, 
 		     bool addresscorr=false,

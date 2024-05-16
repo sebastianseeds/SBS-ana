@@ -24,11 +24,11 @@
 //sbs7 85p: -1.4 to 0.5
 
 //Fit range override options
-double hcalfit_l = -1.8; //lower fit/bin limit for hcal dx plots (m)
+double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
 double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
 
 //Plot range option shared by all fits
-double hcalr_l = -1.8; //lower fit/bin limit for hcal dx plots (m)
+double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
 double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
 
 double xrange_min_coin = -10;
@@ -187,13 +187,13 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
 void coinStability(int kine=8, 
-		 int mag=70, 
+		 int mag=100, 
 		 int pass=2, 
 		 int N=12,
 		 double mean=0.377,
 		 double sigma=1.47,
 		 double start_sigma=2.5,
-		 double max_sigma=9,
+		 double max_sigma=5,
 		 std::string BG="pol2",
 		 bool bestclus=true, 
 		 bool thin=true,

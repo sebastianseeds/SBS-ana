@@ -33,7 +33,7 @@ std::string trim(const std::string& str) {
 
 //plot with cuts script, first step on systematics analysis. Configured for pass 2.
 void plotWithCuts_mc(int kine=8, 
-		     int mag=100, 
+		     int mag=50, 
 		     int pass=2, 
 		     bool skipcorrelations=true,
 		     bool addresscorr=false,

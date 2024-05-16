@@ -32,7 +32,7 @@ double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
 double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
 
 double xrange_min_bb_ps_e = 0.;
-double xrange_max_bb_ps_e = 0.8;
+double xrange_max_bb_ps_e = 10;
 
 //Fit options
 std::string fitopt = "RMQ0";
