@@ -33,7 +33,7 @@ std::string trim(const std::string& str) {
 // add _bc to get best cluster branches from parse file
 std::string addbc(std::string input) {
   const std::string suffix = "_bc";
-  const std::string targets[4] = {"coin", "dy", "hcale", "hcalon"}; //branches that depend on hcal clusters
+  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
 
   for (const auto& target : targets) {
     std::string::size_type pos = 0;
@@ -66,7 +66,7 @@ std::string addbc(std::string input) {
 //plot with cuts script to work with best clusters, first step on systematics analysis. Configured for pass 2.
 //bestclus uses bestclusterinfo from parse file. skipcorrelationplots doesn't plot cut vs cut plots. addresscorr removes cuts from dx vs cut TH2Ds where the cut is correlated (like dy and W2)
 void plotWithCuts_bc(int kine=8, 
-		     int mag=50, 
+		     int mag=70, 
 		     int pass=2, 
 		     bool skipcorrelationplots=true, 
 		     bool addresscorr=false,
@@ -83,12 +83,12 @@ void plotWithCuts_bc(int kine=8,
 
   //Get plot details
   int hbins = jmgr->GetValueFromSubKey<int>( "hbins", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
-  double hcalfit_l = jmgr->GetValueFromSubKey<int>( "hcalfit_l", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
-  double hcalfit_h = jmgr->GetValueFromSubKey<int>( "hcalfit_h", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
-  //double hcalfit_l = econst::hcalposXi_mc; //lower fit/bin limit for hcal dx plots (m)
-  //double hcalfit_h = econst::hcalposXf_mc; //upper fit/bin limit for hcal dx plots (m)
+  double hcalfit_l = jmgr->GetValueFromSubKey<double>( "hcalfit_l_wide", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
+  double hcalfit_h = jmgr->GetValueFromSubKey<double>( "hcalfit_h_wide", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
 
-  //int Nbins_dx = hbins;
+  int W2bins = jmgr->GetValueFromSubKey<int>( "W2bins", Form("sbs%d",kine) );
+  double W2fit_l = jmgr->GetValueFromSubKey<double>( "W2fit_l_wide", Form("sbs%d_%d",kine,mag) );
+  double W2fit_h = jmgr->GetValueFromSubKey<double>( "W2fit_h_wide", Form("sbs%d_%d",kine,mag) );
 
   cout << "Running best cluster dx plots.." << endl << endl;
 
@@ -113,19 +113,55 @@ void plotWithCuts_bc(int kine=8,
   std::string globalcuts_raw;
   if(wide){
     globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-    cout << "Loaded wide cuts: " << globalcuts_raw << endl;
+    cout << "Loaded wide cuts: ";
   }else{
     globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-    cout << "Loaded tight cuts: " << globalcuts_raw << endl;
+    cout << "Loaded tight cuts: ";
   }
 
   std::string globalcuts = addbc(globalcuts_raw);
 
+  cout << globalcuts << endl;
+
+  //Get nucleon spot cuts for W2 histograms
+  std::string spotcut_n = jmgr->GetValueFromSubKey_str( "h_dn_spot_cuts_tight", Form("sbs%d_%d",kine,mag) );
+  std::string spotcut_p = jmgr->GetValueFromSubKey_str( "h_dp_spot_cuts_tight", Form("sbs%d_%d",kine,mag) );
+
+  std::string spotcutraw = "&&((" + spotcut_n + ")||(" + spotcut_p + "))";
+
+  std::string spotcut = addbc(spotcutraw);
+
   std::cout << std::endl << "Loaded best cluster cuts: " << globalcuts << std::endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
+  std::vector<std::string> ccuts;
 
   std::cout << std::endl << "Parsed cuts: " << std::endl;
+
+  std::string parsedCutString;
+  std::string parsedCutString_W2;
+  std::string parsedCutString_W2dy;
+
+  for (const auto& cut : cuts) {
+    std::string trimmedCut = trim(cut);
+
+    if (!parsedCutString.empty()) parsedCutString += "&&";
+    parsedCutString += trimmedCut;
+
+    // Include cut in parsedCutString_W2 if it doesn't contain "W2"
+    if (trimmedCut.find("W2") == std::string::npos) {
+      if (!parsedCutString_W2.empty()) parsedCutString_W2 += "&&";
+      parsedCutString_W2 += trimmedCut;
+
+      // Include cut in parsedCutString_W2dy if it doesn't contain "W2" or "dy"
+      if (trimmedCut.find("dy") == std::string::npos) {
+	if (!parsedCutString_W2dy.empty()) parsedCutString_W2dy += "&&";
+	parsedCutString_W2dy += trimmedCut;
+      }
+    }
+
+    ccuts.push_back(cut);
+  }
 
   //Set up dy anticut bg histogram
   std::string dyanticut_noelas;
@@ -185,8 +221,6 @@ void plotWithCuts_bc(int kine=8,
   std::cout << "coinanticut_noelas: " << coinanticut_noelas << std::endl;
   std::cout << "coinanticut_elas: " << coinanticut_elas << std::endl;
 
-  //return;
-
   std::string postbranches = jmgr->GetValueFromKey_str( Form("post_branches_p%d",pass) );
 
   cout << "Loaded branches: " << postbranches << endl;
@@ -219,7 +253,9 @@ void plotWithCuts_bc(int kine=8,
     effz_word = "_effz";
 
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string fin_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s.root",kine,pass,effz_word.c_str());
+  std::string fin_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s_ld2.root",kine,pass,effz_word.c_str());
+
+  cout << endl << "    Drawing data histograms from parsed file: " << fin_path << endl << endl << endl;
 
   std::string skipcorrelationplots_word = "";
   if(skipcorrelationplots)
@@ -285,6 +321,49 @@ void plotWithCuts_bc(int kine=8,
   hist_anticoin->Write();
 
   delete hist_anticoin;
+
+  /////////////////////////////////////////
+  // Draw the W2 histogram with all cuts
+  std::string hW2hist = "hW2";
+  std::string hW2_cut = parsedCutString_W2;
+  TH1D* hW2 = new TH1D(hW2hist.c_str(), "W2;GeV^{2}", W2bins, W2fit_l, W2fit_h);
+
+  cout << endl << "Plotting best cluster W2 data histogram with cuts: " << hW2_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2-excluded cut
+  tree->Draw(("W2>>" + hW2hist).c_str(), hW2_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hW2->Write();
+
+  /////////////////////////////////////////
+  // Draw the W2 histogram excluding dy cuts
+  std::string hW2dyhist = "hW2_nodycut";
+  std::string hW2dy_cut = parsedCutString_W2dy;
+  TH1D* hW2dy = new TH1D(hW2dyhist.c_str(), "W2 without dy cuts with spotcut;GeV^{2}", W2bins, W2fit_l, W2fit_h);
+
+  cout << endl << "Plotting best cluster W2 (no dy cut) data histogram with cuts: " << hW2dy_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("W2>>" + hW2dyhist).c_str(), hW2dy_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hW2dy->Write();
+
+
+  /////////////////////////////////////////
+  // Draw the W2 histogram excluding dy cuts
+  std::string hW2spothist = "hW2_spotcut";
+  std::string hW2spot_cut = parsedCutString_W2dy + spotcut;
+  TH1D* hW2spot = new TH1D(hW2spothist.c_str(), "W2 with spotcut;GeV^{2}", W2bins, W2fit_l, W2fit_h);
+
+  cout << endl << "Plotting best cluster W2 (spotcut) data histogram with cuts: " << hW2spot_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("W2>>" + hW2spothist).c_str(), hW2spot_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hW2spot->Write();
 
   // Loop over branches
   for (const auto& branch : branches) {

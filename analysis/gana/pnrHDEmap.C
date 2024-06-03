@@ -278,6 +278,10 @@ void pnrHDEmap(int kine=4,
   cW2optx->Update();
   cW2optx->Write();
 
+  // Create a new canvas
+  TCanvas *cW2opty = new TCanvas("cW2opty", "W2 vs Optics y", 1000, 600);
+  cW2opty->cd();
+
   // Draw vertical projection to bb midplane with track v cut vertical projection cut
   std::string W2optyName = "hW2vOpty";
   std::string W2optycut = W2optxcut + "&&" + optxcut;
@@ -293,10 +297,6 @@ void pnrHDEmap(int kine=4,
 
   // Draw the plot using the created histogram
   tree->Draw(("W2:(bb_tr_r_y-0.9*bb_tr_r_ph)>>" + W2optyName).c_str(), W2optycut.c_str(), "COLZ");
-
-  // Create a new canvas
-  TCanvas *cW2opty = new TCanvas("cW2opty", "W2 vs Optics y", 1000, 600);
-  cW2opty->cd();
 
   // Draw the histogram on the canvas
   W2opty->Draw("COLZ");
@@ -318,6 +318,11 @@ void pnrHDEmap(int kine=4,
   // Write the histogram to the output file
   cW2opty->Update();
   cW2opty->Write();
+
+  // Create a new canvas
+  TCanvas *cxyexp = new TCanvas("cxyexp", "xexp vs yexp", 1200, 600);
+  cxyexp->Divide(2,1);
+  cxyexp->cd(1);
 
   // Draw the xexp heat maps
   std::string xyexpName = "hxyexp";
@@ -371,11 +376,6 @@ void pnrHDEmap(int kine=4,
   // Right side line (vertical) at x = fidycut_vec[1]
   TLine *yexpline2 = new TLine(fidycut_vec[1], fidxcut_vec[0], fidycut_vec[1], fidxcut_vec[1]);
 
-  // Create a new canvas
-  TCanvas *cxyexp = new TCanvas("cxyexp", "xexp vs yexp", 1200, 600);
-  cxyexp->Divide(2,1);
-  cxyexp->cd(1);
-
   // Draw the histogram on the canvas
   int xyexp_nev = hxyexp->GetEntries();
   hxyexp->Draw("COLZ");
@@ -426,6 +426,10 @@ void pnrHDEmap(int kine=4,
   cxyexp->Update();
   cxyexp->Write();
 
+  // Create a new canvas
+  TCanvas *cW2fidx = new TCanvas("cW2fidx", "W2 vs xexp", 1000, 600);
+  cW2fidx->cd();
+
   // Draw the W2 fiducial x cut histogram
   std::string W2fidxName = "hW2vFidx";
   std::string W2fidxTitle = "(hW2vFidx) " + exp_cuts;
@@ -440,10 +444,6 @@ void pnrHDEmap(int kine=4,
 
   // Draw the plot using the created histogram
   tree->Draw(("W2:xexp>>" + W2fidxName).c_str(), exp_cuts.c_str(), "COLZ");
-
-  // Create a new canvas
-  TCanvas *cW2fidx = new TCanvas("cW2fidx", "W2 vs xexp", 1000, 600);
-  cW2fidx->cd();
 
   // Draw the histogram on the canvas
   W2fidx->Draw("COLZ");
@@ -466,6 +466,10 @@ void pnrHDEmap(int kine=4,
   cW2fidx->Update();
   cW2fidx->Write();
 
+  // Create a new canvas
+  TCanvas *cW2fidy = new TCanvas("cW2fidy", "W2 vs yexp", 1000, 600);
+  cW2fidy->cd();
+
   // Draw the fiducial y cut histogram
   std::string W2fidyName = "hW2vFidy";
   std::string W2fidyTitle = "(hW2vFidy) " + exp_cuts;
@@ -480,10 +484,6 @@ void pnrHDEmap(int kine=4,
 
   // Draw the plot using the created histogram
   tree->Draw(("W2:yexp>>" + W2fidyName).c_str(), exp_cuts.c_str(), "COLZ");
-
-  // Create a new canvas
-  TCanvas *cW2fidy = new TCanvas("cW2fidy", "W2 vs yexp", 1000, 600);
-  cW2fidy->cd();
 
   // Draw the histogram on the canvas
   W2fidy->Draw("COLZ");
@@ -505,6 +505,11 @@ void pnrHDEmap(int kine=4,
   // Write the histogram to the output file
   cW2fidy->Update();
   cW2fidy->Write();
+
+  // Create a new canvas
+  TCanvas *cdxdy = new TCanvas("cdxdy", "dx vs dy", 1200, 600);
+  cdxdy->Divide(2,1);
+  cdxdy->cd(1);
 
   // Draw dx vs dy plot for comparison with spot cut region
   std::string dxdyName = "hdxdy";
@@ -538,12 +543,7 @@ void pnrHDEmap(int kine=4,
   // Draw the plot using the created histogram
   tree->Draw(("dx_bc:dy_bc>>" + dxdyspotName).c_str(), dxdyspotcut.c_str(), "COLZ");
 
-  // Create a new canvas
-  TCanvas *cdxdy = new TCanvas("cdxdy", "dx vs dy", 1200, 600);
-  cdxdy->Divide(2,1);
-
   // Draw the dxdy plot without spot cut
-  cdxdy->cd(1);
   hdxdy->Draw("COLZ");
 
   // Draw the dxdy plot with the spot cut
@@ -552,6 +552,10 @@ void pnrHDEmap(int kine=4,
 
   cdxdy->Update();
   cdxdy->Write();
+
+  // Create a new canvas
+  TCanvas *cW2 = new TCanvas("cW2", "W2", 1200, 600);
+  cW2->cd();
 
   // Draw W2 plot to look at effects of all cuts
   std::string W2Name = "hW2";
@@ -579,9 +583,6 @@ void pnrHDEmap(int kine=4,
   // Draw the plot using the created histogram
   tree->Draw(("W2>>" + W2spotName).c_str(), W2spotcut.c_str(), "COLZ");
 
-  // Create a new canvas
-  TCanvas *cW2 = new TCanvas("cW2", "W2", 1200, 600);
-
   // Draw the W2 plot without spot cut
   hW2->SetLineColor(kBlack);
   hW2->Draw();
@@ -592,7 +593,7 @@ void pnrHDEmap(int kine=4,
   hW2spot->SetLineWidth(0);
   hW2spot->SetFillColor(transparentBlue);
   hW2spot->SetFillStyle(1001);
-  hW2spot->Draw("SAME LF2");
+  hW2spot->Draw("SAME");
 
   TLegend *leg_w2 = new TLegend(0.5, 0.7, 0.89, 0.89);
   leg_w2->AddEntry(hW2, "Electron Arm Cuts", "L");
@@ -601,6 +602,12 @@ void pnrHDEmap(int kine=4,
 
   cW2->Update();
   cW2->Write();
+
+
+  // Create a new canvas
+  TCanvas *craw = new TCanvas("craw", "raw", 1200, 600);
+  craw->Divide(2,1);
+  craw->cd(1);
 
   // Draw expected x plot with all cuts, all cuts minus spot, and all cuts antispot (save fidx on all)
   std::string xexp_normName = "hxexp_norm";
@@ -677,12 +684,7 @@ void pnrHDEmap(int kine=4,
   // Draw the histogram
   tree->Draw(("yexp>>" + yexp_antiName).c_str(), yexp_anticut.c_str(), "COLZ");
 
-  // Create a new canvas
-  TCanvas *craw = new TCanvas("craw", "raw", 1200, 600);
-  craw->Divide(2,1);
-
   // Draw the xexp comparisons
-  craw->cd(1);
   hxexp_norm->Draw();
   hxexp_sig->SetFillStyle(3002);
   hxexp_sig->SetFillColor(kGreen+2);
@@ -706,9 +708,14 @@ void pnrHDEmap(int kine=4,
   craw->Update();
   craw->Write();
 
+  // Create canvas and divide it
+  TCanvas *cEff = new TCanvas("cEff", "HCal Detection Efficiency", 1200, 600);
+  cEff->Divide(2,1);
+  cEff->cd(1);
+
   //Now divide the sig:norm for efficiency per dimension
   std::string yeffName = "hyexp_eff";
-  std::string yeffTitle = "HDE proton yexp; y_{exp} (m); Proton Detection Efficiency";
+  std::string yeffTitle = "HDE nucleon yexp; y_{exp} (m); Nucleon Detection Efficiency";
   TH1D* hyexp_eff = new TH1D(yeffName.c_str(), 
 			     yeffTitle.c_str(), 
 			     hcalybins, 
@@ -721,7 +728,7 @@ void pnrHDEmap(int kine=4,
   hyexp_eff->SetMarkerColor(kBlack);  
 
   std::string xeffName = "hxexp_eff";
-  std::string xeffTitle = "HDE proton xexp; x_{exp} (m); Proton Detection Efficiency";
+  std::string xeffTitle = "HDE nucleon xexp; x_{exp} (m); Nucleon Detection Efficiency";
   TH1D* hxexp_eff = new TH1D(xeffName.c_str(), 
 			     xeffTitle.c_str(), 
 			     hcalxbins, 
@@ -733,9 +740,9 @@ void pnrHDEmap(int kine=4,
   hxexp_eff->SetMarkerStyle(20);
   hxexp_eff->SetMarkerColor(kBlack);
 
-  // Fit hyexp_eff within specified bounds
+  // Fit hyexp_eff within bounds
   TF1 *fit_hy = new TF1("fit_hy", "pol0", fidycut_vec[0], fidycut_vec[1]);
-  hyexp_eff->Fit(fit_hy, "R");  // "R" option for fit range
+  hyexp_eff->Fit(fit_hy, "R");
 
   // Fit hxexp_eff from the first bin with data to fidxcut_vec[0]
   int first_nonempty_bin = hxexp_eff->FindFirstBinAbove(0);
@@ -744,14 +751,9 @@ void pnrHDEmap(int kine=4,
   TF1 *fit_hx = new TF1("fit_hx", "pol0", fidxcutfirst, fidxcut_vec[0]);
   hxexp_eff->Fit(fit_hx, "R");
 
-  cout << left_binlimit_x << " " << fidxcut_vec[0] << " " << fidxcutfirst << endl;
-
-  // Create canvas and divide it
-  TCanvas *cEff = new TCanvas("cEff", "HCal Detection Efficiency", 1200, 600);
-  cEff->Divide(2,1);
+  //cout << left_binlimit_x << " " << fidxcut_vec[0] << " " << fidxcutfirst << endl;
 
   // Drawing hyexp_eff with fit and legend
-  cEff->cd(1);
   hxexp_eff->Draw("P");
   fit_hx->SetLineColor(kRed);
 
@@ -770,10 +772,7 @@ void pnrHDEmap(int kine=4,
   leg_y->AddEntry(fit_hy, Form("Avg Eff = %.3f #pm %.3f", fit_hy->GetParameter(0), fit_hy->GetParError(0)), "L");
   leg_y->Draw();
 
-  // Update the canvas
   cEff->Update();
-
-  // Save and write the canvas
   cEff->Write();
 
   ////////////////////////
@@ -947,7 +946,7 @@ void pnrHDEmap(int kine=4,
   hxpexp_sig->SetFillColor(transparentGreen);
   hxpexp_sig->SetLineColor(kGreen);
   hxpexp_sig->SetLineWidth(0);
-  hxpexp_sig->Draw("same lf2");
+  hxpexp_sig->Draw("same");
   hxpexp_anti->SetLineColor(kRed);
   hxpexp_anti->SetLineWidth(2);
   hxpexp_anti->Draw("same");
@@ -959,7 +958,7 @@ void pnrHDEmap(int kine=4,
   hypexp_sig->SetFillColor(transparentGreen);
   hypexp_sig->SetLineColor(kGreen);
   hypexp_sig->SetLineWidth(0);
-  hypexp_sig->Draw("same lf2");
+  hypexp_sig->Draw("same");
   hypexp_anti->SetLineColor(kRed);
   hypexp_anti->SetLineWidth(2);
   hypexp_anti->Draw("same");
@@ -971,7 +970,7 @@ void pnrHDEmap(int kine=4,
   hxnexp_sig->SetFillColor(transparentGreen);
   hxnexp_sig->SetLineColor(kGreen);
   hxnexp_sig->SetLineWidth(0);
-  hxnexp_sig->Draw("same lf2");
+  hxnexp_sig->Draw("same");
   hxnexp_anti->SetLineColor(kRed);
   hxnexp_anti->SetLineWidth(2);
   hxnexp_anti->Draw("same");
@@ -983,7 +982,7 @@ void pnrHDEmap(int kine=4,
   hynexp_sig->SetFillColor(transparentGreen);
   hynexp_sig->SetLineColor(kGreen);
   hynexp_sig->SetLineWidth(0);
-  hynexp_sig->Draw("same lf2");
+  hynexp_sig->Draw("same");
   hynexp_anti->SetLineColor(kRed);
   hynexp_anti->SetLineWidth(2);
   hynexp_anti->Draw("same");
@@ -992,10 +991,14 @@ void pnrHDEmap(int kine=4,
   crawall->Write();
 
   //Get the ratios
+  // Create canvas and divide it
+  TCanvas *cnpr = new TCanvas("cnpr", "n:p detected ratios", 1200, 600);
+  cnpr->Divide(2,1);
+  cnpr->cd(1);
 
   //n:p detected, X
   std::string nprxName = "hnprx";
-  std::string nprxTitle = "n_{det}:p_{det}; x_{exp} (m); n:p ratio";
+  std::string nprxTitle = "n_{det}:p_{det}, x_{exp}; x_{exp} (m); n:p ratio";
   TH1D* hnprx = new TH1D(nprxName.c_str(), 
 			 nprxTitle.c_str(), 
 			 hcalxbins, 
@@ -1003,29 +1006,55 @@ void pnrHDEmap(int kine=4,
 			 hcalxlim.second);
 
   hnprx->Divide(hxnexp_sig, hxpexp_sig, 1.0, 1.0, "B");
+  hnprx->GetYaxis()->SetRangeUser(0.0,1.5*hnprx->GetMaximum());
   hnprx->SetMarkerStyle(20);
   hnprx->SetMarkerColor(kBlack);
 
   //n:p detected, Y
   std::string npryName = "hnpry";
-  std::string npryTitle = "n_{det}:p_{det}; x_{exp} (m); n:p ratio";
+  std::string npryTitle = "n_{det}:p_{det}, y_{exp}; y_{exp} (m); n:p ratio";
   TH1D* hnpry = new TH1D(npryName.c_str(), 
 			 npryTitle.c_str(), 
-			 hcalxbins, 
-			 hcalxlim.first, 
-			 hcalxlim.second);
+			 hcalybins, 
+			 hcalylim.first, 
+			 hcalylim.second);
 
   hnpry->Divide(hynexp_sig, hypexp_sig, 1.0, 1.0, "B");
+  hnprx->GetYaxis()->SetRangeUser(0.0,1.5*hnprx->GetMaximum());
   hnpry->SetMarkerStyle(20);
   hnpry->SetMarkerColor(kBlack);
 
+  // pol0 fit, x
+  TF1 *fit_nprx = new TF1("fit_nprx", "pol0", fidxcutfirst, fidxcut_vec[0]);
+  hnprx->Fit(fit_nprx, "R");
 
-  // Update the canvas
-  cEff->Update();
+  // pol0 fit, y
+  TF1 *fit_npry = new TF1("fit_npry", "pol0", fidycut_vec[0], fidycut_vec[1]);
+  hnpry->Fit(fit_npry, "R");
 
-  // Save and write the canvas
-  cEff->Write();
+  // Drawing hnprx with fit and legend
+  hnprx->Draw("P");
+  fit_nprx->SetLineColor(kRed);
 
+  TLegend *leg_nprx = new TLegend(0.11, 0.75, 0.89, 0.89);
+  leg_nprx->AddEntry(hnprx, "x_{exp} n:p detected ratio", "P");
+  leg_nprx->AddEntry(fit_nprx, Form("n:p detected ratio mean = %.3f #pm %.3f", fit_nprx->GetParameter(0), fit_nprx->GetParError(0)), "L");
+  leg_nprx->Draw();
+
+  cnpr->Update();
+
+  // Drawing hnprx with fit and legend
+  cnpr->cd(2);
+  hnpry->Draw("P");
+  fit_npry->SetLineColor(kRed);
+
+  TLegend *leg_npry = new TLegend(0.11, 0.75, 0.89, 0.89);
+  leg_npry->AddEntry(hnpry, "y_{exp} n:p detected ratio", "P");
+  leg_npry->AddEntry(fit_npry, Form("n:p detected ratio mean = %.3f #pm %.3f", fit_npry->GetParameter(0), fit_npry->GetParError(0)), "L");
+  leg_npry->Draw();
+
+  cnpr->Update();
+  cnpr->Write();
 
   cout << "All plots created. Output file located here: " << fout_path << endl;
 

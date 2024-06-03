@@ -40,17 +40,25 @@ Long64_t maxFileSize = 8e9; //8 GB
 //Specific wide cut for all parsing
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
+//Get blinding factor
+double blinder = util::generateRandomNumber("QWRT");
+
+//Forward declarations
+std::map<double, double> readCorrectionMapFromFile(const std::string& filename);
+double getCorrectionFactor(double x_exp, const std::map<double, double>& correctionMap);
+
 //For now, use alt for all kine except 7, 14, 11
 
 //MAIN
-void parse_mc_barebones( int kine = 4, 
-			 int mag = 30, 
+void parse_mc_barebones( int kine = 8, 
+			 int mag = 100, 
 			 const char *replay_type = "alt", 
 			 bool verbose=false, 
 			 bool norm_override=false, 
 			 bool effz=true, 
 			 bool ep_fourvec=false, 
-			 bool limit_size=false )
+			 bool limit_size=false,
+			 bool hde_maxeff=true)
 {   
 
   // Define a clock to check macro processing time
@@ -82,6 +90,8 @@ void parse_mc_barebones( int kine = 4,
   //All MC for analysis is LD2
   std::string rootfile_dir = jmgr->GetValueFromSubKey_str( Form("filedir_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
 
+  std::string hdemaps_dir = jmgr->GetValueFromSubKey_str( Form("filedir_hdemaps_sbs%d",kine), Form("%dp",mag) );
+
   //Check if trailing forward slash is in json, if not add it
   if (!rootfile_dir.empty() && rootfile_dir.back() != '/') {
     rootfile_dir += '/';
@@ -110,7 +120,7 @@ void parse_mc_barebones( int kine = 4,
   std::string partialName_n = jmgr->GetValueFromSubKey_str( Form("n_string_sbs%d%s",kine,rootfile_type.c_str()), Form("%dp",mag) );
 
   //set up default parameters for all analysis
-  double binfac = 400.;
+  double binfac = 400.; //for qa plots only
 
   // outfile path
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
@@ -226,6 +236,12 @@ void parse_mc_barebones( int kine = 4,
     }
   }
 
+  //get correction factor maps
+  std::string xexp_corrmapfile = hdemaps_dir + "xcorr_sbs" + std::to_string(kine) + "_mag0.txt";
+  std::map<double, double> correctionMap_x = readCorrectionMapFromFile(xexp_corrmapfile);
+  std::string yexp_corrmapfile = hdemaps_dir + "ycorr_sbs" + std::to_string(kine) + "_mag0.txt";
+  std::map<double, double> correctionMap_y = readCorrectionMapFromFile(yexp_corrmapfile);
+
   //set up diagnostic objects
   int totalNtried_p = 0;
   int totalNtried_n = 0;
@@ -312,6 +328,9 @@ void parse_mc_barebones( int kine = 4,
   double seed_out;
   double mc_weight_out;
   double mc_weight_norm_out;
+  double mc_weight_blind_out;
+  double hde_xexpcorr_weight_out;
+  double hde_yexpcorr_weight_out;
 
   //Fiducial slices
   double fiducial_sig_x_out;
@@ -467,6 +486,9 @@ void parse_mc_barebones( int kine = 4,
   P->Branch("seed", &seed_out, "seed/D");
   P->Branch("mc_weight", &mc_weight_out, "mc_weight/D");
   P->Branch("mc_weight_norm", &mc_weight_norm_out, "mc_weight_norm/D");
+  P->Branch("mc_weight_blind", &mc_weight_blind_out, "mc_weight_blind/D");
+  P->Branch("hde_xexpcorr_weight", &hde_xexpcorr_weight_out, "hde_xexpcorr_weight/D");
+  P->Branch("hde_yexpcorr_weight", &hde_yexpcorr_weight_out, "hde_yexpcorr_weight/D");
 
   P->Branch("fiducial_sig_x", &fiducial_sig_x_out, "fiducial_sig_x/D");
   P->Branch("fiducial_sig_y", &fiducial_sig_y_out, "fiducial_sig_y/D");
@@ -1289,14 +1311,34 @@ void parse_mc_barebones( int kine = 4,
 	//coincidence time BBCal/HCal cut
 	bool failedwidecoin_bc = abs( hatime_bestcluster - atimediff0 ) > coin_sigma_factor*atimediffsig;
 
-	//caculate final weight for this event
+	//calculate final weight for this event
 	Double_t final_mc_weight;
+	Double_t final_mc_blind_weight;
 
 	if(using_rej_samp)
 	  final_mc_weight = max_weight*luminosity*genvol/Ntried;
 	else
 	  final_mc_weight = mcweight*luminosity*genvol/Ntried;
 	  
+	//Issue blinding factor to proton, not to neutron. Ratio will be blinded.
+	if(r==0)
+	  final_mc_blind_weight = blinder*mcweight*luminosity*genvol/Ntried;
+
+	//Determine HCal Efficiency Map correction factors
+	double xcorr_hde = getCorrectionFactor(xyhcalexp[0], correctionMap_x);
+	double ycorr_hde = getCorrectionFactor(xyhcalexp[1], correctionMap_y);
+
+	//Set the maximum efficiency correction to 1.0 when bool enabled
+	if(hde_maxeff){
+	  if(xcorr_hde>1.0)
+	    xcorr_hde=1.0;
+	  if(ycorr_hde>1.0)
+	    ycorr_hde=1.0;
+	}
+	  
+	// cout << "xexp xcorr : " << xyhcalexp[0] << " " << xcorr_hde << endl;
+	// cout << "yexp xcorr : " << xyhcalexp[1] << " " << ycorr_hde << endl;
+
 	//Fill new output tree  
 	//Universals
 	job_out = job_number;
@@ -1321,6 +1363,9 @@ void parse_mc_barebones( int kine = 4,
 	seed_out = seed;
 	mc_weight_out = mcweight;
 	mc_weight_norm_out = final_mc_weight;
+	mc_weight_blind_out = final_mc_blind_weight;
+	hde_xexpcorr_weight_out = xcorr_hde;
+	hde_yexpcorr_weight_out = ycorr_hde;
 
 	//Fiducial slices
 	fiducial_sig_x_out = fiducial_factors.first;
@@ -1565,4 +1610,39 @@ void parse_mc_barebones( int kine = 4,
   // Send time efficiency report to console
   std::cout << "CPU time elapsed = " << st->CpuTime() << " s = " << st->CpuTime()/60.0 << " min. Real time = " << st->RealTime() << " s = " << st->RealTime()/60.0 << " min." << std::endl;
 
+}
+
+// Function to read the correction map from a file
+std::map<double, double> readCorrectionMapFromFile(const std::string& filename) {
+    std::map<double, double> correctionMap;
+    std::ifstream inFile(filename);
+    if (!inFile) {
+        std::cerr << "Error opening file for reading: " << filename << std::endl;
+        return correctionMap;
+    }
+    
+    std::string line;
+    while (std::getline(inFile, line)) {
+        // Skip comment lines
+        if (line[0] == '#') continue;
+
+        double x_exp, corr_factor;
+        std::istringstream iss(line);
+        if (!(iss >> x_exp >> corr_factor)) {
+            std::cerr << "Error reading line: " << line << std::endl;
+            continue;
+        }
+        correctionMap[x_exp] = corr_factor;
+    }
+    inFile.close();
+    return correctionMap;
+}
+
+// Function to get correction factor for a given x_exp value
+double getCorrectionFactor(double x_exp, const std::map<double, double>& correctionMap) {
+    auto it = correctionMap.upper_bound(x_exp);
+    if (it == correctionMap.end()) {
+        return 1.0; // Default correction factor if x_exp is less than the lowest key
+    }
+    return it->second;
 }

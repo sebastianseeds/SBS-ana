@@ -24,20 +24,20 @@ const Double_t nsig_step = 0.1; //number of sigma to step through in dx until fi
 const Double_t R_mclus = 0.6; //search region for clusters to add to highest energy cluster on multicluster analysis
 const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety margin for fid cut quality plots
 
-//Specific wide cut for all parsing
-const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
+//Specific wide cut for all parsing. Account for possible survival of additional triggers in reconstructed data set.
+const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12&&fEvtHdr.fTrigBits==1";
 
 //MAIN
-void parse_barebones( Int_t kine=9, 
-		      Int_t pass=2, 
-		      Int_t cluster_method=4,
-		      bool coin_override=true,
-		      bool verbose=false, 
-		      bool lh2opt = false, 
-		      bool ld2opt = true, 
-		      bool effz=true, 
-		      bool ep_fourvec=false, 
-		      bool debug=false )
+void parse_barebones( Int_t kine = 4, 
+		      Int_t pass = 2, 
+		      Int_t cluster_method = 3,
+		      bool coin_override = true,
+		      bool verbose = false, 
+		      bool lh2opt = true, 
+		      bool ld2opt = false, 
+		      bool effz = true, 
+		      bool ep_fourvec = false, 
+		      bool debug = false )
 {   
 
   // Define a clock to check macro processing time
@@ -58,9 +58,15 @@ void parse_barebones( Int_t kine=9,
   std::string rootfile_dir_lh2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_lh2_p%d",pass), Form("sbs%d",kine) );
   std::string rootfile_dir_ld2 = jmgr->GetValueFromSubKey_str( Form("rootfile_dir_ld2_p%d",pass), Form("sbs%d",kine) );
   Double_t minE = jmgr->GetValueFromSubKey<Double_t>( Form("minE_p%d",pass), Form("sbs%d",kine) );
+  Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset_p%d",pass), Form("sbs%d",kine) );
+
+  //get fit profiles
   vector<Double_t> coin_profile;
   jmgr->GetVectorFromSubKey<Double_t>(Form("coin_profile_p%d",pass),Form("sbs%d",kine),coin_profile);
-  Double_t hcal_v_offset = jmgr->GetValueFromSubKey<Double_t>( Form("hcal_offset_p%d",pass), Form("sbs%d",kine) );
+  vector<Double_t> tof_profile;
+  jmgr->GetVectorFromSubKey<Double_t>(Form("tof_profile_p%d",pass),Form("sbs%d",kine),tof_profile);
+  vector<Double_t> tw_profile;
+  jmgr->GetVectorFromSubKey<Double_t>(Form("tw_profile_p%d",pass),Form("sbs%d",kine),tw_profile);
 
   if( cluster_method==4 )
     cout << "Loaded coincidence time profile. Mean " << coin_profile[1] << ", sigma " << coin_profile[2] << ". Intime around " << coin_sigma_factor*coin_profile[2] << "." << endl;
@@ -86,7 +92,6 @@ void parse_barebones( Int_t kine=9,
     rootfile_dir_ld2 + "/SBS70percent_part3",
     rootfile_dir_ld2 + "/SBS70percent_part4"
   };
-
 
   //set up default parameters for all analysis
   std::string runsheet_dir = "/w/halla-scshelf2102/sbs/seeds/ana/data"; //unique to my environment for now
@@ -160,6 +165,12 @@ void parse_barebones( Int_t kine=9,
   Double_t precon_out;
   Double_t tau_out;
   Double_t epsilon_out;
+  Double_t dttof_out;
+  Double_t dttw_out;
+  Double_t dttw_bc_out;
+  Double_t dttw_b1_out;
+  Double_t dttw_b2_out;
+  Double_t dttw_b3_out;
 
   //Fiducial slices
   Double_t fiducial_sig_x_out;
@@ -181,7 +192,21 @@ void parse_barebones( Int_t kine=9,
   Double_t hcalx_out;
   Double_t hcaly_out;
   Double_t hcale_out;  
+  Double_t hcaltdc_out;  
+  Double_t hcaltdc_b1_out;  
+  Double_t hcaltdc_b2_out;  
+  Double_t hcaltdc_b3_out;
+  Double_t hcaltdctw_out;  
+  Double_t hcaltdctof_out;  
+  Double_t hcaltdccorr_out;  
+  Double_t hcalatime_out;  
+  Double_t hcalatime_b1_out;  
+  Double_t hcalatime_b2_out;  
+  Double_t hcalatime_b3_out; 
   Double_t hcal_index_out;
+  Double_t hcalcbid_b1_out;  
+  Double_t hcalcbid_b2_out;  
+  Double_t hcalcbid_b3_out;  
 
   //Best cluster
   Double_t dx_bc_out;
@@ -199,6 +224,11 @@ void parse_barebones( Int_t kine=9,
   Double_t hcalx_bc_out;
   Double_t hcaly_bc_out;
   Double_t hcale_bc_out;  
+  Double_t hcaltdc_bc_out;  
+  Double_t hcaltdctw_bc_out;  
+  Double_t hcaltdctof_bc_out;  
+  Double_t hcaltdccorr_bc_out;  
+  Double_t hcalatime_bc_out; 
 
   //Multi cluster
   double dx_mclus_out;
@@ -269,6 +299,7 @@ void parse_barebones( Int_t kine=9,
   double hcale_tc_out;
 
   // relevant old output tree vars
+  Double_t hcal_nclus_out;
   Double_t bb_tr_vz_out;
   Double_t bb_tr_n_out;
   Double_t bb_tr_p_out;
@@ -285,9 +316,11 @@ void parse_barebones( Int_t kine=9,
   Double_t bb_sh_e_out;
   Double_t bb_sh_rowblk_out;
   Double_t bb_sh_colblk_out;
+  Double_t bb_sh_atime_out;
   Double_t bb_hodotdc_clus_tmean_out;
   Double_t bb_grinch_tdc_clus_size_out;
   Double_t bb_grinch_tdc_clus_trackindex_out;
+  Double_t bb_grinch_tdc_clus_adc_out;
   Double_t bb_gem_track_nhits_out;
   Double_t bb_gem_track_ngoodhits_out;
   Double_t bb_gem_track_chi2ndf_out;
@@ -308,6 +341,12 @@ void parse_barebones( Int_t kine=9,
   P->Branch("tau", &tau_out, "tau/D");
   P->Branch("epsilon", &epsilon_out, "epsilon/D");
   P->Branch("precon", &precon_out, "precon/D");
+  P->Branch("dttof", &dttof_out, "dttof/D");
+  P->Branch("dttw", &dttw_out, "dttw/D");
+  P->Branch("dttw_bc", &dttw_bc_out, "dttw_bc/D");
+  P->Branch("dttw_b1", &dttw_b1_out, "dttw_b1/D");
+  P->Branch("dttw_b2", &dttw_b2_out, "dttw_b2/D");
+  P->Branch("dttw_b3", &dttw_b3_out, "dttw_b3/D");
 
   P->Branch("fiducial_sig_x", &fiducial_sig_x_out, "fiducial_sig_x/D");
   P->Branch("fiducial_sig_y", &fiducial_sig_y_out, "fiducial_sig_y/D");
@@ -327,7 +366,21 @@ void parse_barebones( Int_t kine=9,
   P->Branch("hcalx", &hcalx_out, "hcalx/D");
   P->Branch("hcaly", &hcaly_out, "hcaly/D");
   P->Branch("hcale", &hcale_out, "hcale/D");
+  P->Branch("hcaltdc", &hcaltdc_out, "hcaltdc/D");
+  P->Branch("hcaltdc_b1", &hcaltdc_b1_out, "hcaltdc_b1/D");
+  P->Branch("hcaltdc_b2", &hcaltdc_b2_out, "hcaltdc_b2/D");
+  P->Branch("hcaltdc_b3", &hcaltdc_b3_out, "hcaltdc_b3/D");
+  P->Branch("hcaltdctw", &hcaltdctw_out, "hcaltdctw/D");
+  P->Branch("hcaltdctof", &hcaltdctof_out, "hcaltdctof/D");
+  P->Branch("hcaltdccorr", &hcaltdccorr_out, "hcaltdccorr/D");
+  P->Branch("hcalatime", &hcalatime_out, "hcalatime/D");
+  P->Branch("hcalatime_b1", &hcalatime_b1_out, "hcalatime_b1/D");
+  P->Branch("hcalatime_b2", &hcalatime_b2_out, "hcalatime_b2/D");
+  P->Branch("hcalatime_b3", &hcalatime_b3_out, "hcalatime_b3/D");
   P->Branch("hcal_index", &hcal_index_out, "hcal_index/D");
+  P->Branch("hcalcbid_b1", &hcalcbid_b1_out, "hcalcbid_b1/D");
+  P->Branch("hcalcbid_b2", &hcalcbid_b2_out, "hcalcbid_b2/D");
+  P->Branch("hcalcbid_b3", &hcalcbid_b3_out, "hcalcbid_b3/D");
 
   P->Branch("dx_bc", &dx_bc_out, "dx_bc/D");
   P->Branch("dy_bc", &dy_bc_out, "dy_bc/D");
@@ -344,6 +397,11 @@ void parse_barebones( Int_t kine=9,
   P->Branch("hcalx_bc", &hcalx_bc_out, "hcalx_bc/D");
   P->Branch("hcaly_bc", &hcaly_bc_out, "hcaly_bc/D");
   P->Branch("hcale_bc", &hcale_bc_out, "hcale_bc/D");
+  P->Branch("hcaltdc_bc", &hcaltdc_bc_out, "hcaltdc_bc/D");
+  P->Branch("hcaltdctw_bc", &hcaltdctw_bc_out, "hcaltdctw_bc/D");
+  P->Branch("hcaltdctof_bc", &hcaltdctof_bc_out, "hcaltdctof_bc/D");
+  P->Branch("hcaltdccorr_bc", &hcaltdccorr_bc_out, "hcaltdccorr_bc/D");
+  P->Branch("hcalatime_bc", &hcalatime_bc_out, "hcalatime_bc/D");
 
   P->Branch("dx_mclus", &dx_mclus_out, "dx_mclus/D");
   P->Branch("dy_mclus", &dy_mclus_out, "dy_mclus/D");
@@ -409,6 +467,7 @@ void parse_barebones( Int_t kine=9,
   P->Branch("hcaly_tc", &hcaly_tc_out, "hcaly_tc/D");
   P->Branch("hcale_tc", &hcale_tc_out, "hcale_tc/D");
 
+  P->Branch("hcal_nclus", &hcal_nclus_out, "hcal_nclus/D");
   P->Branch("bb_tr_n", &bb_tr_n_out, "bb_tr_n/D");
   P->Branch("bb_tr_vz", &bb_tr_vz_out, "bb_tr_vz/D");
   P->Branch("bb_tr_p", &bb_tr_p_out, "bb_tr_p/D");
@@ -425,9 +484,11 @@ void parse_barebones( Int_t kine=9,
   P->Branch("bb_sh_e", &bb_sh_e_out, "bb_sh_e/D");
   P->Branch("bb_sh_rowblk", &bb_sh_rowblk_out, "bb_sh_rowblk/D");
   P->Branch("bb_sh_colblk", &bb_sh_colblk_out, "bb_sh_colblk/D");
+  P->Branch("bb_sh_atime", &bb_sh_atime_out, "bb_sh_atime/D");
   P->Branch("bb_hodotdc_clus_tmean", &bb_hodotdc_clus_tmean_out, "bb_hodotdc_clus_tmean/D");
   P->Branch("bb_grinch_tdc_clus_size", &bb_grinch_tdc_clus_size_out, "bb_grinch_tdc_clus_size/D");
   P->Branch("bb_grinch_tdc_clus_trackindex", &bb_grinch_tdc_clus_trackindex_out, "bb_grinch_tdc_clus_trackindex/D");
+  P->Branch("bb_grinch_tdc_clus_adc", &bb_grinch_tdc_clus_adc_out, "bb_grinch_tdc_clus_adc/D");
   P->Branch("bb_gem_track_nhits", &bb_gem_track_nhits_out, "bb_gem_track_nhits/D");
   P->Branch("bb_gem_track_ngoodhits", &bb_gem_track_ngoodhits_out, "bb_gem_track_ngoodhits/D");
   P->Branch("bb_gem_track_chi2ndf", &bb_gem_track_chi2ndf_out, "bb_gem_track_chi2ndf/D");
@@ -650,9 +711,9 @@ void parse_barebones( Int_t kine=9,
       rvars::setbranch(C,"fEvtHdr",evhdrvar,evhdrlink);
 
       // other bb branches
-      Double_t gemNhits, gemNgoodhits, gemChiSqr, grinchClusSize, grinchClusTrIndex, eop;
-      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","grinch_tdc.clus.size","grinch_tdc.clus.trackindex","etot_over_p"};
-      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&grinchClusSize,&grinchClusTrIndex,&eop};
+      Double_t gemNhits, gemNgoodhits, gemChiSqr, grinchClusSize, grinchClusTrIndex, grinchClusADC, eop;
+      std::vector<std::string> miscbbvar = {"gem.track.nhits","gem.track.ngoodhits","gem.track.chi2ndf","grinch_tdc.clus.size","grinch_tdc.clus.trackindex","grinch_tdc.clus.adc","etot_over_p"};
+      std::vector<void*> miscbbvarlink = {&gemNhits,&gemNgoodhits,&gemChiSqr,&grinchClusSize,&grinchClusTrIndex,&grinchClusADC,&eop};
       rvars::setbranch(C, "bb", miscbbvar, miscbbvarlink);
 
       TCut GCut = gcut.c_str();
@@ -1125,6 +1186,42 @@ void parse_barebones( Int_t kine=9,
 	std::pair<double,double> minaacut_sc = util::minaa(hcalcx[cidxe_sc],hcalcy[cidxe_sc]);
 	std::pair<double,double> minaacut_tc = util::minaa(hcalcx[cidxe_tc],hcalcy[cidxe_tc]);
 
+	//Get timing variables
+	double hcalTDC = hcaltdc;
+	double hcalTDC_bc = hcalctdctime[cidx_best];
+	double hcalADCt = hcalatime;
+	double hcalADCt_bc = hcalcatime[cidx_best];
+	
+	//Get timing variables with nucleon momentum ToF and timewalk corrections
+	double dt_tw = tw_profile[0]/pow(hcale,tw_profile[1]);
+	double dt_tw_bc = tw_profile[0]/pow(ce_bestcluster,tw_profile[1]);
+	double dt_tof = tof_profile[0]*pNexp + tof_profile[1]*pow(pNexp,2) + tof_profile[2]*pow(pNexp,3);
+	double dt_tw_b1 = tw_profile[0]/pow(hcalcbe[0],tw_profile[1]);
+	double dt_tw_b2 = tw_profile[0]/pow(hcalcbe[1],tw_profile[1]);
+	double dt_tw_b3 = tw_profile[0]/pow(hcalcbe[2],tw_profile[1]);
+
+	double hcalTDCtof = hcaltdc - dt_tof;
+	double hcalTDCtof_bc = hcalctdctime[cidx_best] - dt_tof;
+	double hcalTDCtw = hcaltdc - dt_tw;
+	double hcalTDCtw_bc = hcalctdctime[cidx_best] - dt_tw;
+
+	// Apply tof and tw corrections
+	double hcalTDC_corrected = hcaltdc - dt_tof - dt_tw;
+	double hcalTDC_corrected_bc = hcalctdctime[cidx_best] - dt_tof - dt_tw_bc;
+
+	// Get internal resolution
+	double hcalTDC_block1 = hcalcbtdctime[0];
+	double hcalTDC_block2 = hcalcbtdctime[1];
+	double hcalTDC_block3 = hcalcbtdctime[2];
+
+	double hcalADCt_block1 = hcalcbatime[0];
+	double hcalADCt_block2 = hcalcbatime[1];
+	double hcalADCt_block3 = hcalcbatime[2];
+
+	double hcal_blockid1 = hcalcbid[0];
+	double hcal_blockid2 = hcalcbid[1];
+	double hcal_blockid3 = hcalcbid[2];
+
 	//Fill diagnostic histos
 	hQ2mag->Fill( mag, Q2 );
 	hW2mag->Fill( mag, W2 );
@@ -1152,6 +1249,12 @@ void parse_barebones( Int_t kine=9,
 	tau_out = tau;
 	epsilon_out = epsilon;
 	precon_out = precon;
+	dttof_out = dt_tof;
+	dttw_out = dt_tw;
+	dttw_bc_out = dt_tw_bc;
+	dttw_b1_out = dt_tw_b1;
+	dttw_b2_out = dt_tw_b2;
+	dttw_b3_out = dt_tw_b3;
 
 	//Fiducial slices
 	fiducial_sig_x_out = fiducial_factors.first;
@@ -1173,7 +1276,21 @@ void parse_barebones( Int_t kine=9,
 	hcalx_out = hcalx;
 	hcaly_out = hcaly;
 	hcale_out = hcale;
+	hcaltdc_out = hcalTDC;
+	hcaltdc_b1_out = hcalTDC_block1;
+	hcaltdc_b2_out = hcalTDC_block2;
+	hcaltdc_b3_out = hcalTDC_block3;
+	hcaltdctw_out = hcalTDCtw;
+	hcaltdctof_out = hcalTDCtof;
+	hcaltdccorr_out = hcalTDC_corrected;
+	hcalatime_out = hcalADCt;
+	hcalatime_b1_out = hcalADCt_block1;
+	hcalatime_b2_out = hcalADCt_block2;
+	hcalatime_b3_out = hcalADCt_block3;
 	hcal_index_out = hcalidx;
+	hcalcbid_b1_out = hcal_blockid1;
+	hcalcbid_b2_out = hcal_blockid2;
+	hcalcbid_b3_out = hcal_blockid3;
 
 	//Best Cluster
 	dx_bc_out = dx_bestcluster;
@@ -1191,6 +1308,11 @@ void parse_barebones( Int_t kine=9,
 	hcalx_bc_out = x_bestcluster;
 	hcaly_bc_out = y_bestcluster;
 	hcale_bc_out = ce_bestcluster;
+	hcaltdc_bc_out = hcalTDC_bc;
+	hcaltdctw_bc_out = hcalTDCtw_bc;
+	hcaltdctof_bc_out = hcalTDCtof_bc;
+	hcaltdccorr_bc_out = hcalTDC_corrected_bc;
+	hcalatime_bc_out = hcalADCt_bc;
 
 	//Multi Cluster
 	dx_mclus_out = dx_multicluster;
@@ -1261,6 +1383,7 @@ void parse_barebones( Int_t kine=9,
 	hcale_tc_out = ce_thirdcluster;
 
 	//Fill old output tree
+	hcal_nclus_out = nclus;
 	bb_tr_p_out = p[0];
 	bb_tr_n_out = ntrack;
 	bb_tr_vz_out = vz[0];
@@ -1277,9 +1400,11 @@ void parse_barebones( Int_t kine=9,
 	bb_sh_e_out = eSH;
 	bb_sh_rowblk_out = rblkSH;
 	bb_sh_colblk_out = cblkSH;
+	bb_sh_atime_out = atimeSH;
 	bb_hodotdc_clus_tmean_out = hodotmean[0];
 	bb_grinch_tdc_clus_size_out = grinchClusSize;
 	bb_grinch_tdc_clus_trackindex_out = grinchClusTrIndex;
+	bb_grinch_tdc_clus_adc_out = grinchClusADC;
 	bb_gem_track_nhits_out = gemNhits;
 	bb_gem_track_ngoodhits_out = gemNgoodhits;
 	bb_gem_track_chi2ndf_out = gemChiSqr;
