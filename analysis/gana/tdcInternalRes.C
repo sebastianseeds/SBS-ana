@@ -1,4 +1,4 @@
-//seeds
+//sseeds - 5.2.24: Extract HCAL TDC resolution from adjacent block differences after tight elastic cuts. No spot cuts are added due to lack of stats
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -45,6 +45,7 @@ void fitHistogram(TH1D* hist, double &mean, double &sigma) {
   sigma = gaussFit->GetParameter(2);
 }
 
+//MAIN. kine=kinematic, loose=add loose cuts
 void tdcInternalRes(int kine=4, bool loose=false) {
   gStyle->SetPalette(55);
   gStyle->SetOptStat(0110);

@@ -27,7 +27,7 @@ void writeDataToFile(const std::map<int, std::set<int>>& runToTrigBits, int kine
 void writeDataCtsToFile(const std::map<int, std::set<int>>& runToTrigBits,
 			const std::map<int, std::map<int, int>>& runToTrigBitCounts,
 			int kine);
-// Main
+// Main. kine=kinematic
 void all_trigbits(int kine = 9) {
   std::vector<std::string> directories;
 

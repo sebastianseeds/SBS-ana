@@ -1,4 +1,4 @@
-//sseeds 
+//sseeds - 6.10.24: Script to extract the position resolution from dx and dy (parsed data), tight elastic cuts, and LH2 zero field
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -23,7 +23,7 @@ int dxbins = 200;
 double dxllim = -1.0;
 double dxulim = 1.0;
 
-//main
+//main. skipcorrelations=use plot file without cutvcut correlations, addresscorr=use plot file which addresses known cutvcut correlations, wide=use plot file with wide elastic cuts
 void posRes(bool skipcorrelations=true, bool addresscorr=false, bool effz=true, bool wide=false) {
   gStyle->SetOptStat(0110);
   gStyle->SetStatW(0.2); // Set width of the stats box

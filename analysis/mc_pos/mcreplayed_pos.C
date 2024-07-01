@@ -13,6 +13,7 @@
 #include "../../include/gmn.h"
 
 //Uses g4sbs replays of LH2 data
+//MAIN. kine=kinematic, epm=e' p extraction method, wide=wide cuts enabled
 void mcreplayed_pos( Int_t kine=4, Int_t epm=1, bool wide=false )
 { //main  
   

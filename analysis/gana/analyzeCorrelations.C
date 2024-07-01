@@ -1,4 +1,4 @@
-//sseeds 1.22.23
+//sseeds 1.22.23. Script to compare expected cut correlations from MC with those from data
 
 #include <TFile.h>
 #include <TH1D.h>

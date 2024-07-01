@@ -84,8 +84,9 @@ std::tuple<std::vector<double>, std::vector<double>, std::vector<double>> FitSli
 }
 
 //Uses g4sbs replays of simulated data set containing pgun/ngun, zero field, SBS4 geometry
+//MAIN. (no args)
 void hde_mc_getEmean( )
-{ //main  
+{  
   
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();

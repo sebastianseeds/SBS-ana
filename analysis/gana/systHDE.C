@@ -1,3 +1,4 @@
+//sseeds - 5.10.24: Script to extract systematic error from HDE variations across HCAL. Proton and neutron are assumed to be similar for this estimation.
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -70,6 +71,7 @@ void createCanvas(const std::string& title, const std::vector<std::string>& resu
     c1->SaveAs("~/Plots/systematic_error_analysis.png");
 }
 
+//MAIN. (no args)
 int systHDE() {
     std::vector<Measurement> measurements = {
         {0.936, 0.000696}, // 0% field

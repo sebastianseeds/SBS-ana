@@ -1,4 +1,4 @@
-//sseeds 4.22.24
+//sseeds 4.22.24: Script to fit MC W2 elastic (simc) and inelastic (g4sbs) distributions to data and extract fit comparisons.
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -151,7 +151,7 @@ void plotFitWithoutResidualsBG(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(
 std::pair<double, int> CalculateChiSquaredAndNDF(TH1D* data, TH1D* component, double scaleFactor, double shift);
 std::pair<double, int> CalculateChiSquaredAndNDFInRange(TH1D* data, TH1D* signal, double scaleFactor, double shift, double xmin, double xmax);
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+//main. kine=kinematic, mag=fieldsetting, pass=pass#, bestclus=use plot file with best cluster selection, thin=use plot file without correlations, wide=use plots with wide cuts, effz=use plots with effective z applied, alt=use plot file using MC alt files
 void W2datamc(int kine=4, 
 	      int mag=30, 
 	      int pass=2, 

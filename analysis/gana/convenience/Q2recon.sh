@@ -3,6 +3,7 @@
 # sseeds 2.2.24
 
 # Quick check on Q2 reonstruction from p/n angles
+# Usage - $1 argument: kinematic
 
 echo Generating expected elastic parameters for GMn kinematic SBS $1..
 

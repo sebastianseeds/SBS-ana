@@ -1,3 +1,4 @@
+//sseeds - 7.24.25: script to sort output SIMC MC .csv files in terms of job number
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -13,6 +14,7 @@ bool compareJobid(const CsvRow& a, const CsvRow& b) {
   return a.jobid < b.jobid;
 }
 
+//MAIN. nucleon=nucleon files to sort (0=neutron, 1=proton)
 int sortcsv(int nucleon = 1) {
 
   std::string nucword = "n";

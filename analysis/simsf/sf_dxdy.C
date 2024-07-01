@@ -55,6 +55,7 @@ string intToFourDigitString(int number) {
     }
 }
 
+//MAIN. scale=nominal kinematic magnetic field (percent), course=load course MC separations, fine_scale=MC field scale under study
 void sf_dxdy( int scale = 100, bool course = false, int fine_scale = 0 ){//main 
 
   TChain *C = new TChain("T");

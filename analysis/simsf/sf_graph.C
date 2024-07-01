@@ -28,6 +28,7 @@ const double fs_course[11] = {0,10,20,30,40,50,60,70,80,90,100};
 const string field_scale_fine[11] = {"62p2653","63p5395","64p8137","66p0879","67p3621","68p6363","69p9106","70","71p1848","72p4590","73p7332"};
 const double fs_fine[11] = {62.2653,63.5395,64.8137,66.0879,67.3621,68.6363,69.9106,70.,71.1848,72.4590,73.7332};
 
+//MAIN. course=plot course field step file set
 void sf_graph(bool course = false){  
 
   string field_scale[NFiles];

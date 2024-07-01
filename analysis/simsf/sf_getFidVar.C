@@ -21,6 +21,7 @@
 const int NFiles = 11;
 const double gen_sig = 0.18;
 
+//MAIN. (no args)
 void sf_getFidVar(){  
 
   //define input file directory

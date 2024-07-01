@@ -1,3 +1,4 @@
+//sseeds - 1.20.24: Reads and displays cuts from json on canvas for viewing. (depricated 7.24. see /w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv for updated cuts)
 #include <TCanvas.h>
 #include <TPaveText.h>
 #include <TString.h>
@@ -40,6 +41,7 @@ void parseAndDisplayCuts(const char* cuts) {
     delete tokens; // Free memory used by the TObjArray
 }
 
+//MAIN. kine:kinematic, pass:pass, mag:SBS magnet setting (percent)
 void displayElasticCuts(int kine = 4, int pass = 2, int mag = 30) {
 
   JSONManager *jmgr = new JSONManager("../../../config/syst.json");

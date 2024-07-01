@@ -1,4 +1,4 @@
-//sseeds 4.22.24
+//sseeds 4.22.24: Script to run over jacknife samples and extract Rsf
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -64,7 +64,7 @@ double calculateMean(const std::vector<double>& values);
 double calculateStdDev(const std::vector<double>& values, double mean);
 double calculateJKErr(const std::vector<double>& values, double mean, double num_datasets);
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN
+//main. kine=kinematic, mag=fieldsetting, pass=pass#
 void jackknifeAnalysis(int kine=8, 
 		       int mag=70, 
 		       int pass=2) {

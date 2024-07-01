@@ -1,4 +1,4 @@
-//sseeds 4.22.24
+//sseeds 4.22.24: script to vary course cut on BBCal - HCal coincidence time and extract Rsf. Comparison on dependent ranges determines fine cut.
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -175,7 +175,7 @@ std::string addbc(std::string input);
 std::vector<std::string> split(const std::string &s, char delimiter);
 std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+//main. kine=kinematic, mag=fieldsetting, pass=pass#, N=total range plots, mean=course cut mean, sigma=course cut std dev, start_sigma=beginning of range slices, max_sigma=end of range slices, BG=background function, bestclus=use plot file with best cluster selection, thin=use plot file without correlations, wide=use plots with wide cuts, effz=use plots with effective z applied, alt=use plot file using MC alt files
 void coinStability(int kine=8, 
 		 int mag=100, 
 		 int pass=2, 

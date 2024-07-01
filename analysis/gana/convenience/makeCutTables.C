@@ -1,4 +1,4 @@
-//sseeds
+//sseeds - 6.15.24: Generates cut tables in LaTeX with cuts from the updated cutsheet.
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -25,6 +25,7 @@ std::string verbizeLaTeX(const std::string& input) {
   return verbized;
 }
 
+//MAIN (no arguments)
 void makeCutTables() {
 
   //get new cuts from .csv

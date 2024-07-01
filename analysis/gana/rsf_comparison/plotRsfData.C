@@ -1,3 +1,4 @@
+//sseeds - 2.15.24. Plots rsfdata.txt extracted scale factor ratios for comparison
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -7,6 +8,7 @@
 #include <TLegend.h>
 #include <TMarker.h>
 
+//MAIN
 void plotRsfData() {
   std::ifstream infile("rsfdata.txt"); // Adjust the path to your data file as needed
   if (!infile.is_open()) {

@@ -4,6 +4,7 @@
 //5.20.23 Update - broke from general script and focused this script on extraction of hcal detection efficiency directly from dx after dy cuts normalized by strong earm elastic cuts. 
 //5.30.23 Update - NOTE that fits (and resulting yields) are very sensitive to fit ranges. Background shape varies considerably and fit range should reflect 3sigma about the dx elastic peak to avoid overcounting
 //10.10.23 Update - split to do data loop first then use hde_analysis.C for fitting and comparisons
+//2.10.24 Update - last two args should be set equal for fair comparisons
 
 #include <vector>
 #include <iostream>
@@ -31,7 +32,9 @@ const Double_t dx_fithigh = 0.3;
 //// 5) Cluster which passes 5 sigma cut on adc time, then minimizes proton theta pq.
 //// 6) Cluster which passes 5 sigma cut on adc time, then maximizes energy.
 //// 7) Cluster which maximizes score (see algorithm in util.C)
-void hde_dataloop( Int_t kine=8, Int_t magset=70, Double_t det_spot_sigma = 3, Double_t exp_spot_sigma = 1)
+
+//MAIN. kine=kinematic, magset=magnetic field setting (percent), det_spot_sigma=cut in dx around which BG is fit (detected), exp_spot_sigma=cut in dx around which BG is fit (expected)
+void hde_dataloop( Int_t kine=8, Int_t magset=70, Double_t det_spot_sigma = 3, Double_t exp_spot_sigma = 3)
 { //main  
 
   // Define a clock to check macro processing time

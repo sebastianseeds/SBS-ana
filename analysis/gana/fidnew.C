@@ -1,4 +1,4 @@
-//sseeds
+//sseeds 5.10.15: script to use expected elastic nucleon plots with tight elastic cuts and spot cuts to evaluate necessary fiducial cuts to maintain neutron and proton detection symmetry. 
 #include <TFile.h>
 #include <TH1D.h>
 #include <TH2D.h>
@@ -81,7 +81,7 @@ void extractEllipseParams(const std::string& cut, double& dx_center, double& dy_
   }
 }
 
-//main
+//main. kine=kinematic, mag=magnetic field (percent), pass=pass, effz=use effective z parse files, alt=use effective z offeset parse files
 void fidnew(int kine=8, 
 	    int mag=100, 
 	    int pass=2, 

@@ -16,6 +16,7 @@ const Double_t hcal_sampfrac = 0.0795; // m
 const Double_t hcal_threshconv = 6.914; // MeV/mV
 const Double_t bbcal_threshconv = 7.2; // MeV/mV
 
+//MAIN. E_beam=beam energy, BB_angle=angle of BigBite spectrometer wrt downstream beamline, BB_distance=distance to BigBite from target, Q2=Q2, hcal_angle=angle of HCal wrt downstream beamline, hcal_distance=distance to the HCal from target
 void GMnElasPeak( Double_t E_beam, Double_t BB_angle, Double_t BB_distance, Double_t Q2, Double_t hcal_angle, Double_t hcal_distance ){
 
   hcal_angle = hcal_angle*(TMath::Pi()/180.);

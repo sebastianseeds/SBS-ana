@@ -1,4 +1,4 @@
-//SSeeds script to run over all low Q2 data, can select field, and generate plots without elastic cuts
+//SSeeds 1.1.24: script to run over all low Q2 data, can select field, and generate plots without elastic cuts
 
 #include <vector>
 #include <iostream>

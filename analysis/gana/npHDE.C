@@ -1,4 +1,4 @@
-//sseeds 
+//sseeds - 4.15.24: script designed to extract nucleon detection efficiency from tight elastic selection, track/optics cuts, and spot checks. This script is used to extract course cut parameters per kinematic where the n:p ratio stability is analyzed vs each cut variable.
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -56,7 +56,7 @@ Double_t sbBGfit_pol0(double *x, double *par) {
     return yint;
 }
 
-//MAIN
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=pass, effz=use plots with effective z applied
 void npHDE(int kine=8, 
 	   int mag=70, 
 	   int pass=2, 

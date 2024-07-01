@@ -1,4 +1,4 @@
-//sseeds 
+//sseeds - 2.20.24: Script to generate 2D dx vs cut correlation histograms from reconstructed and parsed experimental data. Can be configured to produce cut vs cut coorelation histograms as well. Output used for fine cut analysis.
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -33,6 +33,7 @@ std::map<std::string, std::string> getRowContents(const std::string &filePath, i
 
 //plot with cuts script to work with best clusters, first step on systematics analysis. Configured for pass 2.
 //bestclus uses bestclusterinfo from parse file. skipcorrelationplots doesn't plot cut vs cut plots. addresscorr removes cuts from dx vs cut TH2Ds where the cut is correlated (like dy and W2)
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=reconstruction pass, skipcorrelationplots=skip cut vs cut correlation plots to shorten processing time, addresscorr=widen cuts on known correlations for dx vs cut plots, wide=use wide cuts for plots, effz=use effective z offset parse data
 void plotWithCuts_bc(int kine=9, 
 		     int mag=70, 
 		     int pass=2, 

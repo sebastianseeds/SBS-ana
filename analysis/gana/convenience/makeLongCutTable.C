@@ -1,10 +1,11 @@
-//sseeds
+//sseeds - 6.15.24: Generates one long cut table with all cut parameters.
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
 
+//MAIN (no arguments)
 void makeLongCutTable() {
 
   //get new cuts from .csv
