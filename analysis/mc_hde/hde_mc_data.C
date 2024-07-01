@@ -306,8 +306,9 @@ void FitAndDrawGraph(TGraph* graph, TCanvas* canvas, double fitMin, double fitMa
 
 
 //Uses g4sbs replays of simulated data set containing pgun/ngun, zero field, SBS4 geometry
-void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucleonp; 1 gets eff
-{ //main  
+//MAIN. iter={0:gets mean values of hcalE vs nucleonp, 1:gets nucleon HDE}
+void hde_mc_data( int iter = 1 )
+{ 
   
   if( iter!=0 && iter!=1 ){
     cerr << "ERROR: Enter only iteration 0 (get E mean) or iteration 1 (get detection efficiency)" << endl;

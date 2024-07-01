@@ -18,7 +18,7 @@ const Int_t atimediffSigFac = 5;
 const Double_t dx_fitlow = -0.3;
 const Double_t dx_fithigh = 0.3;
 
-//main
+//main. kine=kinematic, mag=magnetic field setting (percent)
 void mc_inelastic( Int_t kine=8, Int_t mag=0 ){ 
 
   // Define a clock to check macro processing time

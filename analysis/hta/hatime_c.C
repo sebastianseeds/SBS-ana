@@ -17,7 +17,7 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-//Passing kine==-1 will run all kinematics, pass is replay pass, epm is e' momentum calculation method
+//Passing kine==-1 will run all kinematics, pass is replay pass, epm is e' momentum calculation method, waveform uses full hcal waveforms
 void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 { //main
 

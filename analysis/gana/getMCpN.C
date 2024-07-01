@@ -1,5 +1,4 @@
-//seeds
-//Gets central Q2 value from MC with wide elastic and fiducial cuts. The Median is used as the central value from the non-symmetric Q2 distribution.
+//sseeds - 4.10.24: gets central Q2 value from MC with wide elastic and fiducial cuts. The Median is used as the central value from the non-symmetric Q2 distribution.
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1D.h>
@@ -40,7 +39,7 @@ double computeModeFromHistogram(TH1D* hist) {
   return hist->GetBinCenter(maxBin);
 }
 
-// Main function
+//MAIN (no args)
 void getMCpN() {
 
   //set draw params

@@ -1,4 +1,4 @@
-//sseeds 4.1.24
+//sseeds 4.1.24: Plot overlay script for visualization
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -13,7 +13,7 @@
 #include "../../../src/jsonmgr.C"
 #include "../../../include/gmn.h"
 
-//plot overlay script for vis
+//MAIN. kine=kinematic, mag=SBS magnetic field, pass=pass
 void dxdy_overlay(int kine=8, int mag=70, int pass=2 ) {
 
   // reading json configuration file

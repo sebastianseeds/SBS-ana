@@ -28,6 +28,7 @@ const Int_t fset_ld2[6][4] = {{0,30,50,-1},
 			      {0,50,70,100},
 			      {70,-1,-1,-1}}; //All field settings for all kinematics LH2. -1 indicates no setting
 
+//MAIN (no args)
 void neutron_peak_diagnostic(){ //main
   
   // Define a clock to check macro processing time

@@ -1,4 +1,4 @@
-//sseeds 5.22.23
+//sseeds 5.22.23: Script to vary backgrounds and extract GMn with systematic error estimation from the spread of these extractions.
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -278,13 +278,13 @@ void plotBackgrounds(const std::vector<TF1*>& bgFunctions);
 
 bool s4f50 = false;
 
-//MAIN. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN
+//MAIN. kine=kinematic, mag=fieldsetting, pass=pass#, *_override=p/n shift par override, blind=add blinding, bestclus=use best cluster plots, thin=use plots without correlations, widecut=use plots with wide cuts, effz=use plots with effective z implemented, alt=use plots from alternate MC files
 void BGStability(int kine=8, 
 		 int mag=100, 
 		 int pass=2, 
 		 double nshift_override=0.0, 
 		 double pshift_override=0.0, 
-		 bool blind=true, 
+		 bool blind=false, 
 		 bool bestclus=true, 
 		 bool thin=true,
 		 bool widecut=false,

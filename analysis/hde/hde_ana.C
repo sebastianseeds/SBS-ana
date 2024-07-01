@@ -80,7 +80,7 @@ double W2_fit_width_sigma = 2.; //Set to get fine param fit on W2 elastic signal
 double dx_fit_width_sigma = 3.2; //SBS8 (sideband)
 double dx_sb_width_sigma = 2.3; //SBS8 (sideband)
 
-
+//MAIN. kine=kinematic, magset=magnetic field setting (percent), scoopclus=opt to use dxdy minimization in best cluster selection
 void hde_ana( Int_t kine=4, Int_t magset=30, bool scoopclus = false )
 { //main  
 

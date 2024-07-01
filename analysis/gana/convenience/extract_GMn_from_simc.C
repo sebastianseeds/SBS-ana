@@ -58,6 +58,7 @@ std::pair<double, double> getRCSmdp_borntpe_with_error(double tau_p, double epsi
 std::pair<double, double> getGMn_and_error_from_nRCS(double nRCS, double tau_value, double epsilon_value, double GD, double err_nRCS, double GEn, double err_GEn);
 string getCurrentDateTime();
 
+//TEMPORARY TEST POINTS
 //SBS4
 //50p: 0.953, err 0.0951
 //30p: 0.986, err 0.1139
@@ -66,7 +67,7 @@ string getCurrentDateTime();
 //SBS9
 //70p: 1.034, err 0.1252
 
-// Main
+// Main. kine=kinematic, Rsf=scale factor ratio, Rsf_err=error in Rsf, Q2=Q2, tpecorr=switch to use Arrington07 pars for calculation
 void extract_GMn_from_simc(int kine=4, double Rsf=0.9359, double Rsf_err= 0.0728, double Q2=3.0335, bool tpecorr = true) {
 
   // Set up vector for output report .pdf

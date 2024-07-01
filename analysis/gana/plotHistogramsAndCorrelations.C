@@ -1,3 +1,4 @@
+//sseeds - 2.20.24: Script to plot all cut coorelations from plotWithCuts.C for comparative analysis.
 #include <TFile.h>
 #include <TCanvas.h>
 #include <TH2D.h>
@@ -9,6 +10,7 @@
 #include <TObjArray.h>
 #include <TObjString.h>
 
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=reconstruction pass
 void plotHistogramsAndCorrelations(int kine=4, int mag=30, int pass=1){
 
   //"/volatile/halla/sbs/seeds/gmn_analysis/dx_correlations_sbs4_mag30_pass1.root"

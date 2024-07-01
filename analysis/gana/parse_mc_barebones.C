@@ -49,7 +49,7 @@ double getCorrectionFactor(double x_exp, const std::map<double, double>& correct
 
 //For now, use alt for all kine except 7, 14, 11
 
-//MAIN
+//MAIN. kine=kinematic, pass=reconstruction pass, replay_type=selection on MC files for parsing, verbose=more error messages, norm_override=apply MC normalization global vars to all events, effz=apply effective z offsets, ep_fourvec=reconstruct e' track using root fourvectors, limit_size=apply segmentation of output file based on max file size, hde_maxeff=set maximum hde correction factor to 1.0 for dedicated output correction branch
 void parse_mc_barebones( int kine = 4, 
 			 int mag = 30, 
 			 const char *replay_type = "alt", 

@@ -1,5 +1,4 @@
-//seeds
-//Gets central epsilon value from MC with wide elastic and fiducial cuts. The Median is used as the central value from the non-symmetric epsilon distribution.
+//sseeds - 4.10.24: gets central epsilon value from MC with wide elastic and fiducial cuts. The Median is used as the central value from the non-symmetric epsilon distribution.
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1D.h>
@@ -115,7 +114,7 @@ double computeModeErrorBootstrap(TH1D* hist, int nBootstrap = 1000) {
   return modeError;
 }
 
-// Main function
+//MAIN (no args)
 void getMCeps() {
 
   //set draw params

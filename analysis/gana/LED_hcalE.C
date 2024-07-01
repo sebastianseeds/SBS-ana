@@ -18,7 +18,7 @@
 #include <TGraphErrors.h>
 #include <TCanvas.h>
 
-// Main
+// Main. kine=kinematic
 void LED_hcalE(int kine = 7) {
   std::vector<std::string> directories;
 

@@ -33,6 +33,7 @@ const Int_t pIdx[6] = {4,0,5,3,2,1};
 const Int_t pIdxmc[6] = {2,1,5,4,3,0};
 const Double_t fmean[6] = {0.15,0.1,0.15,0.28,0.38,0.54};
 
+//MAIN. (no args)
 void plot_sbs4_comparison( ){
   
   TCanvas *c1 = new TCanvas("c1","SBS4 MC vs Data dx/dy",1600,1200);

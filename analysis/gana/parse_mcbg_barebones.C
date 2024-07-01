@@ -37,7 +37,7 @@ Long64_t maxFileSize = 8000000000; //8 GB
 //Specific wide cut for all parsing
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12";
 
-//MAIN
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), verbose=added console output, norm_override=use single normalization value from global var for all events, effz=use effective z offset, limit_size=segment output to limit size of output files with global var
 void parse_mcbg_barebones( int kine=8, int mag = 100, bool verbose=false, bool norm_override=false, bool effz=true, bool limit_size=false )
 {   
 

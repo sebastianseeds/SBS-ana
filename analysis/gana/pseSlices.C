@@ -1,4 +1,4 @@
-//sseeds 4.22.24
+//sseeds 4.22.24: Dedicated cut stability plot script which extracts equal statistics ranges and plots dx on with independent data sets over BBCal preshower energy. Rsf is extracted from these ranges for general cut stability comparisons.
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -59,7 +59,7 @@ std::vector<std::pair<double, double>> fitAndFineFit_fixshiftBG(TH1D* histogram,
 std::vector<std::string> split(const std::string &s, char delimiter);
 std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+//main. kine=kinematic, mag=fieldsetting, pass=pass#, N=total range plots, sliceCutMin=beginning of range slices, sliceCutMax=end of range slices, fixBG=allow only amplitude of BG to float in fits after initial set over all data, bestclus=use plot file with best cluster selection, thin=use plot file without correlations, wide=use plots with wide cuts, effz=use plots with effective z applied, alt=use plot file using MC alt files
 void pseSlices(int kine=4, 
 	       int mag=30, 
 	       int pass=2, 

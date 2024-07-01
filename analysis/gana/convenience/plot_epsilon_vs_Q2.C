@@ -9,10 +9,17 @@
 #include <TBox.h>
 #include <TLatex.h>
 
+//MAIN (no comments)
 void plot_epsilon_vs_Q2() {
   
+  gStyle->SetPalette(55);
+  gStyle->SetCanvasPreferGL(kTRUE);
+  gStyle->SetOptFit(0);
   gStyle->SetOptStat(0);
-
+  gStyle->SetLabelSize(0.03, "XYZ");
+  gStyle->SetTitleSize(0.04, "XYZ");
+  gStyle->SetEndErrorSize(0);
+  
   // Kinematics data
   const int nPoints = 6;
   double Q2[nPoints] = {3.0, 4.5, 4.5, 7.4, 9.9, 13.5};
@@ -25,7 +32,7 @@ void plot_epsilon_vs_Q2() {
   TCanvas *c1 = new TCanvas("c1", "Epsilon vs Q^2", 800, 600);
 
   // Create and draw the TH2D histogram
-  TH2D *h2 = new TH2D("h2", "#it{#epsilon}\ vsQ^{2};Q^{2} GeV^{2};#it{#epsilon}", 100, 0, 15, 100, 0, 1);
+  TH2D *h2 = new TH2D("h2", "#it{#epsilon} vs Q^{2};Q^{2} GeV^{2};#it{#epsilon}", 100, 0, 15, 100, 0, 1);
   h2->Draw();
 
   // Add grid lines to the canvas

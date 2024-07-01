@@ -1,4 +1,4 @@
-//sseeds 
+//sseeds  - 2.20.24: Script to generate 2D dx vs cut correlation histograms from SIMC MC parsed data. Can be configured to produce cut vs cut coorelation histograms as well. Output used for fine cut analysis.
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -76,6 +76,7 @@ std::vector<std::string> split(const std::string &s, char delimiter);
 std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //plot with cuts script, first step on systematics analysis. Configured for pass 2.
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=reconstruction pass, skipcorrelationplots=skip cut vs cut correlation plots to shorten processing time, addresscorr=widen cuts on known correlations for dx vs cut plots, wide=use wide cuts for plots, effz=use effective z offset parse data, replay_type=select MC data location
 void plotWithCuts_mc(int kine=4, 
 		     int mag=30, 
 		     int pass=2, 

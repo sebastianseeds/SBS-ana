@@ -1,4 +1,4 @@
-//sseeds
+//sseeds - 4.15.24: Script to take epsilon values and R' from both SBS8/9 and calculate the Rosenbluth Slope for the neutron. Assumes proton RS and error from nTPE proposal. Calculates FFR mu_n GEn/GMn as well
 #include <iostream>
 #include <cmath>
 #include <vector>
@@ -6,7 +6,7 @@
 #include <TCanvas.h>
 #include <TLatex.h>
 
-// Function to calculate the Rosenbluth Slope (RS) and FFR
+//MAIN. Arguments adequately characterized by name.
 std::pair<std::pair<double, double>, std::pair<double, double>> calculateRosenbluthSlopeAndFFR(
 											       double R_epsilon1, double R_epsilon1_err,
 											       double R_epsilon2, double R_epsilon2_err,
@@ -20,9 +20,9 @@ std::pair<std::pair<double, double>, std::pair<double, double>> calculateRosenbl
     throw std::invalid_argument("epsilon1 and epsilon2 cannot be equal");
   }
 
-  // Calculate R_Mott ratios (assuming they are given or calculated separately)
-  double R_Mott_epsilon1 = 1.0;  // Placeholder value, replace with actual calculation
-  double R_Mott_epsilon2 = 1.0;  // Placeholder value, replace with actual calculation
+  // Calculate R_Mott ratios (assume first-order cancellation on ratio in B, but can update)
+  double R_Mott_epsilon1 = 1.0;
+  double R_Mott_epsilon2 = 1.0;
 
   // Calculate A and B
   double A = (R_epsilon1 / R_epsilon2);

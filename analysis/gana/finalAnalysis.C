@@ -1,4 +1,4 @@
-//sseeds 1.22.23
+//sseeds 1.22.23. Analysis script combining equal statistics slices and Rsf extraction from several BGs to extract GMn with error. DEPRICATED 4.24
 
 #include <TFile.h>
 #include <TH1D.h>

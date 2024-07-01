@@ -1,4 +1,4 @@
-//sseeds 4.22.24
+//sseeds 4.22.24: script to vary course cut on HCal energy and extract Rsf. Comparison on dependent ranges determines fine cut.
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -175,7 +175,7 @@ std::string addbc(std::string input);
 std::vector<std::string> split(const std::string &s, char delimiter);
 std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+//main. kine=kinematic, mag=fieldsetting, pass=pass#, N=total range plots, sliceCutMin=beginning of range slices, sliceCutMax=end of range slices, BG=background function, backwards=vary slices from end of hcal E range, bestclus=use plot file with best cluster selection, thin=use plot file without correlations, wide=use plots with wide cuts, effz=use plots with effective z applied, alt=use plot file using MC alt files
 void hcaleStability(int kine=9, 
 		    int mag=70, 
 		    int pass=2, 

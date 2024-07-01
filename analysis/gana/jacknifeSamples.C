@@ -13,7 +13,7 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-//main
+//main. kine=kinematic, mag=magnetic field (percent), pass=pass#, bestclus=use plot file with best cluster selection, Nsamps=number of total jacknife samples
 void jacknifeSamples(int kine=4, int mag=50, int pass=2, bool bestclus=true, int Nsamps=10 ) {
 
   // Configuration and initial setup (assuming you have this from your original code)

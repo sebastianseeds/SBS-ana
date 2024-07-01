@@ -38,7 +38,7 @@ void checkClusters(
 		   const std::vector<double>& cluster_times
 		   );
 
-//MAIN
+//MAIN. kine=kinematic, pass=reconstruction pass, cluster_method=best cluster selection method, coin_override=use intime_cut_override global instead of json, verbose=more error messages, lh2opt=use LH2 data, ld2opt=use LD2 data, effz=apply effective z offsets, ep_fourvec=reconstruct e' track using root fourvectors, debug=include debugging messages
 void parse_barebones( Int_t kine = 7, 
 		      Int_t pass = 2, 
 		      Int_t cluster_method = 3,

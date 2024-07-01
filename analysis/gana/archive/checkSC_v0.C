@@ -14,7 +14,7 @@
 #include "../../include/gmn.h"
 #include "../../src/jsonmgr.C"
 
-//main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
+//main. kine=kinematic, mag=fieldsetting, pass=pass#, fixshift=fix shift pars for comparisons, bestclus=use best cluster plots, thin=use plot file without correlations, wide=use plots with wide cuts, alt=use plot file using MC alt files
 void checkSupercluster(int kine=4, 
 		       int mag=30, 
 		       int pass=2, 

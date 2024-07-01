@@ -1,4 +1,5 @@
-//sseeds 
+//sseeds - 4.20.24: Script to extract the proton hcal detection efficiency via the nucleon spot check method. This script is designed to extract nucleon detection efficiency from tight elastic selection, track/optics cuts, and spot checks. LH2 data is used. Eff vs xexp(yexp) = num_x(y)/den_x(y). den_x(y)=all events vs xexp(yexp) with tight elastic cuts and track/optics cuts. num_x(y)=same add proton spot cut.
+
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -76,7 +77,7 @@ Double_t sbBGfit2_pol0(double *x, double *par) {
   return yint;
 }
 
-//MAIN
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=reconstruction pass, ellipse=enables spot cut with ellipse, not simple square, pidcuts=add cuts on PID from BBCal PS and GRINCH, effz=use plot file with effective z offset applied, mcopt=perform analysis on MC data
 void pHDEmap(int kine=11, 
 	     int mag=100, 
 	     int pass=2, 

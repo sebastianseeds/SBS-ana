@@ -1,4 +1,4 @@
-//sseeds 9.23.23 Short script to examine adc vs ped subtracted adc on cluster blocks by channel in HCal to evaluate possible impact of amplifier offset on energy spectra
+//sseeds 9.23.23 Script to examine adc vs ped subtracted adc on cluster blocks by channel in HCal to evaluate possible impact of amplifier offset on energy spectra
 
 #include <vector>
 #include <iostream>

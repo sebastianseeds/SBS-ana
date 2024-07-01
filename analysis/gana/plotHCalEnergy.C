@@ -1,8 +1,10 @@
+//sseeds - 1.24.24: Script to plot data MC comparison on HCal energy
 #include <TFile.h>
 #include <TH1D.h>
 #include <TCanvas.h>
 #include <TLegend.h>
 
+//MAIN (no args)
 void plotHCalEnergy() {
 
   gStyle->SetOptStat(0);

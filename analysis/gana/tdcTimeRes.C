@@ -1,4 +1,4 @@
-//sseeds 
+//sseeds - 5.10.24: Script to extract TDC timing resolution over all blocks with tight elastic cuts.
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -27,7 +27,7 @@ const double tdculim = 10.0;
 
 const int tofoffset = 18; //offset to return tof corrected tdc peak to zero
 
-// Main function
+// Main. tglob=use tight elastic cuts, onechan=use only one HCal channel, mchan=use a selection of HCal channels, spots=use spot cuts
 void tdcTimeRes(bool tglob=false, bool onechan=false, bool mchan=false, bool spots=true) {
   gStyle->SetOptStat(0110);
   gStyle->SetStatW(0.2); // Set width of the stats box

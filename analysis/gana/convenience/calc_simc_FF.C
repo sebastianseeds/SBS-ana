@@ -22,7 +22,7 @@ double calcRiordan(double tau, double a1, double a2, double a3, double b1, doubl
 //void CalculateFormFactors(double E_beam, double BB_angle);
 void CalculateFormFactors(double E_beam, double BB_angle, double Q2); // Overload
 
-// Main
+// Main. kine:kinematic, Q2p:Q2 override
 void calc_simc_FF(int kine, double Q2p=0) {
 
   // Set up configuration and tune objects to load analysis parameters

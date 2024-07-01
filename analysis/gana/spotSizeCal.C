@@ -1,4 +1,4 @@
-//sseeds 
+//sseeds - 5.20.24: Script to extract the cut size in dx and dy (in terms of sigma) which contains 97% of the data. These ranges to be used to compare HDE analysis output.
 #include <TH1D.h>
 #include <TF1.h>
 #include <TCanvas.h>
@@ -99,7 +99,7 @@ std::vector<double> extractValues(const std::string& expression) {
   return values;
 }
 
-//MAIN
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=reconstruction pass, ellips=spot cut type ellipse (not square), pidcuts=add PID cuts from BBCal PS E and GRINCH, effz=use plot file with effective z offset added
 void spotSizeCal(int kine=9, 
 		 int mag=70, 
 		 int pass=2, 

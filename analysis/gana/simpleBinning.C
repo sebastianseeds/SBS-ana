@@ -1,4 +1,4 @@
-//sseeds
+//sseeds - 5.15.24: Plots branch variable comparisons with several algorithmically generated bin ranges
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -49,6 +49,7 @@ int calculateBinsSturges(int n) {
   return std::ceil(std::log2(n) + 1);
 }
 
+//MAIN. kine=kinematic, mag=magnetic field setting (percent), pass=reconstruction pass, effz=use plot file with effective z offset, isld2=use plot file with LD2 data, branchname=plot branch name, addcuts=all cut string, cut_l=plot lower limit, cut_h=plot upper limit
 void simpleBinning(int kine=8, 
 		   int mag=70, 
 		   int pass=2, 

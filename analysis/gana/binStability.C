@@ -1,4 +1,4 @@
-//sseeds 6.14.24
+//sseeds 6.14.24: Script to vary the number of bins in dx, extract Rsf, and evaluate bin stability for fits
 
 #include <TFile.h>
 #include <TH1D.h>
@@ -83,7 +83,7 @@ std::string addbc(std::string input);
 /////////////////
 /////////////////
 
-//MAIN. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN
+//MAIN. kine=kinematic, mag=fieldsetting, pass=pass#, binsets=total plots, binranges=bin step size, bestclus=use best cluster plots, thin=use plot file without correlations, widecut=use plots with wide cuts, effz=use plots with effective z applied, alt=use plot file using MC alt files
 void binStability(int kine=4, 
 		  int mag=30, 
 		  int pass=2, 
