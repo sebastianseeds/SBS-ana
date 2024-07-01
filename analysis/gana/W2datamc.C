@@ -45,6 +45,7 @@ TH1D *hdx_dyanti;
 TH1D *hdx_coinanti;
 TH1D *hW2;
 TH1D *hW2_inel;
+TH1D *hW2_inel2;
 TH1D *hW2dy;
 TH1D *hW2dy_inel;
 TH1D *hW2spot;
@@ -61,7 +62,7 @@ Double_t fitW2Shift(double *x, double *par){
   double W2 = W2_scale * hW2->Interpolate(x[0] - W2_shift);
   double bg = bg_scale * hW2_inel->Interpolate(x[0] - bg_shift);
 
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  // signal and bg
   return W2 + bg;
 }
 
@@ -76,7 +77,7 @@ Double_t fitW2dyShift(double *x, double *par){
   double W2 = W2_scale * hW2dy->Interpolate(x[0] - W2_shift);
   double bg = bg_scale * hW2dy_inel->Interpolate(x[0] - bg_shift);
 
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  // signal and bg
   return W2 + bg;
 }
 
@@ -91,8 +92,20 @@ Double_t fitW2spotShift(double *x, double *par){
   double W2 = W2_scale * hW2spot->Interpolate(x[0] - W2_shift);
   double bg = bg_scale * hW2spot_inel->Interpolate(x[0] - bg_shift);
 
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  // Use signal and bg fits
   return W2 + bg;
+}
+
+Double_t fitW2antispotShift(double *x, double *par){
+  // MC float params
+  double bg_scale = par[0];
+  double bg_shift = par[1];  
+
+  // Apply shifts before interpolation
+  double bg = bg_scale * hW2_inel2->Interpolate(x[0] - bg_shift);
+
+  // Get just bg fit to data
+  return bg;
 }
 
 Double_t fitdxShift(double *x, double *par){
@@ -106,7 +119,7 @@ Double_t fitdxShift(double *x, double *par){
   double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
   double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
   
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
+  // signal and bg
   return proton + neutron + fits::g_p2fit_cd(x, &par[4]);
 }
 
@@ -134,6 +147,9 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
 TH1D* calculateResiduals(TH1D* hData, TF1* fit, const char* residualName);
 void plotFitWithResiduals(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(double*, double*), TH1D* mcSignal, TH1D* mcBg, const char* fitOpt, const char* title);
 void plotFitWithoutResiduals(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(double*, double*), TH1D* mcSignal, TH1D* mcBg, const char* fitOpt, const char* title);
+void plotFitWithoutResidualsBG(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(double*, double*), TH1D* mcBg, const char* fitOpt, const char* title);
+std::pair<double, int> CalculateChiSquaredAndNDF(TH1D* data, TH1D* component, double scaleFactor, double shift);
+std::pair<double, int> CalculateChiSquaredAndNDFInRange(TH1D* data, TH1D* signal, double scaleFactor, double shift, double xmin, double xmax);
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
 void W2datamc(int kine=4, 
@@ -187,12 +203,18 @@ void W2datamc(int kine=4,
   TH1D *hdx_data = dynamic_cast<TH1D*>(inputFile->Get("hdx_allcut"));
   hdx_data->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
 
+  TH2D *hdxdy_data = dynamic_cast<TH2D*>(inputFile->Get("hdxdy"));
+  TH2D *hdxdy_spotcut_data = dynamic_cast<TH2D*>(inputFile->Get("hdxdy_spotcut"));
+  TH2D *hdxdy_spotanticut_data = dynamic_cast<TH2D*>(inputFile->Get("hdxdy_spotanticut"));
+
   TH1D *hW2_data = dynamic_cast<TH1D*>(inputFile->Get("hW2_nodycut"));
   hW2_data->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
   TH1D *hW2_datady = dynamic_cast<TH1D*>(inputFile->Get("hW2"));
   hW2_datady->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
   TH1D *hW2_dataspot = dynamic_cast<TH1D*>(inputFile->Get("hW2_spotcut"));
   hW2_dataspot->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
+  TH1D *hW2_dataantispot = dynamic_cast<TH1D*>(inputFile->Get("hW2_anticutcut"));
+  hW2_dataantispot->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
 
   TH2D *hdx_vs_W2_data = dynamic_cast<TH2D*>(inputFile->Get("hist_W2"));
   hdx_vs_W2_data->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
@@ -219,6 +241,9 @@ void W2datamc(int kine=4,
   hW2_inel = dynamic_cast<TH1D*>(inputFileMC->Get("hW2_inel_dy"));
   hW2_inel->Scale(10e33);
   hW2_inel->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
+  hW2_inel2 = (TH1D*)hW2_inel->Clone("hW2_inel2");
+  //hW2_inel2->Scale(10e33);
+  hW2_inel2->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
   hW2dy = dynamic_cast<TH1D*>(inputFileMC->Get("hW2"));
   hW2dy->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
   hW2dy_inel = dynamic_cast<TH1D*>(inputFileMC->Get("hW2_inel"));
@@ -232,6 +257,7 @@ void W2datamc(int kine=4,
 
   //make clones for quality checks
   TH1D *hW2_mc_inel = (TH1D*)hW2_inel->Clone("hW2_mc_inel");
+  TH1D *hW2_mc_inel2 = (TH1D*)hW2_inel2->Clone("hW2_mc_inel2");
   TH1D *hW2_mcdy_inel = (TH1D*)hW2dy_inel->Clone("hW2_mcdy_inel");
   TH1D *hW2_mcspot_inel = (TH1D*)hW2spot_inel->Clone("hW2_mcspot_inel");
 
@@ -307,9 +333,13 @@ void W2datamc(int kine=4,
 
   // Pad 4: hdx_data
   canvas->cd(4);
-  hW2_data->SetLineColor(kBlack);
-  hW2_data->SetLineWidth(2);
-  hW2_data->Draw();
+  hW2_dataantispot->SetLineColor(kBlack);
+  hW2_dataantispot->SetLineWidth(2);
+  hW2_dataantispot->Draw();
+
+  hW2_mc_inel2->SetLineColor(kRed-5);
+  hW2_mc_inel2->Scale(30);
+  hW2_mc_inel2->Draw("same");
 
 
   // Pad 5: hdx_vs_W2_data
@@ -317,6 +347,7 @@ void W2datamc(int kine=4,
   hW2_mc->SetLineColor(kGreen);
   hW2_mc->Draw("");
   hW2_mc_inel->SetLineColor(kRed-5);
+  hW2_mc_inel->Scale(0.05);
   hW2_mc_inel->Draw("same");
 
   // Pad 6: hdx_n
@@ -340,6 +371,22 @@ void W2datamc(int kine=4,
 
   // Update the canvas to reflect the drawings
   canvas->Update();
+  canvas->Write();
+
+  TCanvas *cdxdy = new TCanvas("cdxdy", "Spot Cut QA", 1800, 800);
+  cdxdy->Divide(3,1);
+  cdxdy->cd(1);
+  
+  hdxdy_data->Draw("colz");
+  cdxdy->cd(2);
+  
+  hdxdy_spotcut_data->Draw("colz");
+  cdxdy->cd(3);
+  
+  hdxdy_spotanticut_data->Draw("colz");
+  cdxdy->Update();
+  cdxdy->Write();
+  
 
   // // First canvas
   // TCanvas *cFITT = new TCanvas("cFITT", "Data and MC Fitted (W2)", 1200, 800);
@@ -358,11 +405,17 @@ void W2datamc(int kine=4,
   TCanvas *csmfit = new TCanvas("csmfit", "Data and MC Fitted", 1200, 800);
   plotFitWithoutResiduals(csmfit, hW2_data, fitW2Shift, hW2, hW2_inel, fitopt.c_str(), "W^{2} Data Fit with MC (elastic cuts)");
 
-  // Fourth canvas
+  // fifth canvas
   TCanvas *csmfitdy = new TCanvas("csmfitdy", "Data and MC Fitted (dy cuts)", 1200, 800);
   plotFitWithoutResiduals(csmfitdy, hW2_datady, fitW2dyShift, hW2dy, hW2dy_inel, fitopt.c_str(), "W^{2} Data Fit with MC (elastic and dy cuts)");
 
-  
+  // sixth canvas
+  TCanvas *csmfitspot = new TCanvas("csmfitspot", "Data and MC Fitted (spot cuts)", 1200, 800);
+  plotFitWithoutResiduals(csmfitspot, hW2_dataspot, fitW2spotShift, hW2spot, hW2spot_inel, fitopt.c_str(), "W^{2} Data Fitspot with MC (elastic and spot cuts)");
+
+  // seventh canvas
+  TCanvas *cmfitantispot = new TCanvas("cmfitantispot", "Inelastic MC Fitted (spot anticuts)", 1200, 800);
+  plotFitWithoutResidualsBG(cmfitantispot, hW2_dataantispot, fitW2antispotShift, hW2_inel2, fitopt.c_str(), "W^{2} Data Fitspot with MC (elastic and spot anticuts)");
 
 }
 
@@ -611,6 +664,8 @@ void plotFitWithoutResiduals(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(do
   data->SetMarkerSize(0.5);
   data->SetLineColor(kBlack);
   data->SetLineWidth(1);
+  data->GetYaxis()->SetRangeUser(0,data->GetMaximum()*1.2);
+  data->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
   data->Draw("hist E");
 
   TF1* fit = new TF1("fit", fitFunc, data->GetXaxis()->GetXmin(), data->GetXaxis()->GetXmax(), 4);
@@ -649,6 +704,13 @@ void plotFitWithoutResiduals(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(do
   fit_bg->SetLineColor(kRed - 5);
   fit_bg->Draw("P same");
 
+  // Calculate chi-squared and ndf for each component
+  // auto [chi2Signal, ndfSignal] = CalculateChiSquaredAndNDF(data, mcSignal, fit_pars[0], fit_pars[2]);
+  // auto [chi2Bg, ndfBg] = CalculateChiSquaredAndNDF(data, mcBg, fit_pars[1], fit_pars[3]);
+
+  auto [chi2Signal, ndfSignal] = CalculateChiSquaredAndNDFInRange(data, mcSignal, fit_pars[0], fit_pars[2], 0, 1.1);
+
+
   // Create a legend
   TLegend *legend = new TLegend(0.15, 0.7, 0.5, 0.9);
   legend->SetBorderSize(0);
@@ -656,7 +718,11 @@ void plotFitWithoutResiduals(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(do
   legend->SetTextSize(0.04);
   legend->SetTextColor(kViolet);
   legend->AddEntry(data, "Data", "lep");
-  legend->AddEntry(fit, "Fit (MC Signal + BG)", "f"); // "f" for filled area
+  legend->AddEntry(fit, TString::Format("Fit (MC Signal + BG)"), "f"); // "f" for filled area
+  // legend->AddEntry(fit_signal, TString::Format("MC Signal #chi^{2}/ndf = %.2f/%d", chi2Signal, ndfSignal), "p");
+  // legend->AddEntry(fit_bg, TString::Format("MC Background #chi^{2}/ndf = %.2f/%d", chi2Bg, ndfBg), "p");
+  // legend->AddEntry(fit_signal, TString::Format("MC Signal #chi^{2}/ndf = %.2f/%d", chi2Signal, ndfSignal), "p");
+
   legend->AddEntry(fit_signal, "MC Signal", "p");
   legend->AddEntry(fit_bg, "MC Background", "p");
   legend->Draw();
@@ -666,3 +732,123 @@ void plotFitWithoutResiduals(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(do
   canvas->Update();
 }
 
+
+void plotFitWithoutResidualsBG(TCanvas* canvas, TH1D* data, Double_t (*fitFunc)(double*, double*), TH1D* mcBg, const char* fitOpt, const char* title) {
+
+  // Generate a unique identifier for the fit function name
+  TString uniqueID = TString::Format("_%u", gRandom->Integer(1000000));
+
+  canvas->cd();
+
+  // Create a pad for the main plot
+  TPad *pad1 = new TPad("pad1", "Main Plot", 0.0, 0.0, 1.0, 1.0);
+  pad1->SetBottomMargin(0.15);
+  pad1->SetLeftMargin(0.15);
+  pad1->SetRightMargin(0.05);
+  pad1->SetTopMargin(0.1);
+  pad1->Draw();
+  pad1->cd();
+
+  gPad->SetGridx();
+  gPad->SetGridy();
+
+  data->SetTitle(title);
+  data->SetTitleFont(132);
+  data->SetMarkerStyle(20);
+  data->SetMarkerSize(0.5);
+  data->SetLineColor(kRed);
+  data->SetLineWidth(1);
+  data->GetYaxis()->SetRangeUser(0,data->GetMaximum()*1.5);
+  data->GetXaxis()->SetRangeUser(xrange_min_W2,xrange_max_W2);
+  data->Draw("hist E");
+
+  TF1* fit = new TF1("fit", fitFunc, data->GetXaxis()->GetXmin(), data->GetXaxis()->GetXmax(), 2);
+
+  // Set parameter limits
+  fit->SetParameter(0, 30);
+  fit->SetParLimits(0, 1, 1000);
+  fit->SetParLimits(1, -0.1, 0.1);
+  //fit->SetParLimits(3, -0.1, 0.1);
+
+  // Fit the data
+  data->Fit(fit, fitOpt);
+
+  std::vector<double> fit_pars;
+  for (int i = 0; i < fit->GetNpar(); ++i)
+    fit_pars.push_back(fit->GetParameter(i));
+
+  // Shade the fit area in green
+  fit->SetLineColor(kGreen);
+  fit->SetFillColorAlpha(kGreen, 0.35);
+  fit->SetFillStyle(1001);
+  fit->SetNpx(1000);
+  fit->Draw("same FC");
+
+  TH1D *fit_bg = util::shiftHistogramX(mcBg, fit_pars[1]);
+  fit_bg->Scale(fit_pars[0]);
+  fit_bg->SetMarkerStyle(22); // Different filled circle marker
+  fit_bg->SetMarkerColor(kRed - 5);
+  fit_bg->SetMarkerSize(0.5);
+  fit_bg->SetLineColor(kRed - 5);
+  fit_bg->Draw("P same");
+
+  // // Calculate chi-squared and ndf for each component
+  auto [chi2Bg, ndfBg] = CalculateChiSquaredAndNDF(data, mcBg, fit_pars[0], fit_pars[1]);
+
+  // Create a legend
+  TLegend *legend = new TLegend(0.15, 0.7, 0.5, 0.9);
+  legend->SetBorderSize(0);
+  legend->SetFillStyle(0);
+  legend->SetTextSize(0.04);
+  legend->SetTextColor(kViolet);
+  legend->AddEntry(data, "Data (spot anticuts, elastic cuts)", "lep");
+  legend->AddEntry(fit, TString::Format("Fit (MC Inelastic BG)"), "f"); // "f" for filled area
+  // legend->AddEntry(fit_signal, TString::Format("MC Signal #chi^{2}/ndf = %.2f/%d", chi2Signal, ndfSignal), "p");
+  legend->AddEntry(fit_bg, TString::Format("MC Background #chi^{2}/ndf = %.2f/%d", chi2Bg, ndfBg), "p");
+  //legend->AddEntry(fit_signal, "MC Signal", "p");
+  //legend->AddEntry(fit_bg, "MC Background", "p");
+  legend->Draw();
+
+  // Update the canvas
+  canvas->cd();
+  canvas->Update();
+}
+
+std::pair<double, int> CalculateChiSquaredAndNDF(TH1D* data, TH1D* component, double scaleFactor, double shift) {
+  double chi2 = 0.0;
+  int ndf = 0;
+  int nBins = data->GetNbinsX();
+  for (int i = 1; i <= nBins; ++i) {
+    double x = data->GetBinCenter(i);
+    double observed = data->GetBinContent(i);
+    double expected = component->Interpolate(x - shift) * scaleFactor;
+    double error = data->GetBinError(i);
+    if (error != 0) {
+      chi2 += std::pow((observed - expected) / error, 2);
+      ndf++;
+    }
+  }
+  return std::make_pair(chi2, ndf - 1); // Subtract 1 for the fit parameter
+}
+
+std::pair<double, int> CalculateChiSquaredAndNDFInRange(TH1D* data, TH1D* signal, double scaleFactor, double shift, double xmin, double xmax) {
+  double chi2 = 0.0;
+  int ndf = 0;
+  int nBins = data->GetNbinsX();
+
+  for (int i = 1; i <= nBins; ++i) {
+    double x = data->GetBinCenter(i);
+    if (x < xmin || x > xmax) continue;
+
+    double observed = data->GetBinContent(i);
+    double expected = signal->Interpolate(x - shift) * scaleFactor;
+    double error = data->GetBinError(i);
+
+    if (error != 0) {
+      chi2 += std::pow((observed - expected) / error, 2);
+      ndf++;
+    }
+  }
+
+  return std::make_pair(chi2, ndf - 1); // Subtract 1 for the fit parameter
+}

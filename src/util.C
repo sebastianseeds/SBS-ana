@@ -286,6 +286,30 @@ namespace util {
   
   ////HCal
 
+  // Check position per event against hcal active area and return minimum N_x(N_y)*blockwidth_x(y) to include cluster center. X= .first, y= .second
+  std::pair<double, double> minaa(double hcalx, double hcaly) {
+    // HCAL dimensions from some constants namespace or directly defined
+    double hcalaaXi = econst::hcalposXi_mc; // Begin of acceptance in x
+    double hcalaaXf = econst::hcalposXf_mc; // End of acceptance in x
+    double hcalaaYi = econst::hcalposYi_mc; // Begin of acceptance in y
+    double hcalaaYf = econst::hcalposYf_mc; // End of acceptance in y
+
+    double block_wx = econst::hcalblk_div_v; // Block width in x
+    double block_wy = econst::hcalblk_div_h; // Block width in y
+
+    // Calculate the minimum difference between the cluster center and the edges of the acceptance area in units of block width. Ensure the cluster center is within the acceptance area.
+
+    // For x:
+    double minDistX = std::min(std::abs(hcalx - hcalaaXi), std::abs(hcalx - hcalaaXf)) / block_wx;
+    // For y:
+    double minDistY = std::min(std::abs(hcaly - hcalaaYi), std::abs(hcaly - hcalaaYf)) / block_wy;
+
+    // Create a pair to return both minimum distances (scales)
+    std::pair<double, double> block_scales = std::make_pair(minDistX, minDistY);
+
+    return block_scales;
+  }
+
   // checks if a point is within proton or neutron spot. rotation angle in rad, if ever applicable
   bool Nspotcheck(Double_t dy, Double_t dx, Double_t dy_mean, Double_t dx_mean, Double_t dy_sigma, Double_t dx_sigma, Double_t rotationAngle=0) {
 
@@ -302,6 +326,29 @@ namespace util {
     // Check if point is within the ellipse equation
     Double_t result = ((dyRot * dyRot) / (dyAxis * dyAxis)) + ((dxRot * dxRot) / (dxAxis * dxAxis));
     return result <= 1.0;
+  }
+
+  // Function that calculates and returns the scale factor N
+  double NspotScaleFactor(Double_t dy, Double_t dx, Double_t dy_mean, Double_t dx_mean, Double_t dy_sigma, Double_t dx_sigma, Double_t rotationAngle=0) {
+    // Calculate semimajor and semiminor axes
+    Double_t dyAxis = dy_sigma;
+    Double_t dxAxis = dx_sigma;
+
+    // Apply rotation angle if applicable
+    Double_t cosAngle = std::cos(rotationAngle);
+    Double_t sinAngle = std::sin(rotationAngle);
+    Double_t dyRot = (dy - dy_mean) * cosAngle + (dx - dx_mean) * sinAngle;
+    Double_t dxRot = (dx - dx_mean) * cosAngle - (dy - dy_mean) * sinAngle;
+
+    // Calculate the scale factor N such that the point is on the boundary of the ellipse
+    // For a point (x, y) to lie on the ellipse defined by axes a*N and b*N, where a and b are the original semiaxes, we must have (x^2)/(a*N)^2 + (y^2)/(b*N)^2 = 1. Rearranging for N gives us the following:
+    Double_t scaleFactor_dy = std::sqrt((dyRot * dyRot) / (dyAxis * dyAxis));
+    Double_t scaleFactor_dx = std::sqrt((dxRot * dxRot) / (dxAxis * dxAxis));
+
+    // The actual scale factor N needed is the maximum of these two, to ensure the point lies within or on the boundary
+    Double_t N = std::max(scaleFactor_dy, scaleFactor_dx);
+
+    return N;
   }
 
   // returns TH2D for hcal face (row,col), note that row/col start at 1
@@ -421,7 +468,7 @@ namespace util {
       score=1e-38; //write very small number to score to exclude it without breaking the sorting later
     }
 
-    delete gauss; //prevent memory leak
+    delete gauss; //cleanup
 
     return score;
   }
@@ -932,7 +979,50 @@ namespace util {
   }
 
   //function to create a residual histogram courtesy jboyd
-  TH1D *makeResidualHisto(TString identifier, TH1D *histo_1, TH1D *histo_2, bool match_bins = true, bool match_x_range = false ){
+  TH1D *makeResidualHisto(TString identifier, TH1D *histo_1, TH1D *histo_2, bool match_bins = true, bool match_x_range = false ) {
+    // Extract information from the first histogram
+    TString histo_1_name = histo_1->GetName();
+    Int_t Nbins_histo_1 = histo_1->GetNbinsX();
+    Double_t MinX_histo_1 = histo_1->GetXaxis()->GetXmin();
+    Double_t MaxX_histo_1 = histo_1->GetXaxis()->GetXmax();
+
+    // Extract information from the second histogram
+    TString histo_2_name = histo_2->GetName();
+    Int_t Nbins_histo_2 = histo_2->GetNbinsX();
+    Double_t MinX_histo_2 = histo_2->GetXaxis()->GetXmin();
+    Double_t MaxX_histo_2 = histo_2->GetXaxis()->GetXmax();
+
+    // Check for matching bin numbers if required
+    if(match_bins && (Nbins_histo_1 != Nbins_histo_2)) {
+      cout << "Histograms need to have matching bin numbers for accurate residual calculation." << endl;
+      return nullptr; // Return null to indicate failure
+    }
+
+    // Check for matching x ranges if required
+    if(match_x_range && ((MinX_histo_1 != MinX_histo_2) || (MaxX_histo_1 != MaxX_histo_2))) {
+      cout << "Histograms need to have matching x ranges for accurate residual calculation." << endl;
+      return nullptr; // Return null to indicate failure
+    }
+
+    // Create the residual histogram
+    TH1D *resid_histo = new TH1D("resid_histo", Form("Residual Histogram - %s: %s and %s", identifier.Data(), histo_1_name.Data(), histo_2_name.Data()), Nbins_histo_1, MinX_histo_1, MaxX_histo_1);
+
+    // Calculate residuals for each bin
+    for(int bin = 1; bin <= Nbins_histo_1; bin++) { // Note: ROOT bin indices start from 1
+      double content1 = histo_1->GetBinContent(bin);
+      double content2 = histo_2->GetBinContent(bin);
+      double residual = content1 - content2;
+
+      resid_histo->SetBinContent(bin, residual);
+    }
+
+    return resid_histo;
+  }
+
+  TH1D *makeResidualHistoWithError(TString identifier, TH1D *histo_1, TH1D *histo_2, bool match_bins = true, bool match_x_range = false ){
+
+    // Generate a unique identifier for the fit function name
+    TString uniqueID = TString::Format("_%u", gRandom->Integer(1000000));
 
     TString histo_1_name = histo_1->GetName();
     Int_t Nbins_histo_1 = histo_1->GetNbinsX();
@@ -944,31 +1034,31 @@ namespace util {
     Double_t MinX_histo_2 = histo_2->GetXaxis()->GetXmin();
     Double_t MaxX_histo_2 = histo_2->GetXaxis()->GetXmax();
 
-    TH1D *resid_histo = new TH1D( "resid_histo", Form("Residual Histogram - %s: %s and %s", identifier.Data(), histo_1_name.Data(), histo_2_name.Data()), Nbins_histo_1, MinX_histo_1, MaxX_histo_1);
-
+    // Ensure histograms have the same binning and x range if required
     if( match_bins && (Nbins_histo_1 != Nbins_histo_2) ){
-      cout << "------------------------------------------------------" << endl;
-      cout << "------------------------------------------------------" << endl;
-      cout << "---- Histograms need to have matching bin numbers ----" << endl;
-      cout << "     Histo_1: " << Nbins_histo_1 << ", Histo_2: " << Nbins_histo_2 << endl;
-      cout << "------------------------------------------------------" << endl;
-      cout << "------------------------------------------------------" << endl;
-      return resid_histo;
+      cout << "Histograms need to have matching bin numbers for accurate residual calculation." << endl;
+      return nullptr; // Exiting if bin numbers do not match
     }
 
-    if( match_x_range && (MinX_histo_1 != MinX_histo_2) && (MaxX_histo_1 != MaxX_histo_2 )){
-      cout << "------------------------------------------------------" << endl;
-      cout << "------------------------------------------------------" << endl;
-      cout << "----- Histograms need to have matching x ranges  -----" << endl;
-      cout << "Min X - Histo_1: " << MinX_histo_1 << ", Histo_2: " << MinX_histo_2 << endl;
-      cout << "Max X - Histo_1: " << MaxX_histo_1 << ", Histo_2: " << MaxX_histo_2 << endl;
-      cout << "------------------------------------------------------" << endl;
-      cout << "------------------------------------------------------" << endl;
-      return resid_histo;		
+    if( match_x_range && ((MinX_histo_1 != MinX_histo_2) || (MaxX_histo_1 != MaxX_histo_2))){
+      cout << "Histograms need to have matching x ranges for accurate residual calculation." << endl;
+      return nullptr; // Exiting if x ranges do not match
     }
 
-    for( int bin = 0; bin < Nbins_histo_1; bin++ ){
-      resid_histo->SetBinContent( bin, histo_1->GetBinContent(bin) - histo_2->GetBinContent(bin) );
+    // Creating the residual histogram
+    TH1D *resid_histo = new TH1D(Form("resid_histo_%s",uniqueID.Data()), Form("Residual Histogram with Errors - %s: %s and %s", identifier.Data(), histo_1_name.Data(), histo_2_name.Data()), Nbins_histo_1, MinX_histo_1, MaxX_histo_1);
+
+    for( int bin = 1; bin <= Nbins_histo_1; bin++ ){ // Note: bin indices in ROOT start from 1
+      double value1 = histo_1->GetBinContent(bin);
+      double error1 = histo_1->GetBinError(bin);
+      double value2 = histo_2->GetBinContent(bin);
+      double error2 = histo_2->GetBinError(bin);
+
+      double residual = value1 - value2;
+      double error = sqrt(error1*error1 + error2*error2); // Calculating the error for the residual
+
+      resid_histo->SetBinContent(bin, residual);
+      resid_histo->SetBinError(bin, error); // Setting the error for each bin in the residual histogram
     }
 
     return resid_histo;
@@ -1091,6 +1181,36 @@ namespace util {
     return sumXY / (sqrt(sumX2) * sqrt(sumY2));
   }
 
+  void checkTH2DBinsAndEntries(TH2D *hist,
+			       int minEntries,
+			       int &firstBinWithEntries, 
+			       int &lastBinWithEntries, 
+			       int &firstBinEntries,
+			       int &lastBinEntries){
+
+    firstBinWithEntries = 1;
+    lastBinWithEntries = hist->GetNbinsX();
+    firstBinEntries = 0;
+    lastBinEntries = 0;
+    for (int i = 1; i <= hist->GetNbinsX(); ++i) {
+      int entries = hist->ProjectionY("_py", i, i)->GetEntries();
+      if (entries > minEntries) {
+	firstBinWithEntries = i;
+	firstBinEntries = entries;
+	break;
+      }
+    }
+    for (int i = hist->GetNbinsX(); i >= 1; --i) {
+      int entries = hist->ProjectionY("_py", i, i)->GetEntries();
+      if (entries > minEntries) {
+	lastBinWithEntries = i;
+	lastBinEntries = entries;
+	break;
+      }
+    }
+
+    return;
+  }
 
   Double_t d_doubleGausPlusPol( Double_t *x, Double_t *par ) {
     // First Gaussian
@@ -1324,66 +1444,141 @@ namespace util {
     return mirroredHist;
   }
 
-  //script to look through directory and return a vector of files matching a descriptor. If jboyd, alter file name
-  void FindMatchingFiles(const std::string& directory1, //path to .csv/.hist
-			 const std::string& directory2,   //path to .root 
-			 const std::string& partialName,  //search word
-			 std::vector<std::string>& vector1, //vector .csv/.hist file extensions
-			 std::vector<std::string>& vector2, //vector .root file extensions
-			 bool jboyd) {                      //bool to alter file name structure to jboyd convention
+  //script to look through directory and return one-to-one matches for .hist files and .root files. Intended for jboyd file structure, but lef generic for otherwise.
+  void FindMatchingFiles(const std::string& directory1, 
+			 const std::string& directory2, 
+			 const std::string& partialName, 
+			 std::vector<std::string>& vector1, 
+			 std::vector<std::string>& vector2, 
+			 bool jboyd) {
     try {
-      fs::path dirPath1(directory1);
-      fs::path dirPath2(directory2);
-
-      if (!fs::is_directory(dirPath1) && !fs::is_directory(dirPath2)) {
-	std::cerr << "Error: Both (.root and .csv) directories invalid." << std::endl;
-	std::cerr << "File1: " << directory1 << std::endl;
-	std::cerr << "File2: " << directory2 << std::endl;
-
+      if (!fs::is_directory(directory1) || !fs::is_directory(directory2)) {
+	std::cerr << "Error: One or both directories are invalid." << std::endl;
 	return;
       }
 
-      if (!fs::is_directory(dirPath2)) {
-	std::cerr << "Error: Invalid directory at " << dirPath2 << "." << std::endl;
+      // Step 1: Populate vector1 with all matching files from directory1
+      for (const auto& entry : fs::directory_iterator(directory1)) {
+	if (entry.is_regular_file() && entry.path().filename().string().find(partialName) != std::string::npos) {
+	  vector1.push_back(entry.path().string());
+	}
+      }
+
+      // Temporary vector to track indices of vector1 elements with no match
+      std::vector<int> unmatchedIndices;
+      int matches = 0;
+      // Step 2 & 3: Try to find a match in directory2 for each file in vector1
+      for (size_t i = 0; i < vector1.size(); ++i) {
+
+	cout << "Looking for dir1 to dir2 matches, " << i << "/" << vector1.size() << " total matches " << matches << "\r";
+	cout.flush();
+
+	fs::path filePath1 = vector1[i];
+	std::string filename1 = filePath1.filename().string();
+            
+	// Modify filename based on jboyd flag
+	std::string expectedFilename2 = (jboyd ? "replayed_digitized_" : "replayed_") + filename1;
+	expectedFilename2 = expectedFilename2.substr(0, expectedFilename2.find_last_of('.')) + ".root";
+
+	bool matchFound = false;
+	for (const auto& entry : fs::directory_iterator(directory2)) {
+	  if (entry.is_regular_file() && entry.path().filename() == expectedFilename2) {
+	    vector2.push_back(entry.path().string());
+	    matchFound = true;
+	    matches++;
+	    break; // Match found, no need to continue searching
+	  }
+	}
+
+	if (!matchFound) {
+	  // Mark index for removal if no match is found
+	  unmatchedIndices.push_back(i);
+	}
+      }
+
+      // Step 4: Remove unpaired elements from vector1
+      // Iterate in reverse to avoid messing up indices after removal
+      for (auto it = unmatchedIndices.rbegin(); it != unmatchedIndices.rend(); ++it) {
+	vector1.erase(vector1.begin() + *it);
+      }
+    } catch (const fs::filesystem_error& e) {
+      std::cerr << "Error: " << e.what() << std::endl;
+    }
+  }
+
+  void SyncFilesWithCsv(const std::string& directory1, // Path to .csv
+			const std::string& directory2, // Path to .root
+			const std::string& partialName, // Search word
+			std::vector<std::string>& vector1, // Vector for .root file paths
+			std::vector<std::pair<std::string, std::vector<float>>>& csvData) { // Vector to store CSV data with root file path
+    try {
+      // Populate vector1 with digitized and replayed .root files
+      std::string replayed_partialName = "replayed_" + partialName;
+      for (const auto& entry : fs::directory_iterator(directory2)) {
+      	if (entry.is_regular_file() && entry.path().filename().string().find(replayed_partialName) != std::string::npos && entry.path().extension() == ".root") {
+      	  vector1.push_back(entry.path().string());
+      	}
+      }
+
+      // Populate vector1 with digitized and replayed .root files
+      // for (const auto& entry : fs::directory_iterator(directory2)) {
+      // 	if (entry.is_regular_file() && entry.path().filename().string().find(partialName) != std::string::npos && entry.path().extension() == ".root") {
+      // 	  vector1.push_back(entry.path().string());
+      // 	}
+      // }
+
+      // Read the CSV file
+      fs::path csvPath;
+      bool csvFound = false;
+      for (const auto& entry : fs::directory_iterator(directory1)) {
+	if (entry.is_regular_file() && entry.path().filename().string().find(partialName) != std::string::npos && entry.path().filename().string().find("_summary.csv") != std::string::npos) {
+	  csvPath = entry.path();
+	  csvFound = true;
+	  break;
+	}
+      }
+
+      if (!csvFound) {
+	std::cerr << "CSV file matching " << partialName << " not found in directory1." << std::endl;
 	return;
       }
 
-      if (!fs::is_directory(dirPath1)) {
-	std::cerr << "Error: Invalid directory at " << dirPath1 << "." << std::endl;
-	return;
+      std::ifstream csvFile(csvPath);
+      std::string line;
+      while (getline(csvFile, line)) {
+	if (line.empty() || line[0] == 'j') continue; // Skip header or empty lines
+	std::istringstream ss(line);
+	float jobid;
+	ss >> jobid; // First column is jobid, now stored as a float
+	char comma;
+	std::vector<float> rowData = {jobid}; // Initialize vector with jobid as the first element
+	float data;
+
+	while (ss >> comma >> data) {
+	  rowData.push_back(data);
+	}
+	// Add placeholder pair; actual path to be matched later
+	csvData.push_back({"", rowData});
       }
 
-      for (const auto& entry1 : fs::directory_iterator(dirPath1)) {
-	if (entry1.is_regular_file()) {
-	  std::string filename1 = entry1.path().filename().string();
-
-	  //cout << filename1 << " " << partialName << endl;
-
-	  // Check if the filename1 contains the partialName
-	  if (filename1.find(partialName) != std::string::npos) {
-
-	    std::string filename2;
-	    if(jboyd)
-	      filename2 = "replayed_digitized_" + filename1;
-	    else
-	      filename2 = "replayed_" + filename1;
-
-	    // Create the path to search for in directory2
-	    fs::path searchPath2 = dirPath2 / filename2;
-
-	    searchPath2.replace_extension(".root");
-
-	    // Check if a matching file exists in directory2
-	    if (fs::exists(searchPath2) && fs::is_regular_file(searchPath2)) {
-	      cout << endl << "Match found: " << endl;
-	      vector1.push_back(entry1.path().string());
-	      cout<< vector1.back() << endl;
-	      vector2.push_back(searchPath2.string());
-	      cout<< vector2.back() << endl;
+      // Attempt to match .root files in vector1 with csvData based on job ID
+      for (auto& dataPair : csvData) {
+	std::regex jobIdPattern("job_([0-9]+)\\.root$");
+	for (const auto& path : vector1) {
+	  std::smatch matches;
+	  if (std::regex_search(path, matches, jobIdPattern) && matches.size() > 1) {
+	    int jobId = std::stoi(matches[1].str());
+	    if (jobId == static_cast<int>(dataPair.second[0])) {
+	      dataPair.first = path; // Match found, update path in csvData
+	      break; // Stop searching after finding a match
 	    }
 	  }
 	}
       }
+
+      // Optionally, remove entries from csvData without a matched path
+      csvData.erase(std::remove_if(csvData.begin(), csvData.end(), [](const auto& pair) { return pair.first.empty(); }), csvData.end());
+
     } catch (const fs::filesystem_error& e) {
       std::cerr << "Error: " << e.what() << std::endl;
     }
@@ -1430,6 +1625,118 @@ namespace util {
 			      }), vecB.end());
   }
 
+  //overload
+  void synchronizeJobNumbers(std::vector<std::pair<std::string, std::vector<float>>>& metadata_p,
+			     std::vector<std::pair<std::string, std::vector<float>>>& metadata_n) {
+    std::regex jobNumberRegex("job_([0-9]+)\\.root$");
+    std::smatch match;
+    std::unordered_set<std::string> jobNumbersP, jobNumbersN;
+
+    // Extract job numbers from proton metadata
+    for (const auto& dataPair : metadata_p) {
+      if (std::regex_search(dataPair.first, match, jobNumberRegex) && match.size() > 1) {
+	jobNumbersP.insert(match[1].str());
+      }
+    }
+
+    // Extract job numbers from neutron metadata
+    for (const auto& dataPair : metadata_n) {
+      if (std::regex_search(dataPair.first, match, jobNumberRegex) && match.size() > 1) {
+	jobNumbersN.insert(match[1].str());
+      }
+    }
+
+    // Remove unpaired entries from proton metadata
+    metadata_p.erase(std::remove_if(metadata_p.begin(), metadata_p.end(),
+				    [&](const std::pair<std::string, std::vector<float>>& dataPair) {
+				      if (std::regex_search(dataPair.first, match, jobNumberRegex) && match.size() > 1) {
+					if (jobNumbersN.find(match[1].str()) == jobNumbersN.end()) {
+					  std::cout << "Removing from proton metadata: " << dataPair.first << std::endl;
+					  return true;
+					}
+				      }
+				      return false;
+				    }), metadata_p.end());
+
+    // Remove unpaired entries from neutron metadata
+    metadata_n.erase(std::remove_if(metadata_n.begin(), metadata_n.end(),
+				    [&](const std::pair<std::string, std::vector<float>>& dataPair) {
+				      if (std::regex_search(dataPair.first, match, jobNumberRegex) && match.size() > 1) {
+					if (jobNumbersP.find(match[1].str()) == jobNumbersP.end()) {
+					  std::cout << "Removing from neutron metadata: " << dataPair.first << std::endl;
+					  return true;
+					}
+				      }
+				      return false;
+				    }), metadata_n.end());
+  }
+
+
+  /*
+  void synchronizeJobNumbers(std::vector<std::pair<std::string, std::vector<float>>>& vecA,
+			     std::vector<std::pair<std::string, std::vector<float>>>& vecB) {
+    // Extract job numbers from vecA
+    std::unordered_set<float> jobNumbersA;
+    for (const auto& item : vecA) {
+      if (!item.second.empty()) {
+	jobNumbersA.insert(item.second[0]);
+      }
+    }
+
+    // Extract job numbers from vecB
+    std::unordered_set<float> jobNumbersB;
+    for (const auto& item : vecB) {
+      if (!item.second.empty()) {
+	jobNumbersB.insert(item.second[0]);
+      }
+    }
+
+    // Remove unpaired entries from vecA
+    vecA.erase(std::remove_if(vecA.begin(), vecA.end(),
+			      [&](const std::pair<std::string, std::vector<float>>& item) {
+				return item.second.empty() || jobNumbersB.find(item.second[0]) == jobNumbersB.end();
+			      }), vecA.end());
+
+    // Remove unpaired entries from vecB
+    vecB.erase(std::remove_if(vecB.begin(), vecB.end(),
+			      [&](const std::pair<std::string, std::vector<float>>& item) {
+				return item.second.empty() || jobNumbersA.find(item.second[0]) == jobNumbersA.end();
+			      }), vecB.end());
+  }
+
+  //overload
+  void synchronizeJobNumbers(std::map<int, std::pair<std::string, std::vector<float>>>& csvData_n,
+			     std::map<int, std::pair<std::string, std::vector<float>>>& csvData_p) {
+    // Step 1: Extract job numbers (keys) from both maps
+    std::unordered_set<int> jobNumbersA, jobNumbersB;
+    for (const auto& pair : csvData_n) {
+      jobNumbersA.insert(pair.first);
+    }
+    for (const auto& pair : csvData_p) {
+      jobNumbersB.insert(pair.first);
+    }
+
+    // Step 2: Remove unpaired entries from csvData_n
+    for (auto it = csvData_n.begin(); it != csvData_n.end();) {
+      if (jobNumbersB.find(it->first) == jobNumbersB.end()) {
+	std::cout << "Removing from csvData_n: Job ID " << it->first << std::endl;
+	it = csvData_n.erase(it); // Erase and move to the next element
+      } else {
+	++it; // Move to the next element
+      }
+    }
+
+    // Step 3: Remove unpaired entries from csvData_p
+    for (auto it = csvData_p.begin(); it != csvData_p.end();) {
+      if (jobNumbersA.find(it->first) == jobNumbersA.end()) {
+	std::cout << "Removing from csvData_p: Job ID " << it->first << std::endl;
+	it = csvData_p.erase(it); // Erase and move to the next element
+      } else {
+	++it; // Move to the next element
+      }
+    }
+  }
+  */
   //Function to take TH1D, randomly sample from it, and return statistically fluctuated sample histograms
   std::vector<TH1D*> createBootstrapSamples(TH1D* originalHist, int nBootstrapSamples, TCanvas *canvas) {
     std::vector<TH1D*> bootstrapHists;
@@ -1470,11 +1777,11 @@ namespace util {
     return bootstrapHists;
   }
 
-  //utility function to shift every bin of a TH1D in x
+  // Utility function to shift every bin of a TH1D along the x-axis
   TH1D* shiftHistogramX(TH1D* originalHist, double shiftValue) {
     if (!originalHist) return nullptr;
 
-    //preserve the total number of entries in histogram for further analysis
+    // Preserve the total number of entries in the histogram for further analysis
     double totalEntries = originalHist->GetEntries();
 
     // Create a new histogram with the same binning as the original
@@ -1486,13 +1793,23 @@ namespace util {
     // Shift each bin
     for (int i = 1; i <= originalHist->GetNbinsX(); ++i) {
       // Calculate new bin center
-      double newBinCenter = originalHist->GetBinCenter(i) + shiftValue;
+      double oldBinCenter = originalHist->GetBinCenter(i);
+      double oldBinContent = originalHist->GetBinContent(i);
+      double oldBinError = originalHist->GetBinError(i);
 
-      // Set the content of the corresponding bin in the new histogram
-      shiftedHist->Fill(newBinCenter, originalHist->GetBinContent(i));
+      // Find the bin in the new histogram that corresponds to the new bin center
+      int newBin = shiftedHist->FindBin(oldBinCenter + shiftValue);
+
+      // Add the content and error to the new bin
+      // Note: If multiple old bins shift into the same new bin, their contents and errors are added
+      double newBinContent = shiftedHist->GetBinContent(newBin) + oldBinContent;
+      double newBinError = sqrt(pow(shiftedHist->GetBinError(newBin), 2) + pow(oldBinError, 2));
+
+      shiftedHist->SetBinContent(newBin, newBinContent);
+      shiftedHist->SetBinError(newBin, newBinError);
     }
 
-    //restore N entries
+    // Restore the total number of entries
     shiftedHist->SetEntries(totalEntries);
 
     return shiftedHist;
@@ -1665,5 +1982,75 @@ namespace util {
     canvas->Update();
   }
 
+  // Takes name and globalcut, parses cuts, displays them on canvas with name
+  void parseAndDisplayCuts(const char* name, const char* cuts) {
+    // Convert the input string to a ROOT TString for easy manipulation
+    TString strCuts(cuts);
+    
+    // Parse the conditions separated by "&&" into a vector of TStrings
+    TObjArray* tokens = strCuts.Tokenize("&&");
+    if (!tokens) return;
+    
+    // Create a canvas to display the conditions
+    TCanvas* c1 = new TCanvas("c1", name, 800, 600);
+    
+    // Create a TPaveText to hold and display the conditions
+    TPaveText* pt = new TPaveText(0.1, 0.1, 0.9, 0.9);
+    pt->AddText(name);
+    pt->AddText(" "); // Adding an empty line for better readability
+    
+    // Loop over the parsed conditions and add each to the TPaveText
+    for (int i = 0; i < tokens->GetEntries(); ++i) {
+      TObjString* token = (TObjString*)tokens->At(i);
+      TString condition = token->GetString();
+      //condition.ReplaceAll("abs(", ""); // Optional: Simplify display by removing 'abs('
+      //condition.ReplaceAll(")", "");    // Optional: Simplify display by removing ')'
+      pt->AddText(condition.Data());
+    }
+    
+    // Draw the TPaveText on the canvas
+    pt->Draw();
+    
+    // Update the canvas to display the changes
+    c1->Update();
+
+    // Clean up
+    //delete tokens; // Free memory used by the TObjArray
+  }
+
+  // Takes name and globalcut, parses cuts, displays them on canvas with name
+  void parseAndDisplayCuts(const char* name, const char* cuts, TCanvas *c1) {
+    // Convert the input string to a ROOT TString for easy manipulation
+    TString strCuts(cuts);
+    
+    // Parse the conditions separated by "&&" into a vector of TStrings
+    TObjArray* tokens = strCuts.Tokenize("&&");
+    if (!tokens) return;
+    
+    // Create a TPaveText to hold and display the conditions
+    TPaveText* pt = new TPaveText(0.1, 0.1, 0.9, 0.9);
+    pt->AddText(name);
+    pt->AddText(" "); // Adding an empty line for better readability
+    
+    // Loop over the parsed conditions and add each to the TPaveText
+    for (int i = 0; i < tokens->GetEntries(); ++i) {
+      TObjString* token = (TObjString*)tokens->At(i);
+      TString condition = token->GetString();
+      // Optional: Simplify display by removing 'abs(' and ')'
+      //condition.ReplaceAll("abs(", "");
+      //condition.ReplaceAll(")", "");
+      pt->AddText(condition.Data());
+    }
+    
+    // Draw the TPaveText on the canvas
+    pt->Draw();
+    
+    // Update the canvas to display the changes
+    c1->Update();
+
+    // Clean up
+    //delete pt;      // Free memory used by TPaveText
+    //delete tokens;  // Free memory used by the TObjArray
+  }
 
 }

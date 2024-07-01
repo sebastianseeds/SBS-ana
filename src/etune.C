@@ -318,6 +318,61 @@ namespace etune {
     }
   }
 
+  //Difference between elastic proton and elastic neutron peaks in dx (PASS2 updated)
+  Double_t dx_del(Int_t config,Int_t mag) {
+  if(config==1)
+      return 0.0;
+    else if(config==4){
+      if(mag==0) return 0.02764;
+      else if(mag==30) return 0.6605521;
+      else if(mag==50) return 1.1232988;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS4 (hint: 0, 30, or 50)." << std::endl;
+      return -1;
+      }
+    }else if(config==7){
+      if(mag==85) return 0.6782;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS7 (hint: it's 85)." << std::endl;
+      return -1;
+      }
+    }else if(config==11){
+      if(mag==0) return 0.0405545;
+      else if(mag==100) return 0.6737;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS11 (hint: 0 or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==14){
+      if(mag==0) return 0.078859;
+      else if(mag==70) return 0.7840;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: 0 or 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==8){
+      if(mag==0) return 0.0;
+      else if(mag==50) return 0.6063127;
+      else if(mag==70) return 0.85078263;
+      else if(mag==100) return 1.21114377;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS8 (hint: 0, 50, 70, or 100)." << std::endl;
+      return -1;
+      }
+    }else if(config==9){
+      if(mag==70) return 0.8850549;
+      else{
+      std::cerr << "Error: enter a valid magnetic field \% for SBS14 (hint: it's 70)." << std::endl;
+      return -1;
+      }
+    }else if(config==4363)
+      return 0.5;
+    else{
+      std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
+      return -1;
+    }
+  }
+
   //Location of elastic peaks in HCal dy (m)
   Double_t dy0(Int_t config,Int_t mag) {
       if(config==1)

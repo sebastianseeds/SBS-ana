@@ -54,7 +54,7 @@ namespace vars {
     }
   }
 
-  //virtual photon q unit vector with target momentum reconstructed with e' angles from tracks
+  //virtual photon q unit three vector reconstructed with e' angles from tracks
   TVector3 pNhat_track( Double_t Ntheta, Double_t Nphi ) {
     TVector3 pNhat( sin(Ntheta) * cos(Nphi), sin(Ntheta) * sin(Nphi), cos(Ntheta) );
     return pNhat;
@@ -108,6 +108,25 @@ namespace vars {
   //calculates invariant mass W
   Double_t W( Double_t ebeam, Double_t eeprime, Double_t Q2, std::string Ntype ) {
     return max( 0., sqrt( vars::W2( ebeam, eeprime, Q2, Ntype ) ) );
+  }
+
+  //calculates scaling variable tau
+  Double_t tau( Double_t Q2, std::string Ntype ) {
+    Double_t temp = 0.;
+    if( Ntype.compare("p") == 0 ) 
+      temp = Q2 / ( 4.0 * pow( physconst::Mp, 2.0 ) );
+    else if( Ntype.compare( "n" ) == 0 ) 
+      temp = Q2 / ( 4.0 * pow( physconst::Mn, 2.0 ) );
+    else if( Ntype.compare( "np" ) == 0 ) 
+      temp = Q2 / ( 4.0 * pow( 0.5*(physconst::Mn + physconst::Mp), 2.0 ) );
+    else
+      std::cerr << "Error: [vars::tau] cannot be calculated. Enter a valid nucleon type." << std::endl;
+    return temp;
+  }
+
+  //calculates virtual photon polarization epsilon
+  Double_t epsilon( Double_t tau, Double_t etheta ) {
+    return 1.0 / (1.0 + 2.0 * (1.0 + tau) * pow(tan(etheta / 2.0), 2));
   }
 
   //calculates luminosity

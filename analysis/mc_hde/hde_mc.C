@@ -113,7 +113,7 @@ void hde_mc( Int_t iter = 1, Double_t tfac = 4. ) //iteration 0 gets mean values
     ifstream prot_param_file( prot_param_path );
     if( !prot_param_file ){
       cerr << endl << "ERROR: No input constant file present -> path to meanE_proton.txt expected." << endl;
-      return 0;
+      return;
     }
   
     Int_t n1=0;
@@ -134,7 +134,7 @@ void hde_mc( Int_t iter = 1, Double_t tfac = 4. ) //iteration 0 gets mean values
     ifstream neut_param_file( neut_param_path );
     if( !neut_param_file ){
       cerr << endl << "ERROR: No input constant file present -> path to meanE_proton.txt expected." << endl;
-      return 0;
+      return;
     }
   
     n1=0;
@@ -162,7 +162,7 @@ void hde_mc( Int_t iter = 1, Double_t tfac = 4. ) //iteration 0 gets mean values
   }
 
   //set up output files
-  TFile *fout = new TFile( Form("outfiles/hdemc_i%d_tfac%0.0f.root",iter,tfac), "RECREATE" );
+  TFile *fout = new TFile( Form("outfiles/test_hdemc_i%d_tfac%0.0f.root",iter,tfac), "RECREATE" );
   
   //set up diagnostic histograms
   TH2D *hEdepvP_p = new TH2D("hEdepvP_p","HCal E dep vs proton momentum; p_{proton} (GeV); E_{hcal} (GeV)", nbin, 1, 9, 200, Emin, Emax);

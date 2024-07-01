@@ -10,6 +10,7 @@
 #include <vector>
 #include <sstream>
 #include <string>
+#include <regex>
 #include "TStopwatch.h"
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
@@ -20,59 +21,25 @@ std::map<std::string, std::string> correlatedCuts = {
   {"W2", "W2&&dy_bc"}
 };
 
-// trim function for accurate parsing
-std::string trim(const std::string& str) {
-  size_t first = str.find_first_not_of(" \t\n\r\f\v");
-  if (std::string::npos == first) {
-    return str;
-  }
-  size_t last = str.find_last_not_of(" \t\n\r\f\v");
-  return str.substr(first, (last - first + 1));
-}
+std::string wide_globalcut = "hcale>0.015&&abs(bb_tr_vz)<0.08&&abs(dy)<0.60&&bb_ps_e>0.10&&abs(W2-0.8)<0.8&&bb_gem_track_nhits>2&&abs(bb_etot_over_p-1.0)<0.4&&abs(coin)<17.0&&hcalon==1&&tar==1&&fiducial_sig_x>1&&fiducial_sig_y>1";
 
-// add _bc to get best cluster branches from parse file
-std::string addbc(std::string input) {
-  const std::string suffix = "_bc";
-  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
+std::vector<std::string> excludeCuts = {"bb_grinch_tdc_clus_size","bb_grinch_tdc_clus_trackindex","pspot","nspot"};
 
-  for (const auto& target : targets) {
-    std::string::size_type pos = 0;
-    std::string token = target + suffix;  // Create the new token with the suffix
-
-    // Continue searching the string for the target and replacing it
-    while ((pos = input.find(target, pos)) != std::string::npos) {
-      // Ensure we match whole words by checking character before and after the match
-      bool match = true;
-      if (pos != 0 && isalnum(input[pos - 1])) {
-	match = false; // Check for character before
-      }
-      size_t endPos = pos + target.length();
-      if (endPos < input.length() && isalnum(input[endPos])) {
-	match = false; // Check for character after
-      }
-
-      if (match) {
-	input.replace(pos, target.length(), token);
-	pos += token.length(); // Move past the newly added part to avoid infinite loops
-      } else {
-	pos += target.length(); // Move past the current word if it's part of a larger word
-      }
-    }
-  }
-
-  return input;
-}
+//forward declarations
+std::string trim(const std::string& str);
+std::string addbc(std::string input);
+std::vector<std::string> split(const std::string &s, char delimiter);
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //plot with cuts script to work with best clusters, first step on systematics analysis. Configured for pass 2.
 //bestclus uses bestclusterinfo from parse file. skipcorrelationplots doesn't plot cut vs cut plots. addresscorr removes cuts from dx vs cut TH2Ds where the cut is correlated (like dy and W2)
-void plotWithCuts_bc(int kine=8, 
+void plotWithCuts_bc(int kine=9, 
 		     int mag=70, 
 		     int pass=2, 
 		     bool skipcorrelationplots=true, 
 		     bool addresscorr=false,
 		     bool wide=false,
 		     bool effz=true) {
-
 
   // Define a clock to check macro processing time
   TStopwatch *st = new TStopwatch();
@@ -83,8 +50,11 @@ void plotWithCuts_bc(int kine=8,
 
   //Get plot details
   int hbins = jmgr->GetValueFromSubKey<int>( "hbins", Form("sbs%d",kine) ); //gets to 7cm HCal pos res
+  int hbins_dy = jmgr->GetValueFromSubKey<int>( "hbins_dy", Form("sbs%d",kine) );
   double hcalfit_l = jmgr->GetValueFromSubKey<double>( "hcalfit_l_wide", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
   double hcalfit_h = jmgr->GetValueFromSubKey<double>( "hcalfit_h_wide", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
+  double hcalfit_l_dy = jmgr->GetValueFromSubKey<double>( "hcalfit_l_dy_wide", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
+  double hcalfit_h_dy = jmgr->GetValueFromSubKey<double>( "hcalfit_h_dy_wide", Form("sbs%d_%d",kine,mag) ); //gets to 7cm HCal pos res
 
   int W2bins = jmgr->GetValueFromSubKey<int>( "W2bins", Form("sbs%d",kine) );
   double W2fit_l = jmgr->GetValueFromSubKey<double>( "W2fit_l_wide", Form("sbs%d_%d",kine,mag) );
@@ -109,19 +79,53 @@ void plotWithCuts_bc(int kine=8,
       ulims.push_back(plot_lims[i]);
   }
 
-  //Get wide/tight elastic cuts
-  std::string globalcuts_raw;
-  if(wide){
-    globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-    cout << "Loaded wide cuts: ";
-  }else{
-    globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-    cout << "Loaded tight cuts: ";
+  // std::string globalcuts_raw;
+  // if(wide){
+  //   globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  //   cout << "Loaded wide cuts: ";
+  // }else{
+  //   globalcuts_raw = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  //   cout << "Loaded tight cuts: ";
+  // }
+
+  //std::string globalcuts = addbc(globalcuts_raw);
+
+  //cout << globalcuts << endl;
+
+  //get new cuts from .csv
+  std::string cutsheet_path = "/w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv";
+  std::string target = "ld2";
+  std::vector<std::string> excludeKeys = {};
+
+  // Get the row contents
+  std::map<std::string, std::string> rowContents = getRowContents(cutsheet_path, kine, mag, target, excludeCuts);
+  // Print the row contents
+  cout << endl << "Loading NEW cuts..." << endl;
+  for (const auto &content : rowContents) {
+    std::cout << content.first << ": " << content.second << std::endl;
   }
+  cout << endl;
+
+  std::string globalcuts_raw;
+  for (const auto &content : rowContents) {
+    if (!content.second.empty()) {
+      if (!globalcuts_raw.empty()) {
+	globalcuts_raw += "&&";
+      }
+      globalcuts_raw += content.second;
+    }
+  }
+
+  cout << endl <<"Concatenated globalcuts_raw: " << globalcuts_raw << endl << endl;
 
   std::string globalcuts = addbc(globalcuts_raw);
 
-  cout << globalcuts << endl;
+  cout << endl <<"Concatenated globalcuts: " << globalcuts << endl << endl;
+
+  if(wide){
+    globalcuts = wide_globalcut;
+    cout << "Wide cut override. New cut string: " << wide_globalcut << endl;
+  }
 
   //Get nucleon spot cuts for W2 histograms
   std::string spotcut_n = jmgr->GetValueFromSubKey_str( "h_dn_spot_cuts_tight", Form("sbs%d_%d",kine,mag) );
@@ -131,9 +135,21 @@ void plotWithCuts_bc(int kine=8,
 
   std::string spotcut = addbc(spotcutraw);
 
+  cout << "Loaded spotcut: " << spotcut << endl;
+
+  std::string spotanticut_n = jmgr->GetValueFromSubKey_str( "h_dn_spot_anticuts_tight", Form("sbs%d_%d",kine,mag) );
+  std::string spotanticut_p = jmgr->GetValueFromSubKey_str( "h_dp_spot_anticuts_tight", Form("sbs%d_%d",kine,mag) );
+
+  std::string spotanticutraw = "&&" + spotanticut_n + "&&" + spotanticut_p;
+
+  std::string spotanticut = addbc(spotanticutraw);
+
   std::cout << std::endl << "Loaded best cluster cuts: " << globalcuts << std::endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
+
+  std::vector<std::string> cuts_raw = util::parseCuts(globalcuts_raw);
+  
   std::vector<std::string> ccuts;
 
   std::cout << std::endl << "Parsed cuts: " << std::endl;
@@ -141,6 +157,7 @@ void plotWithCuts_bc(int kine=8,
   std::string parsedCutString;
   std::string parsedCutString_W2;
   std::string parsedCutString_W2dy;
+  std::string parsedCutString_dy;
 
   for (const auto& cut : cuts) {
     std::string trimmedCut = trim(cut);
@@ -158,6 +175,12 @@ void plotWithCuts_bc(int kine=8,
 	if (!parsedCutString_W2dy.empty()) parsedCutString_W2dy += "&&";
 	parsedCutString_W2dy += trimmedCut;
       }
+    }
+
+    // Include cut in parsedCutString_dy if it doesn't contain "dy"
+    if (trimmedCut.find("dy") == std::string::npos) {
+      if (!parsedCutString_dy.empty()) parsedCutString_dy += "&&";
+      parsedCutString_dy += trimmedCut;
     }
 
     ccuts.push_back(cut);
@@ -196,31 +219,78 @@ void plotWithCuts_bc(int kine=8,
   std::cout << std::endl << "dyanticut_noelas: " << dyanticut_noelas << std::endl;
   std::cout << "dyanticut_elas: " << dyanticut_elas << std::endl;
 
+
   //Set up coin anticut bg histogram
   std::string coinanticut_noelas;
   std::string coinanticut_elas;
-  for (size_t i = 0; i < cuts.size(); ++i) {
+  
+  // for (size_t i = 0; i < cuts.size(); ++i) {
 
-    size_t found_coin = cuts[i].find("coin");
-    if (found_coin != std::string::npos) {
-      // Found "coin", replace the first '<' with '>'
-      size_t found_lt = cuts[i].find('<', found_coin);
-      if (found_lt != std::string::npos) {
-	std::string modified_cut = cuts[i];
-	modified_cut[found_lt] = '>';
-	coinanticut_noelas = modified_cut; // Overwrite with this modified cut
-	// Append modified cut to coinanticut_elas, but exclude "W2" cuts
-	coinanticut_elas += (coinanticut_elas.empty() ? "" : "&&") + modified_cut;
+  //   size_t found_coin = cuts[i].find("coin");
+  //   if (found_coin != std::string::npos) {
+  //     // Found "coin", replace the first '<' with '>'
+  //     size_t found_lt = cuts[i].find('<', found_coin);
+  //     if (found_lt != std::string::npos) {
+  // 	std::string modified_cut = cuts[i];
+  // 	modified_cut[found_lt] = '>';
+  // 	coinanticut_noelas = modified_cut; // Overwrite with this modified cut
+  // 	// Append modified cut to coinanticut_elas, but exclude "W2" cuts
+  // 	coinanticut_elas += (coinanticut_elas.empty() ? "" : "&&") + modified_cut;
+  //     }
+  //   } else {
+  //     // "coin" not found, just append the cut to coinanticut_elas
+  //     coinanticut_elas += (coinanticut_elas.empty() ? "" : "&&") + cuts[i];
+  //   }
+  // }
+
+
+  //Fast and dirty replacement - will only work if coin time cut isn't improved.
+  std::string to_remove = "coin>-10.0";
+  std::string to_replace = "coin<10.0";
+  std::string replacement = "abs(coin)>10.0";
+
+  for (size_t i = 0; i < cuts_raw.size(); ++i) {
+    std::string modified_cut = cuts_raw[i];
+
+    // Remove the substring "coin_bc>-10.0"
+    size_t found_remove = modified_cut.find(to_remove);
+    if (found_remove != std::string::npos) {
+      // Erase the substring and any preceding "&&"
+      if (found_remove != 0 && modified_cut[found_remove - 1] == '&') {
+	modified_cut.erase(found_remove - 1, to_remove.length() + 2);
+      } else {
+	modified_cut.erase(found_remove, to_remove.length());
       }
-    } else {
-      // "coin" not found, just append the cut to coinanticut_elas
-      coinanticut_elas += (coinanticut_elas.empty() ? "" : "&&") + cuts[i];
     }
+
+    // Replace the substring "coin_bc<10.0" with "abs(coin_bc)>10.0"
+    size_t found_replace = modified_cut.find(to_replace);
+    if (found_replace != std::string::npos) {
+      modified_cut.replace(found_replace, to_replace.length(), replacement);
+    }
+
+    coinanticut_noelas = modified_cut; // Overwrite with this modified cut
+    // Append modified cut to coinanticut_elas
+    coinanticut_elas += (coinanticut_elas.empty() ? "" : "&&") + modified_cut;
   }
 
+  size_t pos = coinanticut_elas.find("&&&&");
+  while (pos != std::string::npos) {
+    coinanticut_elas.replace(pos, 4, "&&");
+    pos = coinanticut_elas.find("&&&&", pos);
+  }
+  
   std::cout << "coinanticut_noelas: " << coinanticut_noelas << std::endl;
   std::cout << "coinanticut_elas: " << coinanticut_elas << std::endl;
 
+
+
+  //coinanticut_elas = "bb_etot_over_p>0.81&&bb_etot_over_p<1.17&&bb_gem_track_nhits>2&&bb_ps_e>0.234&&abs(bb_tr_vz)<0.073&&abs(coin)>10.0&&dy>-0.36&&dy<0.264&&hcale>0.0224&&hcalon==1&&mag==30&&tar==1&&xexp<0.8&&xexp>-1.3&&yexp<0.45&&yexp>-0.25";
+
+
+
+  
+  
   std::string postbranches = jmgr->GetValueFromKey_str( Form("post_branches_p%d",pass) );
 
   cout << "Loaded branches: " << postbranches << endl;
@@ -300,6 +370,17 @@ void plotWithCuts_bc(int kine=8,
 
   delete hist_base;
 
+  std::string histBasenodyName = "hdx_allcut_nody";
+  TH1D* hist_basenody = new TH1D( histBasenodyName.c_str(), "dx (best cluster);m", hbins, hcalfit_l, hcalfit_h );
+
+  // Draw the plot using the created histogram
+  tree->Draw(("dx_bc>>" + histBasenodyName).c_str(), parsedCutString_dy.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hist_basenody->Write();
+
+  delete hist_basenody;
+
   std::string histAntidyName = "hdx_dyanti";
   TH1D* hist_antidy = new TH1D( histAntidyName.c_str(), "dx, dy anticut (best cluster);m", hbins, hcalfit_l, hcalfit_h );
 
@@ -314,12 +395,23 @@ void plotWithCuts_bc(int kine=8,
   std::string histAnticoinName = "hdx_coinanti";
   TH1D* hist_anticoin = new TH1D( histAnticoinName.c_str(), "dx, coin anticut (best cluster);m", hbins, hcalfit_l, hcalfit_h );
 
+  cout << "FROM" << fin_path << " COINANTICUT APPLIED: " << coinanticut_elas << endl << endl << endl;
+  
   // Draw the plot using the created histogram
-  tree->Draw(("dx_bc>>" + histAnticoinName).c_str(), coinanticut_elas.c_str(), "COLZ");
+  //tree->Draw(("dx_bc>>" + histAnticoinName).c_str(), coinanticut_elas.c_str(), "COLZ");
 
+  //tree->Draw("dx>>hdx_coinanti","bb_etot_over_p>0.81&&bb_etot_over_p<1.17&&bb_gem_track_nhits>2&&bb_ps_e>0.234&&abs(bb_tr_vz)<0.073&&abs(coin)>10.0&&dy>-0.36&&dy<0.264&&hcale>0.0224&&hcalon==1&&mag==30&&tar==1&&xexp<0.8&&xexp>-1.3&&yexp<0.45&&yexp>-0.25");
+
+  tree->Draw("dx>>hdx_coinanti",coinanticut_elas.c_str());
+
+    
   // Write the histogram to the output file
   hist_anticoin->Write();
 
+  // TCanvas *c1 = new TCanvas("c1","test",800,600);
+  // c1->cd();
+  // hdx_coinanti->Draw();
+  
   delete hist_anticoin;
 
   /////////////////////////////////////////
@@ -364,6 +456,72 @@ void plotWithCuts_bc(int kine=8,
 
   // Write the histogram to the output file
   hW2spot->Write();
+
+
+  /////////////////////////////////////////
+  // Draw the W2 histogram excluding all cuts
+  std::string hW2nocuthist = "hW2_nocutcut";
+  std::string hW2nocut_cut = "";
+  TH1D* hW2nocut = new TH1D(hW2nocuthist.c_str(), "W2 with no cuts;GeV^{2}", W2bins, W2fit_l, W2fit_h);
+
+  cout << endl << "Plotting best cluster W2 (no cuts) data histogram: " << hW2nocut_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("W2>>" + hW2nocuthist).c_str(), hW2nocut_cut.c_str(), "COLZ");
+
+  /////////////////////////////////////////
+  // Draw the W2 histogram with spot anticuts
+  std::string hW2anticuthist = "hW2_anticutcut";
+  std::string hW2anticut_cut = parsedCutString_W2dy + spotanticut;
+  TH1D* hW2anticut = new TH1D(hW2anticuthist.c_str(), "W2 with elastic and spot anticuts;GeV^{2}", W2bins, W2fit_l, W2fit_h);
+
+  cout << endl << "Plotting best cluster W2 (spot anticut) data histogram: " << hW2anticut_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("W2>>" + hW2anticuthist).c_str(), hW2anticut_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hW2anticut->Write();
+
+
+  ////DO SOME DXDYs for QA
+  std::string hdxdyhist = "hdxdy";
+  std::string hdxdy_cut = parsedCutString_dy;
+  TH2D* hdxdy = new TH2D(hdxdyhist.c_str(), "dx vs dy with elastic cuts;m;m", hbins_dy, hcalfit_l_dy, hcalfit_h_dy, hbins, hcalfit_l, hcalfit_h);
+
+  cout << endl << "Plotting best cluster dx vs dy (elastic cuts) data histogram: " << hdxdy_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("dx_bc:dy_bc>>" + hdxdyhist).c_str(), hdxdy_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hdxdy->Write();
+
+  //dxdy spot cuts
+  std::string hdxdyspothist = "hdxdy_spotcut";
+  std::string hdxdyspot_cut = parsedCutString_dy + spotcut;
+  TH2D* hdxdyspot = new TH2D(hdxdyspothist.c_str(), "dx vs dy with elastic and spot cuts;m;m", hbins_dy, hcalfit_l_dy, hcalfit_h_dy, hbins, hcalfit_l, hcalfit_h);
+
+  cout << endl << "Plotting best cluster dx vs dy (elastic + spot cuts) data histogram: " << hdxdyspot_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("dx_bc:dy_bc>>" + hdxdyspothist).c_str(), hdxdyspot_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hdxdyspot->Write();
+
+  //dxdy spot anticuts
+  std::string hdxdyspotantihist = "hdxdy_spotanticut";
+  std::string hdxdyspotanti_cut = parsedCutString_dy + spotanticut;
+  TH2D* hdxdyspotanti = new TH2D(hdxdyspotantihist.c_str(), "dx vs dy with elastic and spot anticuts;m;m", hbins_dy, hcalfit_l_dy, hcalfit_h_dy, hbins, hcalfit_l, hcalfit_h);
+
+  cout << endl << "Plotting best cluster dx vs dy (elastic + spot anticut) data histogram: " << hdxdyspotanti_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("dx_bc:dy_bc>>" + hdxdyspotantihist).c_str(), hdxdyspotanti_cut.c_str(), "COLZ");
+
+  // Write the histogram to the output file
+  hdxdyspotanti->Write();
 
   // Loop over branches
   for (const auto& branch : branches) {
@@ -444,6 +602,24 @@ void plotWithCuts_bc(int kine=8,
 
   }
   
+  // Create a canvas for displaying cuts
+  TCanvas* cutCanvas = new TCanvas("cutCanvas", "Cuts", 800, 600);
+  TPaveText* cutsText = new TPaveText(0.1, 0.1, 0.9, 0.9, "NB NDC"); // coordinates are normalized
+
+  cutsText->AddText("Cuts Used:");
+  //cutsText->AddLine();
+  for (const auto& cut : cuts) {
+    cutsText->AddText(cut.c_str());
+  }
+
+  cutsText->SetTextAlign(12); // Align text to left
+  cutsText->SetFillColor(0);  // Transparent background
+  cutsText->Write();
+
+  // Write the canvas to the output file
+  cutCanvas->Write();
+
+
   if(skipcorrelationplots){
     cout << "All plots created. Correlation plots skipped. Output file located here: " << fout_path << endl;
     return;
@@ -509,23 +685,6 @@ void plotWithCuts_bc(int kine=8,
     }
   }
 
-  // Create a canvas for displaying cuts
-  TCanvas* cutCanvas = new TCanvas("cutCanvas", "Cuts", 800, 600);
-  TPaveText* cutsText = new TPaveText(0.1, 0.1, 0.9, 0.9, "NB NDC"); // coordinates are normalized
-
-  cutsText->AddText("Cuts Used:");
-  cutsText->AddLine();
-  for (const auto& cut : cuts) {
-    cutsText->AddText(cut.c_str());
-  }
-
-  cutsText->SetTextAlign(12); // Align text to left
-  cutsText->SetFillColor(0);  // Transparent background
-  cutsText->Draw();
-
-  // Write the canvas to the output file
-  cutCanvas->Write();
-
   // Close the files
   inputFile->Close();
   delete inputFile;
@@ -540,4 +699,93 @@ void plotWithCuts_bc(int kine=8,
   // Send time efficiency report to console
   std::cout << "CPU time elapsed = " << st->CpuTime() << " s = " << st->CpuTime()/60.0 << " min. Real time = " << st->RealTime() << " s = " << st->RealTime()/60.0 << " min." << std::endl;
 
+}
+
+// trim function for accurate parsing
+std::string trim(const std::string& str) {
+  size_t first = str.find_first_not_of(" \t\n\r\f\v");
+  if (std::string::npos == first) {
+    return str;
+  }
+  size_t last = str.find_last_not_of(" \t\n\r\f\v");
+  return str.substr(first, (last - first + 1));
+}
+
+// add _bc to get best cluster branches from parse file
+std::string addbc(std::string input) {
+  const std::string suffix = "_bc";
+  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
+
+  for (const auto& target : targets) {
+    std::string::size_type pos = 0;
+    std::string token = target + suffix;  // Create the new token with the suffix
+
+    // Continue searching the string for the target and replacing it
+    while ((pos = input.find(target, pos)) != std::string::npos) {
+      // Ensure we match whole words by checking character before and after the match
+      bool match = true;
+      if (pos != 0 && isalnum(input[pos - 1])) {
+	match = false; // Check for character before
+      }
+      size_t endPos = pos + target.length();
+      if (endPos < input.length() && isalnum(input[endPos])) {
+	match = false; // Check for character after
+      }
+
+      if (match) {
+	input.replace(pos, target.length(), token);
+	pos += token.length(); // Move past the newly added part to avoid infinite loops
+      } else {
+	pos += target.length(); // Move past the current word if it's part of a larger word
+      }
+    }
+  }
+
+  return input;
+}
+
+// Function to split a string by a delimiter and return a vector of tokens
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+  while (std::getline(tokenStream, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+// Function to get the cell content based on kine, mag, target, and column name
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys) {
+  std::ifstream file(filePath);
+  std::string line;
+  std::map<std::string, std::string> rowContents;
+  std::vector<std::string> headers;
+  std::set<std::string> excludeSet(excludeKeys.begin(), excludeKeys.end());
+
+  // Read the header line
+  if (std::getline(file, line)) {
+    headers = split(line, ',');
+  }
+
+  // Read the rest of the lines
+  while (std::getline(file, line)) {
+    std::vector<std::string> values = split(line, ',');
+    if (values.size() < 3) {
+      continue;
+    }
+
+    // Check if the row matches the specified kine, mag, and target
+    if (std::stoi(values[0]) == kine && std::stoi(values[1]) == mag && values[2] == target) {
+      // Store all column values except the first three in a map
+      for (size_t i = 3; i < values.size(); ++i) {
+	if (i < headers.size() && excludeSet.find(headers[i]) == excludeSet.end()) {
+	  rowContents[headers[i]] = values[i];
+	}
+      }
+      break;
+    }
+  }
+
+  return rowContents;
 }

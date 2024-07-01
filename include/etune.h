@@ -20,6 +20,7 @@ namespace etune {
   Double_t     W2sig(Int_t config,Int_t mag);
   Double_t     dx0_n(Int_t config,Int_t mag);
   Double_t     dx0_p(Int_t config,Int_t mag);
+  Double_t     dx_del(Int_t config,Int_t mag);
   Double_t     dy0(Int_t config,Int_t mag);
   Double_t     dxsig_n(Int_t config,Int_t mag);
   Double_t     dxsig_p(Int_t config,Int_t mag);
@@ -44,6 +45,7 @@ class SBStune {
   Double_t     GetW2sig()          const { return fW2sig; }
   Double_t     Getdx0_n()          const { return fdx0_n; }
   Double_t     Getdx0_p()          const { return fdx0_p; }
+  Double_t     Getdx_del()         const { return fdx_del; }
   Double_t     Getdy0()            const { return fdy0; }
   Double_t     Getdxsig_n()        const { return fdxsig_n; }
   Double_t     Getdxsig_p()        const { return fdxsig_p; }
@@ -65,6 +67,7 @@ class SBStune {
     fW2sig          = etune::W2sig(conf,sbsmag);
     fdx0_n          = etune::dx0_n(conf,sbsmag);
     fdx0_p          = etune::dx0_p(conf,sbsmag);
+    fdx_del         = etune::dx_del(conf,sbsmag);
     fdy0            = etune::dy0(conf,sbsmag);
     fdxsig_n        = etune::dxsig_n(conf,sbsmag);
     fdxsig_p        = etune::dxsig_p(conf,sbsmag);
@@ -109,6 +112,7 @@ class SBStune {
   Double_t     fW2sig;            // Width of elastic peak in invariant mass distribution 1-sigma (GeV)
   Double_t     fdx0_n;            // Location of neutron elastic peak in HCal dx distribution (m)
   Double_t     fdx0_p;            // Location of proton elastic peak in HCal dx distribution (m)
+  Double_t     fdx_del;           // Difference in dx of proton and neutron elastic peaks (m)
   Double_t     fdy0;              // Location of elastic peak in HCal dy distribution (m)
   Double_t     fdxsig_n;          // Width of neutron elastic peak in HCal dx distribution (m)
   Double_t     fdxsig_p;          // Width of proton elastic peak in HCal dx distribution (m)

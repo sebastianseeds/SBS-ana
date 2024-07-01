@@ -17,11 +17,14 @@ namespace fits{
 
   Double_t g_expofit( Double_t *x, Double_t *par ); //exponential fit
 
-  Double_t g_scexpofit( Double_t *x, Double_t *par ); //exponetial fit with offset
+  Double_t g_scexpofit( Double_t *x, Double_t *par ); //exponential fit with offset
 
-  Double_t g_lfit( Double_t *x, Double_t *par ); //linear fit
+  Double_t g_p0fit( Double_t *x, Double_t *par ); //offset fit
+
+  Double_t g_p1fit( Double_t *x, Double_t *par ); //linear fit
 
   Double_t g_p2fit( Double_t *x, Double_t *par ); //2nd order polynomial fit
+  Double_t g_p2fit_cd( Double_t *x, Double_t *par ); //2nd order polynomial fit concave down only
 
   Double_t g_p3fit( Double_t *x, Double_t *par ); //3rd order polynomial fit
 

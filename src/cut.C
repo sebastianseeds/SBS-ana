@@ -106,7 +106,7 @@ namespace cut {
     Double_t hcaly_r = fid[3]; //hcal +Y fid
 
     //proton hypothesis
-    Double_t hcalx_exp_p = hcalx_exp + dx_pn;      //define the exp pos of a proton from obs dx peak diff
+    Double_t hcalx_exp_p = hcalx_exp - dx_pn;      //define the exp pos of a proton from obs dx peak diff
 
     bool infid = (hcaly_exp>hcaly_l) && (hcaly_exp<hcaly_r) &&      //dy same for protons and neutrons
 		 (hcalx_exp>hcalx_t) && (hcalx_exp<hcalx_b) &&      //dx acceptance check for neutrons
@@ -120,13 +120,13 @@ namespace cut {
   // If pass only dispersive cut = 2
   // If fail both = 3
   Int_t hcalFidIN_index(Double_t hcalx_exp, Double_t hcaly_exp, Double_t dx_pn, vector<Double_t> fid) {
-    Double_t hcalx_t = fid[0]; // hcal top fid
-    Double_t hcalx_b = fid[1]; // hcal bottom fid
-    Double_t hcaly_l = fid[2]; // hcal right fid
-    Double_t hcaly_r = fid[3]; // hcal left fid
+    Double_t hcalx_t = fid[0]; // hcal -X fid
+    Double_t hcalx_b = fid[1]; // hcal +X fid
+    Double_t hcaly_l = fid[2]; // hcal -Y fid
+    Double_t hcaly_r = fid[3]; // hcal +Y fid
 
     // proton hypothesis
-    Double_t hcalx_exp_p = hcalx_exp + dx_pn; // define the exp pos of a proton from obs dx peak diff
+    Double_t hcalx_exp_p = hcalx_exp - dx_pn; // define the exp pos of a proton from obs dx peak diff
 
     // Check if hcalx_exp and hcaly_exp are within the fiducial boundaries
     bool infid_disp = (hcalx_exp_p > hcalx_t) && (hcalx_exp_p < hcalx_b) &&    //proton cut
@@ -154,31 +154,47 @@ namespace cut {
 					       Double_t dx_pn,
 					       std::vector<Double_t> hcalaa) {
 
+    //Calulate both hypotheses
+    double hcalx_exp_n = hcalx_exp; //neutron
+    double hcalx_exp_p = hcalx_exp - dx_pn; //proton
+
+    //cout << "expected neutron x: " << hcalx_exp_n << ", expected proton x: " << hcalx_exp_p << endl;
+
     //Get active area
     Double_t hcalx_t = hcalaa[0]; //hcal -X
     Double_t hcalx_b = hcalaa[1]; //hcal +X 
     Double_t hcaly_l = hcalaa[2]; //hcal -Y 
     Double_t hcaly_r = hcalaa[3]; //hcal +Y 
 
+    //cout << "hcal top boundary: " << hcalx_t << ", hcal bottom boundary: " << hcalx_b << endl;
+
     //Calculate factor of sigma necessary to cause fiducial cut to fail. Leave 0 where hcalaa fail
     Double_t Nsigy_l = std::max(0.0, (hcaly_exp - hcaly_l) / dysig);
     Double_t Nsigy_r = std::max(0.0, (hcaly_r - hcaly_exp) / dysig);
-    Double_t Nsigx_t = std::max(0.0, (hcalx_exp - hcalx_t) / dxsig);
-    Double_t Nsigx_b = std::max(0.0, (hcalx_b - hcalx_exp) / dxsig);
+    Double_t Nsigx_t_n = std::max(0.0, (hcalx_exp_n - hcalx_t) / dxsig);
+    Double_t Nsigx_b_n = std::max(0.0, (hcalx_b - hcalx_exp_n) / dxsig);
+    Double_t Nsigx_t_p = std::max(0.0, (hcalx_exp_p - hcalx_t) / dxsig);
+    Double_t Nsigx_b_p = std::max(0.0, (hcalx_b - hcalx_exp_p) / dxsig);
     
-    //Return zero sigma where projection is off of hcal aa in x
+    //Get min sigma to fail (both hypothesis in x)
+    
+    //Return zero sigma where projection is off of hcal aa in y
     Double_t Nsigy = 0.;
     if( Nsigy_l!=0. && Nsigy_r!=0. )
       Nsigy = std::min( Nsigy_l, Nsigy_r);
 
-    //Return zero sigma where projection is off of hcal aa in y
-    Double_t Nsigx = 0.;
-    if( Nsigx_b!=0. && Nsigx_t!=0. )
-      Nsigx = std::min( Nsigx_b, Nsigx_t);
+    //Return zero sigma where projection is off of hcal aa in x
+    Double_t Nsigx_n = 0.;
+    if( Nsigx_b_n!=0. && Nsigx_t_n!=0. )
+      Nsigx_n = std::min( Nsigx_b_n, Nsigx_t_n);
+    Double_t Nsigx_p = 0.;
+    if( Nsigx_b_p!=0. && Nsigx_t_p!=0. )
+      Nsigx_p = std::min( Nsigx_b_p, Nsigx_t_p);
 
-    // cout << hcaly_r << " " << hcaly_exp << " " << dysig << " " << Nsigy_r << endl;
-    // cout << hcaly_l << " " << hcaly_exp << " " << dysig << " " << Nsigy_l << endl;
-    // cout << Nsigy << endl << endl;
+    //Get hypothesis which fails first in x
+    Double_t Nsigx = 0.;
+    if( Nsigx_n!=0. && Nsigx_p!=0. )
+      Nsigx = std::min( Nsigx_n, Nsigx_p);
 
     // Return the Nsigx and Nsigy values that caused the failure
     return std::make_pair(Nsigx, Nsigy);

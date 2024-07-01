@@ -24,11 +24,22 @@ const Double_t nsig_step = 0.1; //number of sigma to step through in dx until fi
 const Double_t R_mclus = 0.6; //search region for clusters to add to highest energy cluster on multicluster analysis
 const Double_t Nsig_fid_qual = 1.; //number of proton sigma to add to safety margin for fid cut quality plots
 
+//Pion production cluster check
+const double spatial_threshold = 60.0; // cm, informed by shower size max in MC
+const double time_threshold = 10.0; // ns, wide, informed by shower formation limits (light propagation and decay time in WLS/scintillator HCal)
+
 //Specific wide cut for all parsing. Account for possible survival of additional triggers in reconstructed data set.
 const std::string gcut = "bb.ps.e>0.1&&abs(bb.tr.vz[0])<0.12&&fEvtHdr.fTrigBits==1";
 
+//Forward declarations
+void checkClusters(
+		   const std::vector<double>& cluster_centroids_x, 
+		   const std::vector<double>& cluster_centroids_y, 
+		   const std::vector<double>& cluster_times
+		   );
+
 //MAIN
-void parse_barebones( Int_t kine = 4, 
+void parse_barebones( Int_t kine = 7, 
 		      Int_t pass = 2, 
 		      Int_t cluster_method = 3,
 		      bool coin_override = true,
@@ -123,7 +134,7 @@ void parse_barebones( Int_t kine = 4,
     tar_word = "_ld2";
 
   std::string outdir_path = gSystem->Getenv("OUT_DIR");
-  std::string parse_path = outdir_path + Form("/parse/parse_sbs%d_pass%d_barebones%s%s%s%s.root",kine,pass,debug_word.c_str(),effz_word.c_str(),four_word.c_str(),tar_word.c_str());
+  std::string parse_path = outdir_path + Form("/parse/bunchedClusterTest_parse_sbs%d_pass%d_barebones%s%s%s%s.root",kine,pass,debug_word.c_str(),effz_word.c_str(),four_word.c_str(),tar_word.c_str());
 
   //set up output files
   TFile *fout = new TFile( parse_path.c_str(), "RECREATE" );
@@ -870,6 +881,11 @@ void parse_barebones( Int_t kine = 4,
 	vector<double> clone_cluster_intime;
 	vector<double> clone_cluster_score;
 
+	vector<double> cluster_centroids_x;
+	vector<double> cluster_centroids_y;
+	vector<double> cluster_times;
+	vector<double> cluster_energies;
+
 	// Set up the structure to hold energy and index, then sort based on energy
 	std::vector<std::pair<double, int>> energy_index_pairs;
 
@@ -879,6 +895,12 @@ void parse_barebones( Int_t kine = 4,
 	//loop through all clusters and select without HCal position information
 	for( int c=0; c<Nhcalcid; c++ ){
 	
+	  //add to all cluster vectors
+	  cluster_centroids_x.push_back(hcalcx[c]);
+	  cluster_centroids_y.push_back(hcalcy[c]);
+	  cluster_times.push_back(hcalcatime[c]);
+	  cluster_energies.push_back(hcalce[c]);
+
 	  //calculate h-arm physics quantities per cluster
 	  double atime = hcalcatime[c];
 	  double atime_diff = atime - atimeSH; //Assuming best shower time on primary cluster
@@ -908,6 +930,9 @@ void parse_barebones( Int_t kine = 4,
 	  energy_index_pairs.push_back(std::make_pair(ce, c));
 
 	}//endloop over cluster elements
+
+	// Check for the existence of associated clusters
+	checkClusters(cluster_centroids_x, cluster_centroids_y, cluster_times);
 
 	// Sort in descending order based on the cluster energy
 	std::sort(energy_index_pairs.begin(), energy_index_pairs.end(), [](const std::pair<double, int>& a, const std::pair<double, int>& b) {
@@ -1512,4 +1537,30 @@ void parse_barebones( Int_t kine = 4,
   // Send time efficiency report to console
   std::cout << "CPU time elapsed = " << st->CpuTime() << " s = " << st->CpuTime()/60.0 << " min. Real time = " << st->RealTime() << " s = " << st->RealTime()/60.0 << " min." << std::endl;
 
+}
+
+void checkClusters(
+		   const std::vector<double>& cluster_centroids_x, 
+		   const std::vector<double>& cluster_centroids_y, 
+		   const std::vector<double>& cluster_times
+		   ) {
+
+  size_t num_clusters = cluster_centroids_x.size();
+  for (size_t i = 0; i < num_clusters; ++i) {
+    for (size_t j = i + 1; j < num_clusters; ++j) {
+      double dx = cluster_centroids_x[i] - cluster_centroids_x[j];
+      double dy = cluster_centroids_y[i] - cluster_centroids_y[j];
+      double distance = std::sqrt(dx * dx + dy * dy);
+
+      if (distance < spatial_threshold) {
+	double time_difference = std::abs(cluster_times[i] - cluster_times[j]);
+	if (time_difference < time_threshold) {
+	  // Output centroid difference, time difference, and confirmation
+	  std::cout << "Centroid difference: (" << dx << ", " << dy << "), "
+		    << "Time difference: " << time_difference << " ns, "
+		    << "Pair exists.\n";
+	}
+      }
+    }
+  }
 }

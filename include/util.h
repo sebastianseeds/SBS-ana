@@ -18,6 +18,7 @@
 #include "TLine.h"
 #include "TLatex.h"
 #include "TString.h"
+#include <TRandom.h>
 
 #include <TSystemDirectory.h>
 #include <TList.h>
@@ -77,6 +78,9 @@ namespace util {
   TH2D *hdxdy(std::string name); // returns hcal dxdy 2d histo (wide coordinates)
   TH1D *hhsamps(Int_t row,Int_t col,Int_t bins); // returns hcal waveform histogram
 
+  // Check position per event against hcal active area and return minimum N_x(N_y)*blockwidth_x(y) to include cluster center. X= .first, y= .second
+  std::pair<double, double> minaa(double hcalx, double hcaly);
+
   // checks if point is within proton/neutron spot
   bool Nspotcheck(Double_t dy,               //hcaly
 		  Double_t dx,               //hcalx
@@ -85,6 +89,15 @@ namespace util {
 		  Double_t dy_sigma,         //elastic peak sigma in dy
 		  Double_t dx_sigma,         //elastic peak sigma in dx
 		  Double_t rotationAngle);   //rotation angle in radians, if ever applicable
+
+  // calculates and returns N where N*sig_dx(dy) is necessary to include a dx,dy point in ellipse
+  double NspotScaleFactor(Double_t dy,               //hcaly
+			  Double_t dx,               //hcalx
+			  Double_t dy_mean,          //elastic peak location in dy
+			  Double_t dx_mean,          //elastic peak location in dx
+			  Double_t dy_sigma,         //elastic peak sigma in dy
+			  Double_t dx_sigma,         //elastic peak sigma in dx
+			  Double_t rotationAngle);   //rotation angle in radians, if ever applicable
   
   // draws rectangular cut regions
   void drawarea(vector<Double_t> dimensions,      // a vector with extreme points
@@ -163,6 +176,13 @@ namespace util {
 				    double ymin,             //ymin for constraint
 				    double ymax);            //ymax for constraint
 
+  void checkTH2DBinsAndEntries(TH2D *hist,                        //TH2D to check bins and entries
+			       int minEntries,                    //min_entries
+			       int &firstBinWithEntries,          //get first bin with min_entries in x
+			       int &lastBinWithEntries,           //get last bin with min_entries in x
+			       int &firstBinEntries,              //get first bin with min_entries in x entries
+			       int &lastBinEntries);              //get last bin with min_entries in x entries
+
   void fitAndCalculateRatio(TH1D* hist,                           //dx histogram for LD2
 			    TCanvas* canvas,                      //QA histogram
 			    double &ratio,                        //yield ratio
@@ -177,11 +197,17 @@ namespace util {
 					 std::vector<Double_t> &params,  //vector to store parameters
 					 Double_t alpha_ll);             // Lower Limit on alpha (optional)
   
-  TH1D *makeResidualHisto(TString identifier,
-			  TH1D *histo_1,
-			  TH1D *histo_2,
-			  bool match_bins,
-			  bool match_x_range);
+  TH1D *makeResidualHisto(TString identifier,                     //string to identify the variable analyzed
+			  TH1D *histo_1,                          //histogram 1 (base)
+			  TH1D *histo_2,                          //histogram 2 (subtracted)
+			  bool match_bins,                        //bool to error on N bins mismatch
+			  bool match_x_range);                    //bool to error on x range mismatch
+  
+  TH1D *makeResidualHistoWithError(TString identifier,                     //string to identify the variable analyzed
+				   TH1D *histo_1,                          //histogram 1 (base)
+				   TH1D *histo_2,                          //histogram 2 (subtracted)
+				   bool match_bins,                        //bool to error on N bins mismatch
+				   bool match_x_range);                    //bool to error on x range mismatch
 
   std::pair<double, std::vector<double>> performSideBandAnalysis(TH1D* hist,    //TH1D for sideband analysis
 								 double xLow,   //Low bound for band boundary
@@ -196,8 +222,29 @@ namespace util {
 			 std::vector<std::string>& vector2,  //vector of .root file extensions
 			 bool jboyd);                        //bool to alter file name structure to jboyd convention
     
+  /* void SyncFilesWithCsv(const std::string& directory1,                  //path to .csv/.hist */
+  /* 			const std::string& directory2,                  //path to .root */
+  /* 			const std::string& partialName,                 //search string */
+  /* 			std::vector<std::string>& vector1,              //vector of .root file extensions */
+  /* 			std::map<int, std::pair<std::string, std::vector<float>>>& csvData);   //map jobid->csv data on root file and rootfile extension */
+
+    
+  void SyncFilesWithCsv(const std::string& directory1,                  //path to .csv/.hist
+			const std::string& directory2,                  //path to .root
+			const std::string& partialName,                 //search string
+			std::vector<std::string>& vector1,              //vector of .root file extensions
+			std::pair<std::string, std::vector<float>>& csvData);   //rootfile path and metadata vector
+
   void synchronizeJobNumbers(std::vector<std::string>& vecA,   //Vector of strings A of form "bla_job<int>bla"
 			     std::vector<std::string>& vecB);  //Vector of strings B of form "bla_job<int>bla"
+
+  //overload for pairs
+  void synchronizeJobNumbers(std::vector<std::pair<std::string, std::vector<float>>>& vecA,
+			     std::vector<std::pair<std::string, std::vector<float>>>& vecB);
+
+  //overload for maps
+  void synchronizeJobNumbers(std::map<int, std::pair<std::string, std::vector<float>>>& csvData_n,
+			     std::map<int, std::pair<std::string, std::vector<float>>>& csvData_p);
 
   std::vector<TH1D*> createBootstrapSamples(TH1D* originalHist,             //Original dataset (full)
 					    int nBootstrapSamples);         //Number of sample datasets desired
@@ -233,6 +280,9 @@ namespace util {
 				   const char* x_label = "X-axis",               //xaxis title for overlay
 				   const char* y_label = "Frequency");           //yaxis title for overlay
 
+  
+  void parseAndDisplayCuts(const char* name, const char* cuts);
+  void parseAndDisplayCuts(const char* name, const char* cuts, TCanvas *c1);     //overload to modify c1
 
 }
 

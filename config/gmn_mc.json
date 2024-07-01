@@ -1,0 +1,247 @@
+{
+    "filedir_sbs4" : {
+	"30p"        : "/lustre19/expphy/volatile/halla/sbs/adr/simc_sim_out/SBS4/30pfs/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/dMCcomp/sbs4_sbs50p/simc/"
+    },
+
+    "filedir_sbs4_alt" : {
+	"30p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p390sf_sbs4_sbs30p_simc/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/65sf_sbs4_sbs50p_simc/"
+    },
+
+    "filedir_inel_sbs4" : {
+	"30p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/inel/sbs4_sbs30p/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/inel/sbs4_sbs50p/"
+    },
+
+    "filedir_hdemaps_sbs4" : {
+	"30p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/"
+    },
+
+    "filedir_sbs7" : {
+	"85p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/dMCcomp/sbs7_sbs85p/0p815sf/simc/rs/ld2/rc/"
+    },
+
+    "filedir_inel_sbs7" : {
+	"85p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/inel/sbs7_sbs85p/"
+    },
+
+    "filedir_hdemaps_sbs7" : {
+	"85p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/"
+    },
+
+    "filedir_sbs11" : {
+	"100p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/dMCcomp/sbs11_sbs100p/1p0sf/simc/rs/ld2/rc/"
+    },
+
+    "filedir_inel_sbs11" : {
+	"100p"        : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/inel/sbs11_sbs100p/"
+    },
+
+    "filedir_hdemaps_sbs11" : {
+	"100p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/"
+    },
+
+    "filedir_sbs14" : {
+	"70p"         : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/dMCcomp/sbs14_sbs70p/0p674sf/simc/rs/ld2/rc/"
+    },
+
+    "filedir_inel_sbs14" : {
+	"70p"         : "/lustre19/expphy/volatile/halla/sbs/pdbforce/g4sbs_output/inel/sbs14_sbs70p/"
+    },
+
+    "filedir_hdemaps_sbs14" : {
+	"70p"         : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/"
+    },
+
+    "filedir_sbs8" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p700sf_sbs8_sbs70p_simc/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p501sf_sbs8_sbs50p_simc/",
+	"100p"       : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p979sf_sbs8_sbs100p_simc/"
+    },
+
+    "filedir_sbs8_alt" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc_clean/p63797sf_sbs8_sbs70p_simc/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc_clean/p44981sf_sbs8_sbs50p_simc/",
+	"100p"       : "/lustre19/expphy/volatile/halla/sbs/seeds/simc_clean/p91396sf_sbs8_sbs100p_simc/"
+    },
+
+    "filedir_sbs8_alt2" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p700sf_sbs8_sbs70p_simc/"
+    },
+
+    "filedir_sbs8_jboyd" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/",
+	"100p"       : ""
+    },
+
+    "filedir_inel_sbs8" : {
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/inelastic_mc/p438sf_sbs8_sbs50p_inelastic_deeN/",
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/inelastic_mc/p637sf_sbs8_sbs70p_inelastic_deeN/",
+	"100p"       : "/lustre19/expphy/volatile/halla/sbs/seeds/inelastic_mc/p916sf_sbs8_sbs100p_inelastic_deeN/"
+    },
+
+    "filedir_hdemaps_sbs8" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/",
+	"50p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/",
+	"100p"       : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/"
+    },
+
+    "filedir_sbs9" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p657sf_sbs9_sbs70p_simc/"
+    },
+
+    "filedir_sbs9_alt" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/simc/p657sf_sbs9_sbs70p_simc/"
+    },
+
+    "filedir_sbs9_jboyd" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/jboyd/simulation/out_dir/MC_REPLAY_OUT_DIR/"
+    },
+
+    "filedir_inel_sbs9" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/inelastic_mc/p657sf_sbs9_sbs70p_inelastic_deeN/"
+    },
+
+    "filedir_hdemaps_sbs9" : {
+	"70p"        : "/lustre19/expphy/volatile/halla/sbs/seeds/effmaps/"
+    },
+
+    "p_string_sbs4" : {
+	"30p"        : "p390sf_sbs4_sbs30p_simc_deep",
+	"50p"        : "65sf_sbs4_sbs50p_simc_deep"
+    },
+
+    "p_string_sbs4_alt" : {
+	"30p"        : "p390sf_sbs4_sbs30p_simc_deep",
+	"50p"        : "65sf_sbs4_sbs50p_simc_deep"
+    },
+
+    "inel_string_sbs4" : {
+	"30p"        : "replayed_0p39sf_ld2_sbs4_sbs30p_g4sbs_inel",
+	"50p"        : "replayed_ld2_sbs4_sbs50p_g4sbs_inel"
+    },
+
+    "p_string_sbs7" : {
+	"85p"        : "0p815sf_sbs7_sbs85p_simc_deep"
+    },
+
+    "inel_string_sbs7" : {
+	"85p"        : "ld2_sf0p815_sbs7_sbs85p_g4sbs_inel"
+    },
+
+    "p_string_sbs11" : {
+	"100p"        : "1p0sf_sbs11_sbs100p_simc_deep"
+    },
+
+    "inel_string_sbs11" : {
+	"100p"        : "1p0sf_ld2_sbs11_sbs100p_g4sbs_inel"
+    },
+
+    "p_string_sbs14" : {
+	"70p"        : "0p674sf_sbs14_sbs70p_simc_deep"
+    },
+
+    "inel_string_sbs14" : {
+	"70p"        : "0p674sf_ld2_sbs14_sbs70p_g4sbs_inel"
+    },
+
+    "p_string_sbs8" : {
+	"70p"        : "p700sf_sbs8_sbs70p_simc_deep",
+	"50p"        : "p501sf_sbs8_sbs50p_simc_deep",
+	"100p"        : "p979sf_sbs8_sbs100p_simc_deep"
+    },
+
+    "p_string_sbs8_alt" : {
+	"70p"        : "p63797sf_sbs8_sbs70p_simc_deep",
+	"50p"        : "p44981sf_sbs8_sbs50p_simc_deep",
+	"100p"        : "p91396sf_sbs8_sbs100p_simc_deep"
+    },
+
+    "p_string_sbs8_alt2" : {
+	"70p"        : "p700sf_sbs8_sbs70p_simc_deep"
+    },
+
+    "p_string_sbs8_jboyd" : {
+	"70p"        : "proton_mag70port0653",
+	"100p"        : ""
+    },
+
+    "inel_string_sbs8" : {
+	"50p"        : "replayed_p438sf_sbs8_sbs50p_inelastic_deeN",
+	"70p"        : "replayed_p637sf_sbs8_sbs70p_inelastic_deeN",
+	"100p"        : "replayed_p916sf_sbs8_sbs100p_inelastic_deeN"
+    },
+
+    "p_string_sbs9" : {
+	"70p"        : "p657sf_sbs9_sbs70p_simc_deep"
+    },
+
+    "p_string_sbs9_alt" : {
+	"70p"        : "p657sf_sbs9_sbs70p_simc_deep"
+    },
+
+    "p_string_sbs9_jboyd" : {
+	"70p"        : "proton_mag70port0657"
+    },
+
+    "inel_string_sbs9" : {
+	"70p"        : "replayed_p657sf_sbs9_sbs70p_inelastic_deeN"
+    },
+
+    "n_string_sbs4" : {
+	"30p"        : "p390sf_sbs4_sbs30p_simc_deen",
+	"50p"        : "65sf_sbs4_sbs50p_simc_deen"
+    },
+
+    "n_string_sbs4_alt" : {
+	"30p"        : "p390sf_sbs4_sbs30p_simc_deen",
+	"50p"        : "65sf_sbs4_sbs50p_simc_deen"
+    },
+
+    "n_string_sbs7" : {
+	"85p"        : "0p815sf_sbs7_sbs85p_simc_deen"
+    },
+
+    "n_string_sbs11" : {
+	"100p"        : "1p0sf_sbs11_sbs100p_simc_deen"
+    },
+
+    "n_string_sbs14" : {
+	"70p"        : "0p674sf_sbs14_sbs70p_simc_deen"
+    },
+
+    "n_string_sbs8" : {
+	"70p"        : "p700sf_sbs8_sbs70p_simc_deen",
+	"50p"        : "p501sf_sbs8_sbs50p_simc_deen",
+	"100p"       : "p979sf_sbs8_sbs100p_simc_deen"
+    },
+
+    "n_string_sbs8_alt" : {
+	"70p"        : "p63797sf_sbs8_sbs70p_simc_deen",
+	"50p"        : "p44981sf_sbs8_sbs50p_simc_deen",
+	"100p"       : "p91396sf_sbs8_sbs100p_simc_deen"
+    },
+
+    "n_string_sbs8_alt2" : {
+	"70p"        : "p700sf_sbs8_sbs70p_simc_deen"
+    },
+
+    "n_string_sbs8_jboyd" : {
+	"70p"        : "neutron_mag70port0653",
+	"100p"        : ""
+    },
+
+    "n_string_sbs9" : {
+	"70p"        : "p657sf_sbs9_sbs70p_simc_deen"
+    },
+
+    "n_string_sbs9_alt" : {
+	"70p"        : "p657sf_sbs9_sbs70p_simc_deen"
+    },
+
+    "n_string_sbs9_jboyd" : {
+	"70p"        : "neutron_mag70port0657"
+    }
+}

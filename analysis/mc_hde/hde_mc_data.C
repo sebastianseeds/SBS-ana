@@ -22,7 +22,7 @@
 #include "../../include/gmn.h"
 
 const int nbin = 150;
-const double xmin1 = 1.0;
+const double xmin1 = 1.4;
 const double xmin2 = 9.0;
 
 void FitAndDrawGraphWithErrorBand(TGraph* graph1, 
@@ -49,6 +49,14 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   // Fit the first graph within the specified range
   graph1->Fit(fitFunc, "R");
 
+  cout << endl << endl;
+
+  cout << "Value of proton MC fit at pN = 2.36 GeV (SBS4): " << fitFunc->Eval(2.36) << endl;
+  cout << "Value of proton MC fit at pN = 3.17 GeV (SBS8): " << fitFunc->Eval(3.17) << endl;
+  cout << "Value of proton MC fit at pN = 3.20 GeV (SBS9): " << fitFunc->Eval(3.20) << endl;
+
+  cout << endl;
+
   // Create a TGraphErrors to represent the error band for the first graph
   TGraphErrors* errorBand1 = new TGraphErrors();
   errorBand1->SetName("errorBand1");
@@ -67,7 +75,7 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
     if( N1_at_bin[i]<N1_min )
       N1_min=N1_at_bin[i];
     
-    //cout << "proton: " << fitValue << " " << error << " " << N1_at_bin[i] << endl;
+    cout << "proton (x,fit,err,N): " << x << " " << fitValue << " " << error << " " << N1_at_bin[i] << endl;
   }
 
   // Fit the second graph within the specified range
@@ -93,10 +101,10 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
 
   // Set fill colors for the error bands
   errorBand1->SetFillStyle(1001);
-  errorBand1->SetFillColorAlpha(kRed, 0.3);
+  errorBand1->SetFillColorAlpha(kRed, 0.35);
   errorBand1->SetLineWidth(1);
   errorBand2->SetFillStyle(1001);
-  errorBand2->SetFillColorAlpha(kBlue, 0.3);
+  errorBand2->SetFillColorAlpha(kBlue, 0.35);
   errorBand2->SetLineWidth(1);
 
   //Add data points
@@ -139,14 +147,91 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   graph6->SetLineColor(kGreen-1);
   graph6->SetLineWidth(2);
 
+  //SBS4 30% positional spot
+  auto graph7 = new TGraphErrors();
+  graph7->SetPoint(0,pN[4],hde[4]);
+  graph7->SetPointError(0,0,hdeerr[4]);
+  graph7->SetMarkerColor(kBlack);
+  graph7->SetMarkerStyle(71);
+  graph7->SetMarkerSize(2);
+  graph7->SetLineColor(kBlack);
+  //graph7->SetLineWidth(2);
+
+  //SBS8 70% positional spot
+  auto graph8 = new TGraphErrors();
+  graph8->SetPoint(0,pN[5],hde[5]);
+  graph8->SetPointError(0,0,hdeerr[5]);
+  graph8->SetMarkerColor(kRed);
+  graph8->SetMarkerStyle(21);
+  graph8->SetMarkerSize(2);
+  graph8->SetLineColor(kRed);
+  //graph8->SetLineWidth(2);
+
+  //SBS9 70% positional spot
+  auto graph9 = new TGraphErrors();
+  graph9->SetPoint(0,pN[6],hde[6]);
+  graph9->SetPointError(0,0,hdeerr[6]);
+  graph9->SetMarkerColor(kRed);
+  graph9->SetMarkerStyle(22);
+  graph9->SetMarkerSize(2);
+  graph9->SetLineColor(kRed);
+  //graph9->SetLineWidth(2);
+
+  //SBS8 0% positional spot, dip correction
+  auto graph10 = new TGraphErrors();
+  graph10->SetPoint(0,pN[7],hde[7]);
+  graph10->SetPointError(0,0,hdeerr[7]);
+  graph10->SetMarkerColor(kBlack);
+  graph10->SetMarkerStyle(33);
+  graph10->SetMarkerSize(2);
+  graph10->SetLineColor(kBlack);
+  //graph10->SetLineWidth(2);
+
+  //SBS8 50% positional spot, dip correction
+  auto graph11 = new TGraphErrors();
+  graph11->SetPoint(0,pN[8],hde[8]);
+  graph11->SetPointError(0,0,hdeerr[8]);
+  graph11->SetMarkerColor(kBlack);
+  graph11->SetMarkerStyle(34);
+  graph11->SetMarkerSize(2);
+  graph11->SetLineColor(kBlack);
+  //graph10->SetLineWidth(2);
+
+  //SBS8 70% positional spot, dip correction
+  auto graph12 = new TGraphErrors();
+  graph12->SetPoint(0,pN[9],hde[9]);
+  graph12->SetPointError(0,0,hdeerr[9]);
+  graph12->SetMarkerColor(kBlack);
+  graph12->SetMarkerStyle(29);
+  graph12->SetMarkerSize(2);
+  graph12->SetLineColor(kBlack);
+  //graph10->SetLineWidth(2);
+
+  //SBS11 70% positional spot, dip correction
+  auto graph13 = new TGraphErrors();
+  graph13->SetPoint(0,pN[10],hde[10]);
+  graph13->SetPointError(0,0,hdeerr[10]);
+  graph13->SetMarkerColor(kBlack);
+  graph13->SetMarkerStyle(22);
+  graph13->SetMarkerSize(2);
+  graph13->SetLineColor(kBlack);
+  //graph11->SetLineWidth(2);
+
   TMultiGraph* mg = new TMultiGraph();
-  mg->SetTitle(Form("HCAL Efficiency (E_{T}=1/%0.0f E_{Peak}) (4x4 cluster)",tfac));
+  mg->SetTitle("HCAL efficiency, MC/data Comparison");
   mg->Add(graph1, "AP");
   mg->Add(graph2, "AP");
-  mg->Add(graph3, "AP");
-  mg->Add(graph4, "AP");
-  mg->Add(graph5, "AP");
-  mg->Add(graph6, "AP");
+  //mg->Add(graph3, "AP");
+  //mg->Add(graph4, "AP");
+  //mg->Add(graph5, "AP");
+  //mg->Add(graph6, "AP");
+   mg->Add(graph7, "AP");
+  // mg->Add(graph8, "AP");
+  // mg->Add(graph9, "AP");
+  mg->Add(graph10, "AP");
+  mg->Add(graph11, "AP");
+  mg->Add(graph12, "AP");
+  // mg->Add(graph13, "AP");
 
   mg->Add(errorBand1, "E3");
   mg->Add(errorBand2, "E3");
@@ -157,13 +242,22 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   //l1->SetTextSize( 0.03 );
   l1->AddEntry( graph1, Form("Proton, min ev/cell: %d",N1_min), "p");
   l1->AddEntry( graph2, Form("Neutron, min ev/cell: %d",N2_min), "p");
-  l1->AddEntry( graph3, "Data: LH2, SBS4, dx sideband", "p");
-  l1->AddEntry( graph4, "Data: LH2, SBS4, W^{2} anticut", "p");
-  l1->AddEntry( graph5, "Data: LH2, SBS8, dx sideband", "p");
-  l1->AddEntry( graph6, "Data: LH2, SBS8, W^{2} anticut", "p");
+  //l1->AddEntry( graph3, "Data: LH2, SBS4, dx sideband", "p");
+  //l1->AddEntry( graph4, "Data: LH2, SBS4, W^{2} anticut", "p");
+  //l1->AddEntry( graph5, "Data: LH2, SBS8, dx sideband", "p");
+  //l1->AddEntry( graph6, "Data: LH2, SBS8, W^{2} anticut", "p");
   //l1->AddEntry( graph4, "Data: LH2, SBS8, Anticut Method", "p");
+   l1->AddEntry( graph7, "Data: LH2, SBS4 30%, proton", "p");
+  // l1->AddEntry( graph8, "Data: LH2, SBS8 70%, proton", "p");
+  // l1->AddEntry( graph9, "Data: LH2, SBS9 70%, proton", "p");
+  l1->AddEntry( graph10, "Data: LH2, SBS8 0%, proton, dip correction", "p");
+  l1->AddEntry( graph11, "Data: LH2, SBS8 50%, proton, dip correction", "p");
+  l1->AddEntry( graph12, "Data: LH2, SBS8 70%, proton, dip correction", "p");
+  // l1->AddEntry( graph13, "Data: LH2, SBS9 70%, proton, dip correction", "p");
   l1->AddEntry( (TObject*)0, "", "");
-  l1->AddEntry( (TObject*)0, "Binomial Error on MC Fits", "");
+  //l1->AddEntry( (TObject*)0, "Binomial Error on MC Fits", "");
+  l1->AddEntry( (TObject*)0, Form("Threshold Energy E_{T} = %0.2f*E_{Peak}",1/(double)tfac), "");
+  l1->AddEntry( (TObject*)0, "4x4 clusters", "");
   //l1->AddEntry( errorBand1, "Total fit", "l");
   //l1->AddEntry( errorBand2, "Total fit", "l");
 
@@ -173,8 +267,8 @@ void FitAndDrawGraphWithErrorBand(TGraph* graph1,
   l1->Draw("same");
 
   mg->GetYaxis()->SetTitle("Efficiency (%)");
-  mg->GetYaxis()->SetRangeUser(80,105);
-  mg->GetXaxis()->SetLimits(0.,10.);
+  mg->GetYaxis()->SetRangeUser(80,100);
+  mg->GetXaxis()->SetLimits(1.,8.);
 
   //mg->GetXaxis()->SetRangeUser(0.,10.);
   //mg->GetXaxis()->SetRange(0.,10.);
@@ -226,7 +320,14 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
   
   std::string date = util::getDate();
 
-  gStyle->SetEndErrorSize(0);
+  //gStyle->SetEndErrorSize(0);
+
+  //set draw params
+  gStyle->SetPalette(55);
+  gStyle->SetCanvasPreferGL(kTRUE);
+  gStyle->SetOptFit(0);
+  gStyle->SetOptStat(0);
+  //gStyle->SetEndErrorSize(0);
 
   // reading input config file
   JSONManager *jmgr = new JSONManager("../../config/smchde.json");
@@ -273,7 +374,7 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
     ifstream prot_param_file( prot_param_path );
     if( !prot_param_file ){
       cerr << endl << "ERROR: No input constant file present -> path to meanE_proton.txt expected." << endl;
-      return 0;
+      return;
     }
   
     Int_t n1=0;
@@ -294,7 +395,7 @@ void hde_mc_data( int iter = 1 ) //iteration 0 gets mean values of hcalE vs nucl
     ifstream neut_param_file( neut_param_path );
     if( !neut_param_file ){
       cerr << endl << "ERROR: No input constant file present -> path to meanE_proton.txt expected." << endl;
-      return 0;
+      return;
     }
   
     n1=0;

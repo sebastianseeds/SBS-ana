@@ -52,8 +52,14 @@ namespace fits {
     return yint+amp*exp(offset+str*x[0]);
   }
 
+  //offset fit
+  Double_t g_p0fit(Double_t *x, Double_t *par) {
+    Double_t yint = par[0];
+    return yint;
+  }
+
   //linear fit
-  Double_t g_lfit(Double_t *x, Double_t *par){
+  Double_t g_p1fit(Double_t *x, Double_t *par){
     Double_t yint = par[0];
     Double_t p1 = par[1];;
     return yint+p1*x[0];
@@ -64,6 +70,14 @@ namespace fits {
     Double_t yint = par[0];
     Double_t p1 = par[1];
     Double_t p2 = par[2];
+    return yint+p1*x[0]+p2*pow(x[0],2);
+  }
+
+  //2nd order poly fit concave down only for small background slices
+  Double_t g_p2fit_cd(Double_t *x, Double_t *par){
+    Double_t yint = par[0];
+    Double_t p1 = par[1];
+    Double_t p2 = -fabs(par[2]);
     return yint+p1*x[0]+p2*pow(x[0],2);
   }
 

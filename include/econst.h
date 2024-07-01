@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <map>
 #include "TMath.h"
 #include "TString.h"
 
@@ -36,8 +37,17 @@ namespace econst {
   static const Double_t hcalblk_gap_v = 0.00635;  //m, vert. gap bet. two blocks
 
   ////PASS2////
-  static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist.
-  static const Double_t hcalblk_div_v = 0.15875;  //m, vertical center-to-center dist.
+  static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist. (Y)
+  static const Double_t hcalblk_div_v = 0.15875;  //m, vertical center-to-center dist. (X)
+
+  const std::map<int, double> hcal_effz = {       //m, effective hcal z offset to eliminate dx:hcalx correlation. From PDatta communication with APuckett 4.29.24
+    {4, 11.65},
+    {7, 14.925},
+    {11, 15.77},
+    {14, 15.13},
+    {8, 11.77},
+    {9, 11.7}
+  };
   /////////////
 
   // Positions (mc)
@@ -109,6 +119,7 @@ namespace econst {
   Double_t     sbsdist(Int_t config);      //m
   Double_t     hcaltheta(Int_t config);    //deg
   Double_t     hcaldist(Int_t config);     //m
+  Double_t     hcaleffdist(Int_t config);  //m
 }
 
 // a class for SBS config
@@ -127,6 +138,7 @@ class SBSconfig {
   Double_t     GetHCALtheta()     const { return fHCALtheta; }
   Double_t     GetHCALtheta_rad() const { return fHCALtheta_rad; }
   Double_t     GetHCALdist()      const { return fHCALdist; }
+  Double_t     GetHCALeffdist()   const { return fHCALeffdist; }
 
   // constructor
   SBSconfig(Int_t conf, Int_t sbsmag) {
@@ -141,6 +153,7 @@ class SBSconfig {
     fSBSdist       = econst::sbsdist(conf);
     fHCALtheta     = econst::hcaltheta(conf);
     fHCALtheta_rad = econst::hcaltheta(conf)*TMath::DegToRad();
+    fHCALeffdist   = econst::hcaleffdist(conf);
     fHCALdist      = econst::hcaldist(conf);
   }
 
@@ -156,6 +169,7 @@ class SBSconfig {
       	 << Form(" Super BigBite distance: %0.2f (m)," , sbsconf.fSBSdist)             << std::endl
 	 << Form(" HCAL angle: %0.1f (deg),"           , sbsconf.fHCALtheta)           << std::endl
     	 << Form(" HCAL distance: %0.1f (m)"           , sbsconf.fHCALdist)            << std::endl
+    	 << Form(" HCAL effective distance: %0.1f (m)" , sbsconf.fHCALeffdist)         << std::endl
 	 << " -------------------------- "                        << std::endl         << std::endl;
     return out;
   }
@@ -173,6 +187,7 @@ class SBSconfig {
   Double_t     fHCALtheta;           // HCAL angle (deg)
   Double_t     fHCALtheta_rad;       // HCAL angle (rad)
   Double_t     fHCALdist;            // HCAL distance from target (m)
+  Double_t     fHCALeffdist;         // HCAL effective distance from target (m)
 };
 
 #endif

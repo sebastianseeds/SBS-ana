@@ -7,6 +7,7 @@
 #include "../src/rvars.C"           // namespace setrootvar
 #include "../src/vars.C"            // namespace kine
 #include "../src/fits.C"            // namespace fits
+#include "../src/extract.C"         // namespace extract
 
 //// List of namespaces
 // cut.h          : namespace for subsystem cuts
@@ -17,3 +18,4 @@
 // rvars.h        : namespace for root variables
 // vars.h         : namespace for kinematic variables
 // fits.h         : namespace for fit functions
+// extract.h      : namespace for gmn extraction functions

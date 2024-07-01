@@ -12,3 +12,4 @@
 .#*
 ## Ignore log files
 *.log
+.vscode/

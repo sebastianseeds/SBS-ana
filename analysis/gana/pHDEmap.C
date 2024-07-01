@@ -19,11 +19,11 @@ double binErrLimit = 0.1; //Set limit on HDE error to use HDE prot vs pos exp po
 
 // Function to concatenate cuts with their names
 std::string concatenateCutsWithNames(const std::vector<std::pair<std::string, std::string>>& cutsWithNames) {
-    std::string concatenatedCuts;
-    for (const auto& cut : cutsWithNames) {
-        concatenatedCuts += cut.first + "&&" + cut.second + "&&_____&&";
-    }
-    return concatenatedCuts;
+  std::string concatenatedCuts;
+  for (const auto& cut : cutsWithNames) {
+    concatenatedCuts += cut.first + "&&" + cut.second + "&&_____&&";
+  }
+  return concatenatedCuts;
 }
 
 //gets values for optics v x and y cuts for plotting
@@ -41,24 +41,44 @@ std::vector<double> extractValues(const std::string& expression) {
   return values;
 }
 
-Double_t SBpol0rej_b = 0.0; // Central-band fit reject begin
-Double_t SBpol0rej_e = 0.6; // Central-band fit reject end
+Double_t SBpol0rej_b = -0.7; // Central-band fit reject begin, 8.0(-0.9), 8.5(-0.2), 8.7(0.0)
+Double_t SBpol0rej_e = -0.4; // Central-band fit reject end, 8.0(-0.5), 8.5(0.1), 8.7(0.5)
+
+Double_t SBpol0rej_b2 = 0.3;
+Double_t SBpol0rej_e2 = 0.8;
 
 // Zeroth order poly (constant) with sideband limits
 Double_t sbBGfit_pol0(double *x, double *par) {
-    Double_t yint = par[0];
+  Double_t yint = par[0];
 
-    if (x[0] > SBpol0rej_b && x[0] < SBpol0rej_e) {
-        TF1::RejectPoint();
-        return 0;
-    }
+  if (x[0] > SBpol0rej_b && x[0] < SBpol0rej_e) {
+    TF1::RejectPoint();
+    return 0;
+  }
 
-    return yint;
+  return yint;
+}
+
+// Zeroth order poly (constant) with sideband limits
+Double_t sbBGfit2_pol0(double *x, double *par) {
+  Double_t yint = par[0];
+
+  if (x[0] > SBpol0rej_b && x[0] < SBpol0rej_e) {
+    TF1::RejectPoint();
+    return 0;
+  }
+
+  if (x[0] > SBpol0rej_b2 && x[0] < SBpol0rej_e2) {
+    TF1::RejectPoint();
+    return 0;
+  }
+
+  return yint;
 }
 
 //MAIN
-void pHDEmap(int kine=4, 
-	     int mag=0, 
+void pHDEmap(int kine=11, 
+	     int mag=100, 
 	     int pass=2, 
 	     bool ellipse = true,
 	     bool pidcuts = false,
@@ -68,9 +88,14 @@ void pHDEmap(int kine=4,
   //set draw params
   gStyle->SetPalette(55);
   gStyle->SetCanvasPreferGL(kTRUE);
-  gStyle->SetOptFit(0);
-  gStyle->SetOptStat(0);
+  gStyle->SetOptFit(1111);
   gStyle->SetEndErrorSize(0);
+  gStyle->SetOptStat(0110);
+  gStyle->SetStatTextColor(kBlack);
+  gStyle->SetStatW(0.25);
+  gStyle->SetStatH(0.08);
+  gStyle->SetStatX(0.9);
+  gStyle->SetStatY(0.9);
   
   cout << "Processing analysis of HCal detection efficiency for kinematic " << kine << " at field " << mag << "." << endl << endl;
 
@@ -895,6 +920,16 @@ void pHDEmap(int kine=4,
 
   // Fit hyexp_eff within specified bounds
   TF1 *fit_hy = new TF1("fit_hy", "pol0", fidycut_vec[0], fidycut_vec[1]);
+  //TF1 *fit_hy = new TF1("fit_hy", "sbBGfit_pol0", fidycut_vec[0], fidycut_vec[1], 1);
+
+  //ensure that no unity no error bins affect the fit
+  for (int i = 1; i <= hyexp_eff->GetNbinsX(); ++i) {
+    if (hyexp_eff->GetBinError(i) == 0 || hyexp_eff->GetBinContent(i) == 1) {
+      hyexp_eff->SetBinContent(i, 0);
+      hyexp_eff->SetBinError(i, 0);
+    }
+  }
+
   hyexp_eff->Fit(fit_hy, "R");  // "R" option for fit range
 
   // Fit hxexp_eff from the first bin with data or fidxcut_vec[1] to fidxcut_vec[0]
@@ -902,8 +937,16 @@ void pHDEmap(int kine=4,
   double left_binlimit_x = hxexp_eff->GetBinLowEdge(first_nonempty_bin);
   double fidxcutfirst = (left_binlimit_x > fidxcut_vec[1]) ? left_binlimit_x : fidxcut_vec[1];
   //TF1 *fit_hx = new TF1("fit_hx", "pol0", fidxcutfirst, fidxcut_vec[0]);
+  TF1 *fit_hx = new TF1("fit_hx", "sbBGfit_pol0", fidxcutfirst, fidxcut_vec[0], 1);
+  //TF1 *fit_hx = new TF1("fit_hx", "pol0", 0.5, fidxcut_vec[0]);
 
-  TF1 *fit_hx = new TF1("fit_hx", "pol0", 0.5, fidxcut_vec[0]);
+  //ensure that no unity no error bins affect the fit
+  for (int i = 1; i <= hxexp_eff->GetNbinsX(); ++i) {
+    if (hxexp_eff->GetBinError(i) == 0 || hxexp_eff->GetBinContent(i) == 1) {
+      hxexp_eff->SetBinContent(i, 0);
+      hxexp_eff->SetBinError(i, 0);
+    }
+  }
 
   hxexp_eff->Fit(fit_hx, "R");
 

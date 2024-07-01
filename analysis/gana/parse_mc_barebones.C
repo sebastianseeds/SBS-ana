@@ -50,8 +50,8 @@ double getCorrectionFactor(double x_exp, const std::map<double, double>& correct
 //For now, use alt for all kine except 7, 14, 11
 
 //MAIN
-void parse_mc_barebones( int kine = 8, 
-			 int mag = 100, 
+void parse_mc_barebones( int kine = 4, 
+			 int mag = 30, 
 			 const char *replay_type = "alt", 
 			 bool verbose=false, 
 			 bool norm_override=false, 

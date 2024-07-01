@@ -14,22 +14,9 @@
 #include "../../include/gmn.h"
 #include "../../src/jsonmgr.C"
 
-//fitranges
-//sbs9 70p: -1.8 to 0.7
-//sbs8 50p: -1.4 to 0.7
-//sbs8 70p: -1.8 to 0.7
-//sbs8 100p: -2.1 to 0.7
-//sbs4 30p: -1.7 to 0.7, shiftX=0.0, neutronshift=-0.05
-//sbs4 50p: -2.1 to 0.7, shiftX=0.05, neutronshift=0.0
-//sbs7 85p: -1.4 to 0.5
-
 //Fit range override options
-double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
-double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
-
-//Plot range option shared by all fits
-double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
-double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
+double hcalfit_l; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
+double hcalfit_h; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
 
 double xrange_min_hcale = 0.;
 double xrange_max_hcale = 0.8;
@@ -184,14 +171,17 @@ Double_t fitFullShift_nobg(double *x, double *par){
 void handleError(TFile *file1, TFile *file2, std::string marker);
 void handleError(TFile *file1, std::string marker);
 std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+std::string addbc(std::string input);
+std::vector<std::string> split(const std::string &s, char delimiter);
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
-void hcaleStability(int kine=8, 
-		    int mag=100, 
+void hcaleStability(int kine=9, 
+		    int mag=70, 
 		    int pass=2, 
 		    int N=12,
-		    double sliceCutMin=0.03,
-		    double sliceCutMax=0.08,
+		    double sliceCutMin=0.07,
+		    double sliceCutMax=0.09,
 		    std::string BG="pol2",
 		    bool backwards=false,
 		    bool bestclus=true, 
@@ -200,7 +190,7 @@ void hcaleStability(int kine=8,
 		    bool effz=true,
 		    bool alt = true) {
   //set draw params
-  gStyle->SetPalette(55);
+  gStyle->SetPalette(kViridis);
   gStyle->SetCanvasPreferGL(kTRUE);
   gStyle->SetOptFit(0);
   gStyle->SetOptStat(0);
@@ -209,10 +199,44 @@ void hcaleStability(int kine=8,
   //load json file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
-  //Get tight elastic cuts
-  std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  // Get dx plot details
+  hcalfit_l = jmgr->GetValueFromSubKey<double>("hcalfit_l", Form("sbs%d_%d", kine, mag));
+  hcalfit_h = jmgr->GetValueFromSubKey<double>("hcalfit_h", Form("sbs%d_%d", kine, mag));
+  
+  //get new cuts from .csv
+  std::string cutsheet_path = "/w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv";
+  std::string target = "ld2";
+  std::vector<std::string> excludeKeys = {};
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
+  // Get the row contents
+  std::map<std::string, std::string> rowContents = getRowContents(cutsheet_path, kine, mag, target, excludeKeys);
+  // Print the row contents
+  cout << endl << "Loading NEW cuts..." << endl;
+  for (const auto &content : rowContents) {
+    std::cout << content.first << ": " << content.second << std::endl;
+  }
+  cout << endl;
+
+  std::string globalcuts_raw;
+  for (const auto &content : rowContents) {
+    if (!content.second.empty()) {
+      if (!globalcuts_raw.empty()) {
+	globalcuts_raw += "&&";
+      }
+      globalcuts_raw += content.second;
+    }
+  }
+
+  cout << endl <<"Concatenated globalcuts_raw: " << globalcuts_raw << endl << endl;
+
+  std::string globalcuts = addbc(globalcuts_raw);
+
+  cout << endl <<"Concatenated globalcuts: " << globalcuts << endl << endl;
+
+  // //Get tight elastic cuts
+  // std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+
+  // cout << "Loaded tight cuts: " << globalcuts << endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
@@ -262,21 +286,21 @@ void hcaleStability(int kine=8,
 
   TFile* inputFile = new TFile(finPath.c_str());
   if (!inputFile || inputFile->IsZombie()) 
-    handleError(inputFile,"inputFile");
-
+    handleError(inputFile,"inputFile");			      
+  
+  cout << "Loaded files: " << endl;
+  cout << "   " << finPath << endl;
+  cout << "   " << fmcinPath << endl;
+  
   //Get all histograms
   TH1D *hdx_data = dynamic_cast<TH1D*>(inputFile->Get("hdx_allcut"));
   hdx_data->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
 
-  std::string hcalehist_s = "hist_hcale";
-  if(bestclus)
-    hcalehist_s += "_bc";
-
-  TH2D *hdx_vs_hcale_data = dynamic_cast<TH2D*>(inputFile->Get(hcalehist_s.c_str()));
+  TH2D *hdx_vs_hcale_data = dynamic_cast<TH2D*>(inputFile->Get("hist_hcale_bc"));
   hdx_vs_hcale_data->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
   int hdx_vs_hcale_data_N = hdx_vs_hcale_data->GetEntries();
   std::string hcaleCuts = hdx_vs_hcale_data->GetTitle();
-  cout << endl << "Opened dx vs hcal E with cuts: " << hcaleCuts << endl << endl;
+  cout << endl << "Opened dx vs HCal E with cuts: " << hcaleCuts << endl << endl; 
 
   hdx_dyanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_dyanti"));
   hdx_dyanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
@@ -539,6 +563,7 @@ void hcaleStability(int kine=8,
 
   TCanvas* c0 = new TCanvas("c0", "Slice Locations", 800,600);
   c0->cd();
+  clonedHcale->SetTitle("HCal Energy vs dx");
   clonedHcale->Draw("colz");
 
   for (auto& cut : cutx_hcale){
@@ -721,7 +746,7 @@ void hcaleStability(int kine=8,
 
   //Create overlayed tgraph object
   gROOT->Reset();
-  TCanvas *c2 = new TCanvas("c2","",800,500);
+  TCanvas *c2 = new TCanvas("c2","",800,600);
   TPad *pad = new TPad("pad","",0,0,1,1);
   //pad->SetFillColor(42);
   pad->SetGrid();
@@ -732,7 +757,7 @@ void hcaleStability(int kine=8,
 
   graphErrors_hcale->GetYaxis()->SetLabelSize(0.04);
   graphErrors_hcale->GetYaxis()->SetLabelFont(42);
-  graphErrors_hcale->GetYaxis()->SetTitleOffset(1.0);
+  graphErrors_hcale->GetYaxis()->SetTitleOffset(1.2);
   graphErrors_hcale->GetYaxis()->SetTitleSize(0.04);
   graphErrors_hcale->GetYaxis()->SetTitleFont(42); 
 
@@ -764,7 +789,7 @@ void hcaleStability(int kine=8,
   TGaxis *axis = new TGaxis(xmax, ymin, xmax, ymax_nev, ymin, ymax_nev, 510,"+L");
   axis->SetTitle("ev cut (%)");
   axis->SetTitleColor(kGreen-5);  
-  axis->SetTitleOffset(1.0);  
+  axis->SetTitleOffset(0.8);  
   axis->SetLineColor(kGreen-5);
   axis->SetLabelColor(kGreen-5);
   axis->Draw();
@@ -1012,10 +1037,7 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
     fit->SetParameter(i,0);
     fit->SetParError(i,0);
   }
-  if(pshift==0&&nshift==0){
-    fit->SetParLimits(2,-7,7);
-    fit->SetParLimits(3,-7,7);
-  }else{
+  if(!(pshift==0&&nshift==0)){
     fit->FixParameter(2,pshift);
     fit->FixParameter(3,nshift);
   }
@@ -1036,13 +1058,9 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
   }
 
   fineFit->SetParameters(fineFitInitialParams.data());
-  if(pshift==0&&nshift==0){
-    fineFit->SetParLimits(2,-7,7);
-    fineFit->SetParLimits(3,-7,7);
-  }else{
-    fineFit->FixParameter(2,pshift);
-    fineFit->FixParameter(3,nshift);
-    cout << "Fixing fineFit shift parameters at " << pshift << ", " << nshift << endl;
+  if(!(pshift==0&&nshift==0)){
+    fit->FixParameter(2,pshift);
+    fit->FixParameter(3,nshift);
   }
 
   histogram->Fit(fineFit, fitOptions.c_str());
@@ -1059,4 +1077,84 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
   delete fit; // Delete fit to avoid carry-over
   delete fineFit; // Clean up
   return parametersAndErrors;
+}
+
+
+// add _bc to get best cluster branches from parse file
+std::string addbc(std::string input) {
+  const std::string suffix = "_bc";
+  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
+
+  for (const auto& target : targets) {
+    std::string::size_type pos = 0;
+    std::string token = target + suffix;  // Create the new token with the suffix
+
+    // Continue searching the string for the target and replacing it
+    while ((pos = input.find(target, pos)) != std::string::npos) {
+      // Ensure we match whole words by checking character before and after the match
+      bool match = true;
+      if (pos != 0 && isalnum(input[pos - 1])) {
+	match = false; // Check for character before
+      }
+      size_t endPos = pos + target.length();
+      if (endPos < input.length() && isalnum(input[endPos])) {
+	match = false; // Check for character after
+      }
+
+      if (match) {
+	input.replace(pos, target.length(), token);
+	pos += token.length(); // Move past the newly added part to avoid infinite loops
+      } else {
+	pos += target.length(); // Move past the current word if it's part of a larger word
+      }
+    }
+  }
+
+  return input;
+}
+
+// Function to split a string by a delimiter and return a vector of tokens
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+  while (std::getline(tokenStream, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+// Function to get the cell content based on kine, mag, target, and column name
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys) {
+  std::ifstream file(filePath);
+  std::string line;
+  std::map<std::string, std::string> rowContents;
+  std::vector<std::string> headers;
+  std::set<std::string> excludeSet(excludeKeys.begin(), excludeKeys.end());
+
+  // Read the header line
+  if (std::getline(file, line)) {
+    headers = split(line, ',');
+  }
+
+  // Read the rest of the lines
+  while (std::getline(file, line)) {
+    std::vector<std::string> values = split(line, ',');
+    if (values.size() < 3) {
+      continue;
+    }
+
+    // Check if the row matches the specified kine, mag, and target
+    if (std::stoi(values[0]) == kine && std::stoi(values[1]) == mag && values[2] == target) {
+      // Store all column values except the first three in a map
+      for (size_t i = 3; i < values.size(); ++i) {
+	if (i < headers.size() && excludeSet.find(headers[i]) == excludeSet.end()) {
+	  rowContents[headers[i]] = values[i];
+	}
+      }
+      break;
+    }
+  }
+
+  return rowContents;
 }

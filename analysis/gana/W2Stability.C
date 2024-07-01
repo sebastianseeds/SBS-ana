@@ -14,22 +14,9 @@
 #include "../../include/gmn.h"
 #include "../../src/jsonmgr.C"
 
-//fitranges
-//sbs9 70p: -1.8 to 0.7
-//sbs8 50p: -1.4 to 0.7
-//sbs8 70p: -1.8 to 0.7
-//sbs8 100p: -2.1 to 0.7
-//sbs4 30p: -1.6 to 0.8
-//sbs4 50p: -2.1 to 0.7
-//sbs7 85p: -1.4 to 0.5
-
 //Fit range override options
-double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
-double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
-
-//Plot range option shared by all fits
-double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
-double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
+double hcalfit_l; //lower fit/bin limit for hcal dx plots (m)
+double hcalfit_h; //upper fit/bin limit for hcal dx plots (m)
 
 double xrange_min_W2 = 0.0;
 double xrange_max_W2 = 3.0;
@@ -184,18 +171,21 @@ Double_t fitFullShift_nobg(double *x, double *par){
 void handleError(TFile *file1, TFile *file2, std::string marker);
 void handleError(TFile *file1, std::string marker);
 std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+std::string addbc(std::string input);
+std::vector<std::string> split(const std::string &s, char delimiter);
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
-void W2Stability(int kine=8, 
-		 int mag=100, 
+void W2Stability(int kine=9, 
+		 int mag=70, 
 		 int pass=2, 
 		 int N=12,
-		 double mean=0.94,
-		 double sigma=0.24,
-		 double start_sigma=0.5,
-		 double lhs_sig_fac=0.0,
+		 double mean=0.8,
+		 double sigma=0.12,
+		 double start_sigma=1.5,
+		 double lhs_sig_fac=1.0,
 		 double max_sigma=2.0,
-		 double llim_override = 0.22,
+		 double llim_override = 0.0,
 		 std::string BG="pol2",
 		 bool bestclus=true, 
 		 bool thin=true,
@@ -217,15 +207,48 @@ void W2Stability(int kine=8,
   //load json file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
-  //Get tight elastic cuts
-  std::string globalcuts;
+  // Get dx plot details
+  hcalfit_l = jmgr->GetValueFromSubKey<double>("hcalfit_l", Form("sbs%d_%d", kine, mag));
+  hcalfit_h = jmgr->GetValueFromSubKey<double>("hcalfit_h", Form("sbs%d_%d", kine, mag));
+  
+  //get new cuts from .csv
+  std::string cutsheet_path = "/w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv";
+  std::string target = "ld2";
+  std::vector<std::string> excludeKeys = {};
 
-  if(wide)
-    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
-  else
-    globalcuts = jmgr->GetValueFromSubKey_str( Form("post_tcuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  // Get the row contents
+  std::map<std::string, std::string> rowContents = getRowContents(cutsheet_path, kine, mag, target, excludeKeys);
+  // Print the row contents
+  cout << endl << "Loading NEW cuts..." << endl;
+  for (const auto &content : rowContents) {
+    std::cout << content.first << ": " << content.second << std::endl;
+  }
+  cout << endl;
 
-  cout << "Loaded cuts: " << globalcuts << endl;
+  std::string globalcuts_raw;
+  for (const auto &content : rowContents) {
+    if (!content.second.empty()) {
+      if (!globalcuts_raw.empty()) {
+	globalcuts_raw += "&&";
+      }
+      globalcuts_raw += content.second;
+    }
+  }
+
+  cout << endl <<"Concatenated globalcuts_raw: " << globalcuts_raw << endl << endl;
+
+  std::string globalcuts = addbc(globalcuts_raw);
+
+  cout << endl <<"Concatenated globalcuts: " << globalcuts << endl << endl;
+
+  // //Get tight elastic cuts
+  // std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+
+  // cout << "Loaded tight cuts: " << globalcuts << endl;
+  
+  // //Get tight elastic cuts
+  // std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  // cout << "Loaded cuts: " << globalcuts << endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
@@ -303,9 +326,11 @@ void W2Stability(int kine=8,
   //fix the interpolate functions
   hdx_p = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_p"));
   hdx_p->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-
+  TH1D *hdx_p_clone = (TH1D*)hdx_p->Clone("hdx_p_clone");
+  
   hdx_n = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_n"));
   hdx_n->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
+  TH1D *hdx_n_clone = (TH1D*)hdx_n->Clone("hdx_n_clone");
 
   TH2D *hdx_vs_W2_n = dynamic_cast<TH2D*>(inputFileMC->Get("hist_W2_n"));
   hdx_vs_W2_n->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
@@ -540,6 +565,7 @@ void W2Stability(int kine=8,
 
   TCanvas* c0 = new TCanvas("c0", "Slice Locations", 800,600);
   c0->cd();
+  clonedW2->SetTitle("W^{2} vs dx");
   clonedW2->Draw("colz");
 
   int numberOfLines = cutx_low_W2.size(); // Assuming cutx_low_W2 and cutx_high_W2 are same size
@@ -666,7 +692,7 @@ void W2Stability(int kine=8,
     double nev = (totalEvents_W2 - W2reports[i].nev)/totalEvents_W2*100;
 
     //fill vectors for later tgrapherrors
-    Rsf_vec_W2.push_back(ratio);
+    Rsf_vec_W2.push_back(ratio-0.012); //Offset to account for lack of dy cut on 2D hist
     Rsferr_vec_W2.push_back(error);
     xval_vec_W2.push_back(xval);
     sig_vec_W2.push_back(sig);
@@ -780,7 +806,7 @@ TGraphErrors* graphErrors_W2 = new TGraphErrors(numValidPoints_W2);
 
   //Create overlayed tgraph object
   gROOT->Reset();
-  TCanvas *c2 = new TCanvas("c2","",800,500);
+  TCanvas *c2 = new TCanvas("c2","",800,600);
   TPad *pad = new TPad("pad","",0,0,1,1);
   //pad->SetFillColor(42);
   pad->SetGrid();
@@ -791,7 +817,7 @@ TGraphErrors* graphErrors_W2 = new TGraphErrors(numValidPoints_W2);
 
   graphErrors_W2->GetYaxis()->SetLabelSize(0.04);
   graphErrors_W2->GetYaxis()->SetLabelFont(42);
-  graphErrors_W2->GetYaxis()->SetTitleOffset(1.0);
+  graphErrors_W2->GetYaxis()->SetTitleOffset(1.2);
   graphErrors_W2->GetYaxis()->SetTitleSize(0.04);
   graphErrors_W2->GetYaxis()->SetTitleFont(42); 
 
@@ -823,7 +849,7 @@ TGraphErrors* graphErrors_W2 = new TGraphErrors(numValidPoints_W2);
   TGaxis *axis = new TGaxis(xmax, ymin, xmax, ymax_nev, ymin, ymax_nev, 510,"+L");
   axis->SetTitle("ev cut (%)");
   axis->SetTitleColor(kGreen-5);  
-  axis->SetTitleOffset(1.0);  
+  axis->SetTitleOffset(0.8);  
   axis->SetLineColor(kGreen-5);
   axis->SetLabelColor(kGreen-5);
   axis->Draw();
@@ -936,21 +962,98 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
     fit->FixParameter(2,pshift);
     fit->FixParameter(3,nshift);
   }
-
+  
   histogram->Fit(fineFit, fitOptions.c_str());
-
-  cout << fineFit->GetParameter(6) << endl;
 
   // Update parameters and errors with fine fit results
   for (int i = 0; i < paramCount; ++i) {
     parametersAndErrors[i].first = fineFit->GetParameter(i); // Fine fit parameter value
     parametersAndErrors[i].second = fineFit->GetParError(i); // Fine fit parameter error
   }
-
+  
   fitqual.first = fineFit->GetChisquare();
   fitqual.second = fineFit->GetNDF();
 
   delete fit; // Delete fit to avoid carry-over
   delete fineFit; // Clean up
   return parametersAndErrors;
+}
+
+// add _bc to get best cluster branches from parse file
+std::string addbc(std::string input) {
+  const std::string suffix = "_bc";
+  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
+
+  for (const auto& target : targets) {
+    std::string::size_type pos = 0;
+    std::string token = target + suffix;  // Create the new token with the suffix
+
+    // Continue searching the string for the target and replacing it
+    while ((pos = input.find(target, pos)) != std::string::npos) {
+      // Ensure we match whole words by checking character before and after the match
+      bool match = true;
+      if (pos != 0 && isalnum(input[pos - 1])) {
+	match = false; // Check for character before
+      }
+      size_t endPos = pos + target.length();
+      if (endPos < input.length() && isalnum(input[endPos])) {
+	match = false; // Check for character after
+      }
+
+      if (match) {
+	input.replace(pos, target.length(), token);
+	pos += token.length(); // Move past the newly added part to avoid infinite loops
+      } else {
+	pos += target.length(); // Move past the current word if it's part of a larger word
+      }
+    }
+  }
+
+  return input;
+}
+
+// Function to split a string by a delimiter and return a vector of tokens
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+  while (std::getline(tokenStream, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+// Function to get the cell content based on kine, mag, target, and column name
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys) {
+  std::ifstream file(filePath);
+  std::string line;
+  std::map<std::string, std::string> rowContents;
+  std::vector<std::string> headers;
+  std::set<std::string> excludeSet(excludeKeys.begin(), excludeKeys.end());
+
+  // Read the header line
+  if (std::getline(file, line)) {
+    headers = split(line, ',');
+  }
+
+  // Read the rest of the lines
+  while (std::getline(file, line)) {
+    std::vector<std::string> values = split(line, ',');
+    if (values.size() < 3) {
+      continue;
+    }
+
+    // Check if the row matches the specified kine, mag, and target
+    if (std::stoi(values[0]) == kine && std::stoi(values[1]) == mag && values[2] == target) {
+      // Store all column values except the first three in a map
+      for (size_t i = 3; i < values.size(); ++i) {
+	if (i < headers.size() && excludeSet.find(headers[i]) == excludeSet.end()) {
+	  rowContents[headers[i]] = values[i];
+	}
+      }
+      break;
+    }
+  }
+
+  return rowContents;
 }

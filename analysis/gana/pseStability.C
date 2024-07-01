@@ -14,33 +14,15 @@
 #include "../../include/gmn.h"
 #include "../../src/jsonmgr.C"
 
-//fitranges
-//sbs9 70p: -1.8 to 0.7
-//sbs8 50p: -1.4 to 0.7
-//sbs8 70p: -1.8 to 0.7
-//sbs8 100p: -2.1 to 0.7
-//sbs4 30p: -1.7 to 0.7, shiftX=0.0, neutronshift=-0.05
-//sbs4 50p: -2.1 to 0.7, shiftX=0.05, neutronshift=0.0
-//sbs7 85p: -1.4 to 0.5
-
 //Fit range override options
-double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
-double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
-
-//Plot range option shared by all fits
-double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
-double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
+double hcalfit_l; //lower fit/bin limit for hcal dx plots (m) sbs4, 50p
+double hcalfit_h; //upper fit/bin limit for hcal dx plots (m) sbs4, 50p
 
 double xrange_min_bb_ps_e = 0.;
 double xrange_max_bb_ps_e = 10;
 
 //Fit options
 std::string fitopt = "RMQ0";
-//std::string fitopt = "RBMQ0"; //R:setrange,B:predefinedTF1,M:improvefit,Q:quiet,0:nofitline
-//std::string fitopt = "RLQ0"; //L:loglikelihood for counts
-//std::string fitopt = "RLEMQ0"; //E:bettererrorest
-//std::string fitopt = "RWLEMQ0"; //WL:weightedloglikelihood for weighted counts (N/A here)
-//std::string fitopt = "RPEMQ0"; //P:pearsonloglikelihood for expected error (N/A here)
 
 //fit min entries
 int minEvents = 500;
@@ -48,57 +30,6 @@ int minEvents = 500;
 //Total fits using Interpolate with elastic signal histo and 4th order poly fit to bg
 TH1D *hdx_p;
 TH1D *hdx_n;
-TH1D *hdx_inel;
-TH1D *hdx_dyanti;
-TH1D *hdx_coinanti;
-
-Double_t fitFull(double *x, double *par){
-  double dx = x[0];
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
-  return proton + neutron + fits::g_p4fit(x,&par[2]);
-}
-
-Double_t fitFullInel(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double bg_scale = par[2];
-
-  // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0]);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0]);
-  double bg = bg_scale * hdx_inel->Interpolate(x[0]);
-  
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + bg;
-}
-
-Double_t fitFull_nobg(double *x, double *par){
-  double dx = x[0];
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double proton = proton_scale * hdx_p->Interpolate(dx);
-  double neutron = neutron_scale * hdx_n->Interpolate(dx);
-  return proton + neutron;
-}
-
-Double_t fitFullShift(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double dx_shift_p = par[2]; // Shift for proton histogram
-  double dx_shift_n = par[3]; // Shift for neutron histogram  
-
-  // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + fits::g_p4fit(x, &par[4]);
-}
 
 Double_t fitFullShift_p2(double *x, double *par){
   // MC float params
@@ -115,83 +46,22 @@ Double_t fitFullShift_p2(double *x, double *par){
   return proton + neutron + fits::g_p2fit_cd(x, &par[4]);
 }
 
-Double_t fitFullShiftInel(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double dx_shift_p = par[2]; // Shift for proton histogram
-  double dx_shift_n = par[3]; // Shift for neutron histogram  
-  double bg_scale = par[4];
-
-  // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  double bg = bg_scale * hdx_inel->Interpolate(x[0] - dx_shift_n);
-  
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + bg;
-}
-
-Double_t fitFullShiftDyAnti(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double dx_shift_p = par[2]; // Shift for proton histogram
-  double dx_shift_n = par[3]; // Shift for neutron histogram  
-  double bg_scale = par[4];
-
-  // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  double bg = bg_scale * hdx_dyanti->Interpolate(x[0]); //no shift for data BG
-  
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + bg;
-}
-
-Double_t fitFullShiftCoinAnti(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double dx_shift_p = par[2]; // Shift for proton histogram
-  double dx_shift_n = par[3]; // Shift for neutron histogram  
-  double bg_scale = par[4];
-
-  // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  double bg = bg_scale * hdx_coinanti->Interpolate(x[0]); //no shift for data BG
-  
-  // Use the remaining parameters for fits::g_p4fit, starting from par[4]
-  return proton + neutron + bg;
-}
-
-Double_t fitFullShift_nobg(double *x, double *par){
-  // MC float params
-  double proton_scale = par[0];
-  double neutron_scale = par[1];
-  double dx_shift_p = par[2]; // Shift for proton histogram
-  double dx_shift_n = par[3]; // Shift for neutron histogram  
-
-  // Apply shifts before interpolation
-  double proton = proton_scale * hdx_p->Interpolate(x[0] - dx_shift_p);
-  double neutron = neutron_scale * hdx_n->Interpolate(x[0] - dx_shift_n);
-  
-  return proton + neutron;
-}
 
 // Forward declarations
 void handleError(TFile *file1, TFile *file2, std::string marker);
 void handleError(TFile *file1, std::string marker);
 std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+std::string addbc(std::string input);
+std::vector<std::string> split(const std::string &s, char delimiter);
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
-void pseStability(int kine=8, 
-		  int mag=100, 
+void pseStability(int kine=9, 
+		  int mag=70, 
 		  int pass=2, 
-		  int N=12,
-		  double sliceCutMin=0.15,
-		  double sliceCutMax=0.35,
+		  int N=9,
+		  double sliceCutMin=0.20,
+		  double sliceCutMax=0.34,
 		  std::string BG="pol2",
 		  bool backwards=false,
 		  bool bestclus=true, 
@@ -200,7 +70,7 @@ void pseStability(int kine=8,
 		  bool effz=true,
 		  bool alt = true) {
   //set draw params
-  gStyle->SetPalette(55);
+  gStyle->SetPalette(kViridis);
   gStyle->SetCanvasPreferGL(kTRUE);
   gStyle->SetOptFit(0);
   gStyle->SetOptStat(0);
@@ -209,10 +79,44 @@ void pseStability(int kine=8,
   //load json file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
-  //Get tight elastic cuts
-  std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  // Get dx plot details
+  hcalfit_l = jmgr->GetValueFromSubKey<double>("hcalfit_l", Form("sbs%d_%d", kine, mag));
+  hcalfit_h = jmgr->GetValueFromSubKey<double>("hcalfit_h", Form("sbs%d_%d", kine, mag));
+  
+  //get new cuts from .csv
+  std::string cutsheet_path = "/w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv";
+  std::string target = "ld2";
+  std::vector<std::string> excludeKeys = {};
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
+  // Get the row contents
+  std::map<std::string, std::string> rowContents = getRowContents(cutsheet_path, kine, mag, target, excludeKeys);
+  // Print the row contents
+  cout << endl << "Loading NEW cuts..." << endl;
+  for (const auto &content : rowContents) {
+    std::cout << content.first << ": " << content.second << std::endl;
+  }
+  cout << endl;
+
+  std::string globalcuts_raw;
+  for (const auto &content : rowContents) {
+    if (!content.second.empty()) {
+      if (!globalcuts_raw.empty()) {
+	globalcuts_raw += "&&";
+      }
+      globalcuts_raw += content.second;
+    }
+  }
+
+  cout << endl <<"Concatenated globalcuts_raw: " << globalcuts_raw << endl << endl;
+
+  std::string globalcuts = addbc(globalcuts_raw);
+
+  cout << endl <<"Concatenated globalcuts: " << globalcuts << endl << endl;
+
+  // //Get tight elastic cuts
+  // std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+
+  // cout << "Loaded tight cuts: " << globalcuts << endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
@@ -274,13 +178,7 @@ void pseStability(int kine=8,
   std::string bb_ps_eCuts = hdx_vs_bb_ps_e_data->GetTitle();
   cout << endl << "Opened dx vs hcal E with cuts: " << bb_ps_eCuts << endl << endl;
 
-  hdx_dyanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_dyanti"));
-  hdx_dyanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-
-  hdx_coinanti = dynamic_cast<TH1D*>(inputFile->Get("hdx_coinanti"));
-  hdx_coinanti->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-
-  if (!hdx_data || !hdx_dyanti || !hdx_coinanti) 
+  if (!hdx_data) 
     handleError(inputFile,"hdx_data");
 
   TFile* inputFileMC = new TFile(fmcinPath.c_str(), "READ");
@@ -302,17 +200,13 @@ void pseStability(int kine=8,
   hdx_vs_bb_ps_e_p->GetYaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
   int hdx_vs_bb_ps_e_p_N = hdx_vs_bb_ps_e_p->GetEntries();
 
-  hdx_inel = dynamic_cast<TH1D*>(inputFileMC->Get("hdx_inel"));
-  hdx_inel->GetXaxis()->SetRangeUser(hcalfit_l,hcalfit_h);
-
-  hdx_inel->Scale(10e33); //account for lack of overall normalization from g4sbs generator
-  if (!hdx_p || !hdx_n || !hdx_inel) 
+  if (!hdx_p || !hdx_n) 
     handleError(inputFile,inputFileMC,"hdx");
 
   TFile* outputFile = new TFile(foutPath.c_str(), "RECREATE");
 
   TCanvas *canvas = new TCanvas("canvas", "Data and MC Histograms", 1800, 1200);
-  canvas->Divide(3, 3);  // Adjust the grid size according to the number of histograms
+  canvas->Divide(3, 2);  // Adjust the grid size according to the number of histograms
 
   // Pad 1: hdx_data
   canvas->cd(1);
@@ -322,37 +216,25 @@ void pseStability(int kine=8,
   canvas->cd(2);
   hdx_vs_bb_ps_e_data->Draw("COLZ");
 
-  // Pad 4: hdx_dyanti
-  canvas->cd(3);
-  hdx_dyanti->Draw();
-
-  // Pad 5: hdx_coinanti
-  canvas->cd(4);
-  hdx_coinanti->Draw();
-
   // Pad 6: hdx_p
-  canvas->cd(5);
+  canvas->cd(3);
   hdx_p->Draw();
 
   // Pad 7: hdx_n
-  canvas->cd(6);
+  canvas->cd(4);
   hdx_n->Draw();
 
   // Pad 8: hdx_vs_bb_ps_e_n
-  canvas->cd(7);
+  canvas->cd(5);
   hdx_vs_bb_ps_e_n->Draw("COLZ");
 
   // Pad 10: hdx_vs_bb_ps_e_p
-  canvas->cd(8);
+  canvas->cd(6);
   hdx_vs_bb_ps_e_p->Draw("COLZ");
-
-  // Pad 12: hdx_inel
-  canvas->cd(9);
-  hdx_inel->Draw();
 
   // Update the canvas to reflect the drawings
   canvas->Update();
-
+  
   // Setup report struct
   struct ReportData {
     TH1D* sliceHistogram = nullptr;
@@ -381,9 +263,15 @@ void pseStability(int kine=8,
     }
   };
 
+  /////////////////
+  /////////////////
+  /////////////////
+  //dependent ranges
+  /////////////////
+  /////////////////
+
   std::vector<ReportData> bb_ps_ereports;
   bb_ps_ereports.resize(N);
-
 
   // Loop over dx vs fiducial x
   hdx_vs_bb_ps_e_data->GetXaxis()->SetRangeUser(xrange_min_bb_ps_e, xrange_max_bb_ps_e);
@@ -398,8 +286,6 @@ void pseStability(int kine=8,
   if(sliceCutMax==0.)
     xbinCutMax_bb_ps_e = xbinHigh_bb_ps_e;
   int xbinBegin;
-
-  //cout << sliceCutMax << " " << xbinCutMax_bb_ps_e << " " << xrange_max_bb_ps_e << " " << xbinHigh_bb_ps_e << endl;
 
   // Bins per range
   int xbinRanges_bb_ps_e;
@@ -445,11 +331,11 @@ void pseStability(int kine=8,
   double fixed_pshift = widep2par_vector[2].first;
   double fixed_nshift = widep2par_vector[3].first;
 
-  cout << "Fit over full range of hcal E yield shifts p:n -> " << fixed_pshift << ":" << fixed_nshift << endl;
+  cout << "Fit over full range of PS E yield shifts p:n -> " << fixed_pshift << ":" << fixed_nshift << endl;
 
   vector<double> cutx_bb_ps_e;
 
-  cout << "Looping over hcal E slices.." << endl;
+  cout << "Looping over PS E slices, full range.." << endl;
   for (int i = 0; i < N; ++i) {
 
     int binStart;
@@ -535,6 +421,7 @@ void pseStability(int kine=8,
 
   TCanvas* c0 = new TCanvas("c0", "Slice Locations", 800,600);
   c0->cd();
+  clonedbb_ps_e->SetTitle("BBCal Preshower Energy vs dx");
   clonedbb_ps_e->Draw("colz");
 
   for (auto& cut : cutx_bb_ps_e){
@@ -695,29 +582,9 @@ void pseStability(int kine=8,
   graph_nev->SetLineColor(kGreen-5);
   graph_nev->SetTitle("Nev Left in Wide Cut vs. PS E_{cut}; GeV; Nev");
 
-  // // Create a canvas and divide it into 2 sub-pads
-  // TCanvas* c1 = new TCanvas("c1", "Stacked Graphs", 800, 600);
-  // c1->Divide(1, 2); // Divide canvas into 1 column and 2 rows
-
-  // // Draw the first graph in the first pad
-  // c1->cd(1);
-  // graphErrors_bb_ps_e->Draw("AP");
-
-  // // Draw the second graph in the second pad
-  // c1->cd(2);
-  // graph_nev->Draw("AP");
-
-  // // Set the Y-axis of the second graph to start at zero
-  // Double_t ymax = 1.1 * *std::max_element(nev_vec_bb_ps_e.begin(), nev_vec_bb_ps_e.end());
-  // graph_nev->GetHistogram()->SetMinimum(0); // Set the minimum y-value to zero
-  // graph_nev->GetHistogram()->SetMaximum(ymax); // Adjust the maximum y-value
-
-  // // Update the canvas
-  // c1->Update();
-
   //Create overlayed tgraph object
   gROOT->Reset();
-  TCanvas *c2 = new TCanvas("c2","",800,500);
+  TCanvas *c2 = new TCanvas("c2","",800,600);
   TPad *pad = new TPad("pad","",0,0,1,1);
   //pad->SetFillColor(42);
   pad->SetGrid();
@@ -728,7 +595,7 @@ void pseStability(int kine=8,
 
   graphErrors_bb_ps_e->GetYaxis()->SetLabelSize(0.04);
   graphErrors_bb_ps_e->GetYaxis()->SetLabelFont(42);
-  graphErrors_bb_ps_e->GetYaxis()->SetTitleOffset(1.0);
+  graphErrors_bb_ps_e->GetYaxis()->SetTitleOffset(1.2);
   graphErrors_bb_ps_e->GetYaxis()->SetTitleSize(0.04);
   graphErrors_bb_ps_e->GetYaxis()->SetTitleFont(42); 
 
@@ -760,7 +627,7 @@ void pseStability(int kine=8,
   TGaxis *axis = new TGaxis(xmax, ymin, xmax, ymax_nev, ymin, ymax_nev, 510,"+L");
   axis->SetTitle("ev cut (%)");
   axis->SetTitleColor(kGreen-5);  
-  axis->SetTitleOffset(1.3);  
+  axis->SetTitleOffset(0.8);  
   axis->SetLineColor(kGreen-5);
   axis->SetLabelColor(kGreen-5);
   axis->Draw();
@@ -815,6 +682,9 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
     fit->FixParameter(3,nshift);
   }
 
+  //fix bad peak fit for sbs4-50p with tight cuts. Informed from loose cut scales.
+  //fit->SetParLimits(0,0.048,1.0);
+  
   histogram->Fit(fit, fitOptions.c_str());
 
   std::vector<std::pair<double, double>> parametersAndErrors(paramCount);
@@ -840,6 +710,9 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
     cout << "Fixing fineFit shift parameters at " << pshift << ", " << nshift << endl;
   }
 
+  //fix bad peak fit for sbs4-50p with tight cuts. Informed from loose cut scales.
+  //fineFit->SetParLimits(0,0.048,1.0);
+  
   histogram->Fit(fineFit, fitOptions.c_str());
 
   // Update parameters and errors with fine fit results
@@ -848,10 +721,91 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
     parametersAndErrors[i].second = fineFit->GetParError(i); // Fine fit parameter error
   }
 
+  cout << endl << "P0: " << fineFit->GetParameter(0) << endl << endl;
+  
   fitqual.first = fineFit->GetChisquare();
   fitqual.second = fineFit->GetNDF();
 
   delete fit; // Delete fit to avoid carry-over
   delete fineFit; // Clean up
   return parametersAndErrors;
+}
+
+// add _bc to get best cluster branches from parse file
+std::string addbc(std::string input) {
+  const std::string suffix = "_bc";
+  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
+
+  for (const auto& target : targets) {
+    std::string::size_type pos = 0;
+    std::string token = target + suffix;  // Create the new token with the suffix
+
+    // Continue searching the string for the target and replacing it
+    while ((pos = input.find(target, pos)) != std::string::npos) {
+      // Ensure we match whole words by checking character before and after the match
+      bool match = true;
+      if (pos != 0 && isalnum(input[pos - 1])) {
+	match = false; // Check for character before
+      }
+      size_t endPos = pos + target.length();
+      if (endPos < input.length() && isalnum(input[endPos])) {
+	match = false; // Check for character after
+      }
+
+      if (match) {
+	input.replace(pos, target.length(), token);
+	pos += token.length(); // Move past the newly added part to avoid infinite loops
+      } else {
+	pos += target.length(); // Move past the current word if it's part of a larger word
+      }
+    }
+  }
+
+  return input;
+}
+
+// Function to split a string by a delimiter and return a vector of tokens
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+  while (std::getline(tokenStream, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+// Function to get the cell content based on kine, mag, target, and column name
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys) {
+  std::ifstream file(filePath);
+  std::string line;
+  std::map<std::string, std::string> rowContents;
+  std::vector<std::string> headers;
+  std::set<std::string> excludeSet(excludeKeys.begin(), excludeKeys.end());
+
+  // Read the header line
+  if (std::getline(file, line)) {
+    headers = split(line, ',');
+  }
+
+  // Read the rest of the lines
+  while (std::getline(file, line)) {
+    std::vector<std::string> values = split(line, ',');
+    if (values.size() < 3) {
+      continue;
+    }
+
+    // Check if the row matches the specified kine, mag, and target
+    if (std::stoi(values[0]) == kine && std::stoi(values[1]) == mag && values[2] == target) {
+      // Store all column values except the first three in a map
+      for (size_t i = 3; i < values.size(); ++i) {
+	if (i < headers.size() && excludeSet.find(headers[i]) == excludeSet.end()) {
+	  rowContents[headers[i]] = values[i];
+	}
+      }
+      break;
+    }
+  }
+
+  return rowContents;
 }

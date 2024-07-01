@@ -17,11 +17,11 @@
 
 //fit params
 double xrange_l = -3.0;
-double xrange_h = 3.0;
+double xrange_h = 4.0;
 int xbins = 600;
 
-double yrange_l = -2;
-double yrange_h = 2;
+double yrange_l = -2.0;
+double yrange_h = 2.0;
 int ybins = 400;
 
 //dxdy fit params
@@ -38,6 +38,25 @@ double ymin = econst::hcalposXi_mc;
 double ymax = econst::hcalposXf_mc;
 double xmin = econst::hcalposYi_mc;
 double xmax = econst::hcalposYf_mc;
+
+// Utility function to extract boundary values from cut strings using regular expressions
+std::vector<double> extractBoundaries(const std::string& cut) {
+    std::vector<double> boundaries;
+    std::regex re("[-+]?[0-9]*\\.?[0-9]+");
+    std::sregex_iterator next(cut.begin(), cut.end(), re);
+    std::sregex_iterator end;
+    while (next != end) {
+        std::smatch match = *next;
+        try {
+            boundaries.push_back(std::stod(match.str()));
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Error: Unable to convert boundary value from string: " << match.str() << std::endl;
+        }
+        next++;
+    }
+    return boundaries;
+}
+
 
 // Utility function to extract parameters from the spot cut string
 void extractEllipseParams(const std::string& cut, double& dx_center, double& dy_center, double& dx_sigma, double& dy_sigma) {
@@ -63,8 +82,8 @@ void extractEllipseParams(const std::string& cut, double& dx_center, double& dy_
 }
 
 //main
-void fidnew(int kine=4, 
-	    int mag=50, 
+void fidnew(int kine=8, 
+	    int mag=100, 
 	    int pass=2, 
 	    bool effz=true,
 	    bool alt = true) {
@@ -79,7 +98,6 @@ void fidnew(int kine=4,
   gStyle->SetStatH(0.08);
   gStyle->SetStatX(0.35);
   gStyle->SetStatY(0.9);
-
 
   //get globalcut. Select magnetic field setting and wide elastics
   std::string gcut = Form("W2<1.2&&abs(coin)<6&&mag==%d",mag);
@@ -98,15 +116,36 @@ void fidnew(int kine=4,
   cout << "Setting up output path: " << fout_path << endl;
 
   // reading json configuration file
-  JSONManager *jmgr = new JSONManager("../../config/hdemap.json");
+  //JSONManager *jmgr = new JSONManager("../../config/hdemap.json");
+  JSONManager *jmgr = new JSONManager("../../config/nphde.json");
 
   //proton spotcut
-  std::string p_spotcut = jmgr->GetValueFromSubKey_str( "h_dp_spot_cuts_tight", Form("sbs%d_%d",kine,mag) );
+  std::string p_spotcut = jmgr->GetValueFromSubKey_str( "h_dp_spot_cuts", Form("sbs%d_%d",kine,mag) );
   cout << "Loaded ellipse proton delta cuts: " << p_spotcut << endl;
 
   //neutron spotcut
-  std::string n_spotcut = jmgr->GetValueFromSubKey_str( "h_dn_spot_cuts_tight", Form("sbs%d_%d",kine,mag) );
+  std::string n_spotcut = jmgr->GetValueFromSubKey_str( "h_dn_spot_cuts", Form("sbs%d_%d",kine,mag) );
   cout << "Loaded ellipse neutron delta cuts: " << n_spotcut << endl;
+
+  //fiducial cut xexp
+  std::string fidcut_x = jmgr->GetValueFromSubKey_str( "fidx_cut", Form("sbs%d_%d",kine,mag) );
+  cout << "Loaded fiducial xexp cut: " << fidcut_x << endl;
+
+  //fiducial cut yexp
+  std::string fidcut_y = jmgr->GetValueFromSubKey_str( "fidy_cut", Form("sbs%d_%d",kine,mag) );
+  cout << "Loaded fiducial yexp cut: " << fidcut_y << endl;
+
+  //get fiducial boundaries
+  std::vector<double> yBoundaries = extractBoundaries(fidcut_x);
+  std::vector<double> xBoundaries = extractBoundaries(fidcut_y);
+
+  cout << xBoundaries[0] << " " << xBoundaries[1] << endl;
+  
+  // Ensure that there are exactly two boundaries for each cut
+  if (xBoundaries.size() != 2 || yBoundaries.size() != 2) {
+    std::cerr << "Error: Invalid fiducial cut boundaries." << std::endl;
+    return;
+  }
 
   //both spotcut
   std::string N_spotcut = "((" + n_spotcut + ")||(" + p_spotcut + "))";
@@ -149,6 +188,25 @@ void fidnew(int kine=4,
   line6->SetLineStyle(2);
   line7->SetLineStyle(2);
   line8->SetLineStyle(2);
+
+  // More Tlines for the fiducial cuts
+  TLine* line10 = new TLine(xBoundaries[0], yBoundaries[0], xBoundaries[1], yBoundaries[0]);
+  TLine* line20 = new TLine(xBoundaries[1], yBoundaries[0], xBoundaries[1], yBoundaries[1]);
+  TLine* line30 = new TLine(xBoundaries[1], yBoundaries[1], xBoundaries[0], yBoundaries[1]);
+  TLine* line40 = new TLine(xBoundaries[0], yBoundaries[1], xBoundaries[0], yBoundaries[0]);
+
+  line10->SetLineColor(kBlue);
+  line20->SetLineColor(kBlue);
+  line30->SetLineColor(kBlue);
+  line40->SetLineColor(kBlue);
+  line10->SetLineWidth(2);
+  line20->SetLineWidth(2);
+  line30->SetLineWidth(2);
+  line40->SetLineWidth(2);
+  line10->SetLineStyle(2);
+  line20->SetLineStyle(2);
+  line30->SetLineStyle(2);
+  line40->SetLineStyle(2);
 
   // Open the ROOT file
   TFile* inputFile = new TFile(fin_path.c_str());
@@ -209,7 +267,7 @@ void fidnew(int kine=4,
   // Draw expected x vs expected y (from qvector) with both spot cuts
   std::string controlexpName = "control_exp";
   std::string controlexpCut = gcut + "&&" + N_spotcut;
-  std::string controlexpTitle = "dx vs dy; dy (m); dx (m)";
+  std::string controlexpTitle = "x_{exp} vs y_{exp}; y_{exp} (m); x_{exp} (m)";
   TH2D* controlexp = new TH2D( controlexpName.c_str(), 
 			   controlexpTitle.c_str(), 
 			   ybins, 
@@ -240,7 +298,7 @@ void fidnew(int kine=4,
   // Draw expected x with both spot cuts
   std::string controlxexpName = "control_xexp";
   std::string controlxexpCut = gcut + "&&" + N_spotcut;
-  std::string controlxexpTitle = "xexp; xexp (m)";
+  std::string controlxexpTitle = "x_{exp}; x_{exp} (m)";
   TH1D* controlxexp = new TH1D( controlxexpName.c_str(), 
 			       controlxexpTitle.c_str(), 
 			       xbins, 
@@ -263,6 +321,16 @@ void fidnew(int kine=4,
   vline6->SetLineColor(kRed);
   vline6->SetLineWidth(2);
   vline6->SetLineStyle(2);
+
+  TLine *vline50 = new TLine(yBoundaries[0],0,yBoundaries[0],controlxexp_max);
+  vline50->SetLineColor(kBlue);
+  vline50->SetLineWidth(2);
+  vline50->SetLineStyle(2);
+  
+  TLine *vline60 = new TLine(yBoundaries[1],0,yBoundaries[1],controlxexp_max);
+  vline60->SetLineColor(kBlue);
+  vline60->SetLineWidth(2);
+  vline60->SetLineStyle(2);
 
   vline5->Draw("same");
   vline6->Draw("same");
@@ -308,7 +376,7 @@ void fidnew(int kine=4,
   // Draw expected x vs expected y (from qvector) with no cuts
   std::string protonexpName = "proton_exp";
   std::string protonexpCut = gcut + "&&" + p_spotcut;
-  std::string protonexpTitle = "dx vs dy; dy (m); dx (m)";
+  std::string protonexpTitle = "x_{exp} vs y_{exp}; y_{exp} (m); x_{exp} (m)";
   TH2D* protonexp = new TH2D( protonexpName.c_str(), 
 			   protonexpTitle.c_str(), 
 			   ybins, 
@@ -329,6 +397,10 @@ void fidnew(int kine=4,
   line6->Draw("same");
   line7->Draw("same");
   line8->Draw("same");
+  line10->Draw("same");
+  line20->Draw("same");
+  line30->Draw("same");
+  line40->Draw("same");
 
   cProton->Update();
 
@@ -340,7 +412,7 @@ void fidnew(int kine=4,
   // Draw expected x with both spot cuts
   std::string protonxexpName = "proton_xexp";
   std::string protonxexpCut = gcut + "&&" + p_spotcut;
-  std::string protonxexpTitle = "xexp; xexp (m)";
+  std::string protonxexpTitle = "x_{exp}; x_{exp} (m)";
   TH1D* protonxexp = new TH1D( protonxexpName.c_str(), 
 			       protonxexpTitle.c_str(), 
 			       xbins, 
@@ -363,6 +435,16 @@ void fidnew(int kine=4,
   vline2->SetLineColor(kRed);
   vline2->SetLineWidth(2);
   vline2->SetLineStyle(2);
+
+  TLine *vline10 = new TLine(yBoundaries[0],0,yBoundaries[0],protonxexp_max);
+  vline10->SetLineColor(kBlue);
+  vline10->SetLineWidth(2);
+  vline10->SetLineStyle(2);
+  
+  TLine *vline20 = new TLine(yBoundaries[1],0,yBoundaries[1],protonxexp_max);
+  vline20->SetLineColor(kBlue);
+  vline20->SetLineWidth(2);
+  vline20->SetLineStyle(2);
 
   vline1->Draw("same");
   vline2->Draw("same");
@@ -408,7 +490,7 @@ void fidnew(int kine=4,
   // Draw expected x vs expected y (from qvector) with no cuts
   std::string neutronexpName = "neutron_exp";
   std::string neutronexpCut = gcut + "&&" + n_spotcut;
-  std::string neutronexpTitle = "dx vs dy; dy (m); dx (m)";
+  std::string neutronexpTitle = "x_{exp} vs y_{exp}; y_{exp} (m); x_{exp} (m)";
   TH2D* neutronexp = new TH2D( neutronexpName.c_str(), 
 			   neutronexpTitle.c_str(), 
 			   ybins, 
@@ -429,6 +511,10 @@ void fidnew(int kine=4,
   line6->Draw("same");
   line7->Draw("same");
   line8->Draw("same");
+  line10->Draw("same");
+  line20->Draw("same");
+  line30->Draw("same");
+  line40->Draw("same");
 
   cNeutron->Update();
 
@@ -440,7 +526,7 @@ void fidnew(int kine=4,
   // Draw expected x with both spot cuts
   std::string neutronxexpName = "neutron_xexp";
   std::string neutronxexpCut = gcut + "&&" + n_spotcut;
-  std::string neutronxexpTitle = "xexp; xexp (m)";
+  std::string neutronxexpTitle = "x_{exp}; x_{exp} (m)";
   TH1D* neutronxexp = new TH1D( neutronxexpName.c_str(), 
 			       neutronxexpTitle.c_str(), 
 			       xbins, 
@@ -463,6 +549,16 @@ void fidnew(int kine=4,
   vline4->SetLineColor(kRed);
   vline4->SetLineWidth(2);
   vline4->SetLineStyle(2);
+
+  TLine *vline30 = new TLine(yBoundaries[0],0,yBoundaries[0],neutronxexp_max);
+  vline30->SetLineColor(kBlue);
+  vline30->SetLineWidth(2);
+  vline30->SetLineStyle(2);
+  
+  TLine *vline40 = new TLine(yBoundaries[1],0,yBoundaries[1],neutronxexp_max);
+  vline40->SetLineColor(kBlue);
+  vline40->SetLineWidth(2);
+  vline40->SetLineStyle(2);
 
   vline3->Draw("same");
   vline4->Draw("same");
@@ -497,7 +593,7 @@ void fidnew(int kine=4,
   line8->Draw("same");
 
   // Create and draw the legend
-  TLegend *l1 = new TLegend(0.5, 0.75, 0.9, 0.9); // Adjust the position as needed
+  TLegend *l1 = new TLegend(0.5, 0.7, 0.9, 0.8); // Adjust the position as needed
   l1->SetBorderSize(0);
   l1->SetFillStyle(0);
   l1->AddEntry(line5, "HCal Full Acceptance", "l");
@@ -540,8 +636,18 @@ void fidnew(int kine=4,
   line6->Draw("same");
   line7->Draw("same");
   line8->Draw("same");
+  line10->Draw("same");
+  line20->Draw("same");
+  line30->Draw("same");
+  line40->Draw("same");
 
-  l1->Draw("same");
+  // Create and draw the legend
+  TLegend *l2 = new TLegend(0.5, 0.8, 0.9, 0.9); // Adjust the position as needed
+  l2->SetBorderSize(0);
+  l2->SetFillStyle(0);
+  l2->AddEntry(line5, "HCal Full Acceptance", "l");
+  l2->AddEntry(line10, "Fiducial Cuts", "l");
+  l2->Draw("same");
 
   cTotal->Update();
 
@@ -560,8 +666,10 @@ void fidnew(int kine=4,
 
   vline1->Draw("same");
   vline2->Draw("same");
+  vline10->Draw("same");
+  vline20->Draw("same");
 
-  l1->Draw("same");
+  l2->Draw("same");
 
   cTotal->Update();
   cTotal->cd(7);
@@ -580,8 +688,12 @@ void fidnew(int kine=4,
   line6->Draw("same");
   line7->Draw("same");
   line8->Draw("same");
+  line10->Draw("same");
+  line20->Draw("same");
+  line30->Draw("same");
+  line40->Draw("same");
 
-  l1->Draw("same");
+  l2->Draw("same");
 
   cTotal->Update();
 
@@ -600,8 +712,10 @@ void fidnew(int kine=4,
 
   vline3->Draw("same");
   vline4->Draw("same");
+  vline30->Draw("same");
+  vline40->Draw("same");
 
-  l1->Draw("same");
+  l2->Draw("same");
 
   cTotal->Update();
 

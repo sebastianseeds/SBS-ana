@@ -23,6 +23,10 @@ std::map<std::string, std::string> correlatedCuts = {
   {"W2", "W2&&dy"}
 };
 
+std::string wide_globalcut = "hcale>0.015&&abs(bb_tr_vz)<0.08&&abs(dy)<0.60&&bb_ps_e>0.10&&abs(W2-0.8)<0.8&&bb_gem_track_nhits>2&&abs(bb_etot_over_p-1.0)<0.4&&abs(coin)<17.0&&hcalon==1&&tar==1&&fiducial_sig_x>1&&fiducial_sig_y>1";
+
+std::vector<std::string> excludeCuts = {"mag","tar","coin","bb_grinch_tdc_clus_size","bb_grinch_tdc_clus_trackindex","pspot","nspot"};
+
 // trim function for accurate parsing
 std::string trim(const std::string& str) {
   size_t first = str.find_first_not_of(" \t\n\r\f\v");
@@ -67,10 +71,13 @@ std::string addbc(std::string input) {
   return input;
 }
 
+//forward declarations
+std::vector<std::string> split(const std::string &s, char delimiter);
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //plot with cuts script, first step on systematics analysis. Configured for pass 2.
-void plotWithCuts_mc(int kine=9, 
-		     int mag=70, 
+void plotWithCuts_mc(int kine=4, 
+		     int mag=30, 
 		     int pass=2, 
 		     bool skipcorrelations=true,
 		     bool addresscorr=false,
@@ -136,11 +143,42 @@ void plotWithCuts_mc(int kine=9,
     cout << "Loaded tight cuts: " << globalcuts_raw << endl;
   }
 
+  // std::string globalcuts;
+  // if(bestcluster)
+  //   globalcuts = globalcuts_raw;
+  // else
+  //   globalcuts = addbc(globalcuts_raw);
+
+
+  //get new cuts from .csv
+  std::string cutsheet_path = "/w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv";
+  std::string target = "ld2";
+
+  // Get the row contents
+  std::map<std::string, std::string> rowContents = getRowContents(cutsheet_path, kine, mag, target, excludeCuts);
+  // Print the row contents
+  cout << endl << "Loading NEW cuts..." << endl;
+  for (const auto &content : rowContents) {
+    std::cout << content.first << ": " << content.second << std::endl;
+  }
+  cout << endl;
+
   std::string globalcuts;
-  if(bestcluster)
-    globalcuts = globalcuts_raw;
-  else
-    globalcuts = addbc(globalcuts_raw);
+  for (const auto &content : rowContents) {
+    if (!content.second.empty()) {
+      if (!globalcuts.empty()) {
+	globalcuts += "&&";
+      }
+      globalcuts += content.second;
+    }
+  }
+
+  cout << endl <<"Concatenated globalcuts: " << globalcuts << endl << endl;
+
+  if(wide){
+    globalcuts = wide_globalcut;
+    cout << endl << "WARNING: Wide cut override. New cut string: " << wide_globalcut << endl << endl;
+  }
 
   //Get nucleon spot cuts for W2 histograms
   std::string spotcut_n = jmgr->GetValueFromSubKey_str( "h_dn_spot_cuts_tight", Form("sbs%d_%d",kine,mag) );
@@ -245,7 +283,7 @@ void plotWithCuts_mc(int kine=9,
     skipcorrelations_word = "_thin";
 
   std::string wide_word = "";
-  if(wide)
+  //if(wide)
     wide_word = "_widecut";
 
   std::string fout_path = outdir_path + Form("/gmn_analysis/dx_mc_sbs%d_mag%d_pass%d%s%s%s%s.root",kine,mag,pass,skipcorrelations_word.c_str(),rootfile_type.c_str(),wide_word.c_str(),effz_word.c_str());
@@ -536,6 +574,22 @@ void plotWithCuts_mc(int kine=9,
 
   // Write the histogram to the output file
   hW2spot->Write();
+   
+  /////////////////////////////////////////
+  // Draw the dx vs W2 hist, no dy no W2
+  std::string hdxW2hist = "hist_W2_nody";
+  std::string hdxW2_cut = parsedCutString_W2dy;
+  TH2D* hdxW2 = new TH2D(hdxW2hist.c_str(), "dx vs W2 (no dy cut);GeV^{2}", W2bins, W2fit_l, W2fit_h, hbins, hcalfit_l, hcalfit_h);
+
+  cout << endl << "Plotting dx vs W2 (no dy) data histogram with cuts: " << hdxW2_cut << endl << endl;
+
+  // Draw the plot using the created histogram with the W2 and dy-excluded cut
+  tree->Draw(("dx:W2>>" + hdxW2hist).c_str(), hdxW2_cut.c_str(), "COLZ");
+
+  cout << hdxW2hist << " plotted with " << hdxW2->GetEntries() << " events." << endl;
+
+  // Write the histogram to the output file
+  hdxW2->Write();
 
   // Loop over branches
   for (const auto& branch : branches) {
@@ -630,6 +684,23 @@ void plotWithCuts_mc(int kine=9,
 
   }
 
+  // Create a canvas for displaying cuts
+  TCanvas* cutCanvas = new TCanvas("cutCanvas", "Cuts", 800, 600);
+  TPaveText* cutsText = new TPaveText(0.1, 0.1, 0.9, 0.9, "NB NDC"); // coordinates are normalized
+
+  cutsText->AddText("Cuts Used:");
+  //cutsText->AddLine();
+  for (const auto& cut : cuts) {
+    cutsText->AddText(cut.c_str());
+  }
+
+  cutsText->SetTextAlign(12); // Align text to left
+  cutsText->SetFillColor(0);  // Transparent background
+  cutsText->Draw();
+
+  // Write the canvas to the output file
+  cutCanvas->Write();
+
   if(skipcorrelations){
     cout << "All plots created. Correlation plots skipped. Output file located here: " << fout_path << endl;
     return;
@@ -704,23 +775,6 @@ void plotWithCuts_mc(int kine=9,
   //   cuts.push_back(cutInfo);
   // }
 
-  // Create a canvas for displaying cuts
-  TCanvas* cutCanvas = new TCanvas("cutCanvas", "Cuts", 800, 600);
-  TPaveText* cutsText = new TPaveText(0.1, 0.1, 0.9, 0.9, "NB NDC"); // coordinates are normalized
-
-  cutsText->AddText("Cuts Used:");
-  cutsText->AddLine();
-  for (const auto& cut : cuts) {
-    cutsText->AddText(cut.c_str());
-  }
-
-  cutsText->SetTextAlign(12); // Align text to left
-  cutsText->SetFillColor(0);  // Transparent background
-  cutsText->Draw();
-
-  // Write the canvas to the output file
-  cutCanvas->Write();
-
   // Close the files
   inputFile->Close();
   delete inputFile;
@@ -730,4 +784,50 @@ void plotWithCuts_mc(int kine=9,
 
   cout << "All plots created. Output file located here: " << fout_path << endl;
 
+}
+
+// Function to split a string by a delimiter and return a vector of tokens
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+  while (std::getline(tokenStream, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+// Function to get the cell content based on kine, mag, target, and column name
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys) {
+  std::ifstream file(filePath);
+  std::string line;
+  std::map<std::string, std::string> rowContents;
+  std::vector<std::string> headers;
+  std::set<std::string> excludeSet(excludeKeys.begin(), excludeKeys.end());
+
+  // Read the header line
+  if (std::getline(file, line)) {
+    headers = split(line, ',');
+  }
+
+  // Read the rest of the lines
+  while (std::getline(file, line)) {
+    std::vector<std::string> values = split(line, ',');
+    if (values.size() < 3) {
+      continue;
+    }
+
+    // Check if the row matches the specified kine, mag, and target
+    if (std::stoi(values[0]) == kine && std::stoi(values[1]) == mag && values[2] == target) {
+      // Store all column values except the first three in a map
+      for (size_t i = 3; i < values.size(); ++i) {
+	if (i < headers.size() && excludeSet.find(headers[i]) == excludeSet.end()) {
+	  rowContents[headers[i]] = values[i];
+	}
+      }
+      break;
+    }
+  }
+
+  return rowContents;
 }

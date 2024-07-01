@@ -9,10 +9,10 @@
     },
 
     "rootfile_dir_pass2" : {
-	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS4/LD2/rootfiles",
+	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS4/LD2/rootfiles",
 	"sbs7"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS7/LD2/rootfiles",
-	"sbs11"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS11/LD2/rootfiles",
-	"sbs14"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS14/LD2/rootfiles",
+	"sbs11"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/rootfiles",
+	"sbs14"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS14/LD2/rootfiles",
 	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS8/LD2/rootfiles",
 	"sbs9"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS9/LD2/rootfiles"
     },

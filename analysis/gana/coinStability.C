@@ -14,22 +14,9 @@
 #include "../../include/gmn.h"
 #include "../../src/jsonmgr.C"
 
-//fitranges
-//sbs9 70p: -1.8 to 0.7
-//sbs8 50p: -1.4 to 0.7
-//sbs8 70p: -1.8 to 0.7
-//sbs8 100p: -2.1 to 0.7
-//sbs4 30p: -1.6 to 0.8
-//sbs4 50p: -2.1 to 0.7
-//sbs7 85p: -1.4 to 0.5
-
 //Fit range override options
-double hcalfit_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
-double hcalfit_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
-
-//Plot range option shared by all fits
-double hcalr_l = -2.1; //lower fit/bin limit for hcal dx plots (m)
-double hcalr_h = 0.7; //upper fit/bin limit for hcal dx plots (m)
+double hcalfit_l; //lower fit/bin limit for hcal dx plots (m)
+double hcalfit_h; //upper fit/bin limit for hcal dx plots (m)
 
 double xrange_min_coin = -10;
 double xrange_max_coin = 10;
@@ -184,6 +171,9 @@ Double_t fitFullShift_nobg(double *x, double *par){
 void handleError(TFile *file1, TFile *file2, std::string marker);
 void handleError(TFile *file1, std::string marker);
 std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std::string& fitName, const std::string& fitFormula, int paramCount, double hcalfit_l, double hcalfit_h, std::pair<double,double>& fitqual, double pshift, double nshift, const std::string& fitOptions = "RBMQ0");
+std::string addbc(std::string input);
+std::vector<std::string> split(const std::string &s, char delimiter);
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys);
 
 //main. kine=kinematic, mag=fieldsetting, pass=pass#, sb_min/max=sidebandlimits, shiftX=shifttodxdata, N=cutvarsliceN, sliceCutMax=NCutsFromZeroTosliceCutMax
 void coinStability(int kine=8, 
@@ -201,7 +191,7 @@ void coinStability(int kine=8,
 		 bool effz=true,
 		 bool alt = true) {
   //set draw params
-  gStyle->SetPalette(kViridis);
+  gStyle->SetPalette(55);
   gStyle->SetCanvasPreferGL(kTRUE);
   gStyle->SetOptFit(0);
   gStyle->SetOptStat(0);
@@ -215,10 +205,44 @@ void coinStability(int kine=8,
   //load json file
   JSONManager *jmgr = new JSONManager("../../config/syst.json");
 
-  //Get tight elastic cuts
-  std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+  // Get dx plot details
+  hcalfit_l = jmgr->GetValueFromSubKey<double>("hcalfit_l", Form("sbs%d_%d", kine, mag));
+  hcalfit_h = jmgr->GetValueFromSubKey<double>("hcalfit_h", Form("sbs%d_%d", kine, mag));
+  
+  //get new cuts from .csv
+  std::string cutsheet_path = "/w/halla-scshelf2102/sbs/seeds/ana/data/p2_cutset.csv";
+  std::string target = "ld2";
+  std::vector<std::string> excludeKeys = {};
 
-  cout << "Loaded tight cuts: " << globalcuts << endl;
+  // Get the row contents
+  std::map<std::string, std::string> rowContents = getRowContents(cutsheet_path, kine, mag, target, excludeKeys);
+  // Print the row contents
+  cout << endl << "Loading NEW cuts..." << endl;
+  for (const auto &content : rowContents) {
+    std::cout << content.first << ": " << content.second << std::endl;
+  }
+  cout << endl;
+
+  std::string globalcuts_raw;
+  for (const auto &content : rowContents) {
+    if (!content.second.empty()) {
+      if (!globalcuts_raw.empty()) {
+	globalcuts_raw += "&&";
+      }
+      globalcuts_raw += content.second;
+    }
+  }
+
+  cout << endl <<"Concatenated globalcuts_raw: " << globalcuts_raw << endl << endl;
+
+  std::string globalcuts = addbc(globalcuts_raw);
+
+  cout << endl <<"Concatenated globalcuts: " << globalcuts << endl << endl;
+  
+  // //Get tight elastic cuts
+  // std::string globalcuts = jmgr->GetValueFromSubKey_str( Form("post_cuts_p%d",pass), Form("sbs%d_%d",kine,mag) );
+
+  // cout << "Loaded tight cuts: " << globalcuts << endl;
 
   std::vector<std::string> cuts = util::parseCuts(globalcuts); //this makes a vector of all individual cuts in the single globalcut string.
 
@@ -508,6 +532,7 @@ void coinStability(int kine=8,
 
   TCanvas* c0 = new TCanvas("c0", "Slice Locations", 800,600);
   c0->cd();
+  clonedcoin->SetTitle("BBCal - HCal Coin Time vs dx");
   clonedcoin->Draw("colz");
 
   int numberOfLines = cutx_low_coin.size(); // Assuming cutx_low_coin and cutx_high_coin are same size
@@ -610,7 +635,11 @@ void coinStability(int kine=8,
     
     // Simplify the histogram title
     coinreports[i].sliceHistogram->SetTitle(Form("%s %0.2f to %0.2f", coinreports[0].type.c_str(), coinreports[i].winLow, coinreports[i].winHigh));
-    coinreports[i].sliceHistogram->SetLineWidth(1);
+    coinreports[i].sliceHistogram->SetLineWidth(2);
+    coinreports[i].sliceHistogram->SetLineColor(kBlack);
+    coinreports[i].sliceHistogram->SetTitleSize(50);
+    coinreports[i].sliceHistogram->GetXaxis()->SetTitleSize(0.08);
+    coinreports[i].sliceHistogram->GetXaxis()->SetTitleOffset(0.5);    
     coinreports[i].sliceHistogram->Draw();
     
     // Retrieve the number of bins, and the x-axis limits of the slice histogram
@@ -646,16 +675,6 @@ void coinStability(int kine=8,
 
     //cout << "bin " << i << " pshift " << p_shift << " nshift " << n_shift << endl;
     
-    // Create a legend and add the remaining parameters
-    TLegend* legend = new TLegend(0.49, 0.59, 0.89, 0.89); // Adjust the position as needed
-    legend->SetMargin(0.1);
-    legend->AddEntry((TObject*)0, Form("Nev: %0.0f", coinreports[i].nev), "");
-    legend->AddEntry((TObject*)0, Form("MCev: %0.0f", MCev), "");
-    legend->AddEntry((TObject*)0, Form("Ratio: %0.2f", ratio), "");
-    legend->AddEntry((TObject*)0, Form("Shift p/n: %0.2f/%0.2f", p_shift, n_shift), "");
-    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.2f", coinreports[i].chisqrndf), "");
-    legend->Draw();
-    
     bgfit_coin[i] = new TF1(Form("bgfit_coin_%d",i),fits::g_p2fit_cd,hcalfit_l,hcalfit_h,3);
     //cout << "Background fit parameter" << endl;
     for (int j=0; j<3; ++j){
@@ -679,13 +698,40 @@ void coinStability(int kine=8,
       double funcValue = mcfit->Eval(binCenter);
       hFromTF1_coin->SetBinContent(bin, funcValue);
     }
+
+    gPad->SetGridx();
+    gPad->SetGridy();
     
-    int transparentCyan = TColor::GetColorTransparent(kCyan, 0.3);
-    hFromTF1_coin->SetLineColor(kCyan);
+    int transparentCyan = TColor::GetColorTransparent(kGreen, 0.3);
+    hFromTF1_coin->SetLineColor(kGreen);
     hFromTF1_coin->SetLineWidth(0);
     hFromTF1_coin->SetFillColor(transparentCyan);
     hFromTF1_coin->SetFillStyle(1001);
     hFromTF1_coin->Draw("SAME LF2");
+
+    //Create a legend and add the remaining parameters
+    TLegend* legend = new TLegend(0.49, 0.59, 0.89, 0.89); // Adjust the position as needed
+    legend->SetMargin(0.1);
+
+    // TLegend* legend = new TLegend(0.5, 0.5, 0.89, 0.89);
+    // legend->SetBorderSize(0); // Remove border
+    // legend->SetFillStyle(0);
+    // legend->SetTextColor(kRed);
+    // legend->SetTextFont(132);
+    // legend->SetTextSize(0.08);
+
+    
+    legend->AddEntry((TObject*)0, Form("Nev: %0.0f", coinreports[i].nev), "");
+    legend->AddEntry((TObject*)0, Form("MCev: %0.0f", MCev), "");
+
+    //legend->AddEntry(coinreports[i].sliceHistogram, "Data", "l");
+    //legend->AddEntry(hFromTF1_coin, "Fit (MC + BG)", "f");
+    
+    legend->AddEntry((TObject*)0, Form("Ratio: %0.2f", ratio), "");
+    legend->AddEntry((TObject*)0, Form("Shift p/n: %0.2f/%0.2f", p_shift, n_shift), "");
+    legend->AddEntry((TObject*)0, Form("#chi^{2}/ndf: %0.2f", coinreports[i].chisqrndf), "");
+    legend->Draw();
+
     
     canvasSlices_coin->Update();
   }//endloop over N (slices)
@@ -703,8 +749,9 @@ void coinStability(int kine=8,
   graphErrors_coin->SetMarkerStyle(21);
   graphErrors_coin->SetMarkerColor(kCyan);
   graphErrors_coin->SetLineColor(kCyan);
-  graphErrors_coin->SetTitle(Form("R_{sf} vs. N sig (#sigma = %.3f m); N sig; R_{sf}",sigma));
-
+  graphErrors_coin->SetTitle(Form("R_{sf} vs. N sig (#sigma = %.3f ns, mean = %.3f ns); N sig; R_{sf}",sigma, mean));
+  //graphErrors_coin->GetYaxis()->SetRangeUser(0.948,0.9679);
+  
   TGraph* graph_nev = new TGraph(numValidPoints_coin);
   for (int i = 0; i < numValidPoints_coin; ++i) {
     graph_nev->SetPoint(i, sig_vec_coin[i], nev_vec_coin[i]);
@@ -712,7 +759,7 @@ void coinStability(int kine=8,
   graph_nev->SetMarkerStyle(20);
   graph_nev->SetMarkerColor(kGreen-5);
   graph_nev->SetLineColor(kGreen-5);
-  graph_nev->SetTitle(Form("Nev Left in Wide Cut vs. N sig (#sigma = %.3f m); N sig; Nev",sigma));
+  graph_nev->SetTitle(Form("Nev Left in Wide Cut vs. N sig (#sigma = %.3f ns, mean = %.3f ns); N sig; Nev",sigma, mean));
 
   // // Create a canvas and divide it into 2 sub-pads
   // TCanvas* c1 = new TCanvas("c1", "Stacked Graphs", 800, 600);
@@ -736,7 +783,7 @@ void coinStability(int kine=8,
 
   //Create overlayed tgraph object
   gROOT->Reset();
-  TCanvas *c2 = new TCanvas("c2","",800,500);
+  TCanvas *c2 = new TCanvas("c2","",800,600);
   TPad *pad = new TPad("pad","",0,0,1,1);
   //pad->SetFillColor(42);
   pad->SetGrid();
@@ -747,7 +794,7 @@ void coinStability(int kine=8,
 
   graphErrors_coin->GetYaxis()->SetLabelSize(0.04);
   graphErrors_coin->GetYaxis()->SetLabelFont(42);
-  graphErrors_coin->GetYaxis()->SetTitleOffset(1.0);
+  graphErrors_coin->GetYaxis()->SetTitleOffset(1.2);
   graphErrors_coin->GetYaxis()->SetTitleSize(0.04);
   graphErrors_coin->GetYaxis()->SetTitleFont(42); 
 
@@ -779,7 +826,7 @@ void coinStability(int kine=8,
   TGaxis *axis = new TGaxis(xmax, ymin, xmax, ymax_nev, ymin, ymax_nev, 510,"+L");
   axis->SetTitle("ev cut (%)");
   axis->SetTitleColor(kGreen-5);  
-  axis->SetTitleOffset(1.0);  
+  axis->SetTitleOffset(0.8);  
   axis->SetLineColor(kGreen-5);
   axis->SetLabelColor(kGreen-5);
   axis->Draw();
@@ -866,4 +913,83 @@ std::vector<std::pair<double, double>> fitAndFineFit(TH1D* histogram, const std:
   delete fit; // Delete fit to avoid carry-over
   delete fineFit; // Clean up
   return parametersAndErrors;
+}
+
+// add _bc to get best cluster branches from parse file
+std::string addbc(std::string input) {
+  const std::string suffix = "_bc";
+  const std::string targets[5] = {"coin", "dy", "dx", "hcale", "hcalon"}; //branches that depend on hcal clusters
+
+  for (const auto& target : targets) {
+    std::string::size_type pos = 0;
+    std::string token = target + suffix;  // Create the new token with the suffix
+
+    // Continue searching the string for the target and replacing it
+    while ((pos = input.find(target, pos)) != std::string::npos) {
+      // Ensure we match whole words by checking character before and after the match
+      bool match = true;
+      if (pos != 0 && isalnum(input[pos - 1])) {
+	match = false; // Check for character before
+      }
+      size_t endPos = pos + target.length();
+      if (endPos < input.length() && isalnum(input[endPos])) {
+	match = false; // Check for character after
+      }
+
+      if (match) {
+	input.replace(pos, target.length(), token);
+	pos += token.length(); // Move past the newly added part to avoid infinite loops
+      } else {
+	pos += target.length(); // Move past the current word if it's part of a larger word
+      }
+    }
+  }
+
+  return input;
+}
+
+// Function to split a string by a delimiter and return a vector of tokens
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+  while (std::getline(tokenStream, token, delimiter)) {
+    tokens.push_back(token);
+  }
+  return tokens;
+}
+
+// Function to get the cell content based on kine, mag, target, and column name
+std::map<std::string, std::string> getRowContents(const std::string &filePath, int kine, int mag, const std::string &target, const std::vector<std::string> &excludeKeys) {
+  std::ifstream file(filePath);
+  std::string line;
+  std::map<std::string, std::string> rowContents;
+  std::vector<std::string> headers;
+  std::set<std::string> excludeSet(excludeKeys.begin(), excludeKeys.end());
+
+  // Read the header line
+  if (std::getline(file, line)) {
+    headers = split(line, ',');
+  }
+
+  // Read the rest of the lines
+  while (std::getline(file, line)) {
+    std::vector<std::string> values = split(line, ',');
+    if (values.size() < 3) {
+      continue;
+    }
+
+    // Check if the row matches the specified kine, mag, and target
+    if (std::stoi(values[0]) == kine && std::stoi(values[1]) == mag && values[2] == target) {
+      // Store all column values except the first three in a map
+      for (size_t i = 3; i < values.size(); ++i) {
+	if (i < headers.size() && excludeSet.find(headers[i]) == excludeSet.end()) {
+	  rowContents[headers[i]] = values[i];
+	}
+      }
+      break;
+    }
+  }
+
+  return rowContents;
 }

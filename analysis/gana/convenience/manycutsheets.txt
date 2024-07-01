@@ -1,0 +1,493 @@
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|bb_etot_over_p| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|bb_etot_over_p>0.81&&bb_etot_over_p<1.17| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|bb_etot_over_p>0.81&&bb_etot_over_p<1.17| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|bb_etot_over_p>0.84&&bb_etot_over_p<1.16| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|bb_etot_over_p>0.84&&bb_etot_over_p<1.16| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|bb_etot_over_p>0.84&&bb_etot_over_p<1.16| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|bb_etot_over_p>0.8&&bb_etot_over_p<1.18| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: bb\_etot\_over\_p]{\small Elastic Selection Cuts: bb\_etot\_over\_p}
+\label{tab:bb\_etot\_over\_p}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|hcale| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|hcale>0.02| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|hcale>0.02| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|hcale>0.027| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|hcale>0.0224| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|hcale>0.0224| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|hcale>0.02| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|hcale>0.055| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|hcale>0.055| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|hcale>0.055| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|hcale>0.08| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|hcale>0.08| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|hcale>0.08| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|hcale>0.055| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|hcale>0.08| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: hcale]{\small Elastic Selection Cuts: hcale}
+\label{tab:hcale}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|coin| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|coin>-10.0&&coin<10.0| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: coin]{\small Elastic Selection Cuts: coin}
+\label{tab:coin}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|W2| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|W2>0.65&&W2<0.95| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|W2>0.65&&W2<0.95| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|W2>0.22&&W2<1.24| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|W2>0.595&&W2<1.16| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|W2>0.595&&W2<1.16| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|W2>0.65&&W2<0.95| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|W2>0.65&&W2<0.95| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|W2>0.65&&W2<0.95| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|W2>0.65&&W2<0.95| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|W2>0.49&&W2<1.09| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|W2>0.49&&W2<1.09| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|W2>0.49&&W2<1.09| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|W2>0.5&&W2<1.1| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|W2>0.49&&W2<1.09| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: W2]{\small Elastic Selection Cuts: W2}
+\label{tab:W2}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|bb_ps_e| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|bb_ps_e>0.25| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|bb_ps_e>0.25| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|bb_ps_e>0.25| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|bb_ps_e>0.234| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|bb_ps_e>0.234| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|bb_ps_e>0.2| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|bb_ps_e>0.2| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|bb_ps_e>0.2| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|bb_ps_e>0.2| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|bb_ps_e>0.3| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|bb_ps_e>0.288| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|bb_ps_e>0.3| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|bb_ps_e>0.3| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|bb_ps_e>0.3| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: bb\_ps\_e]{\small Elastic Selection Cuts: bb\_ps\_e}
+\label{tab:bb\_ps\_e}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|bb_tr_vz| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|abs(bb_tr_vz)<0.073| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: bb\_tr\_vz]{\small Elastic Selection Cuts: bb\_tr\_vz}
+\label{tab:bb\_tr\_vz}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|bb_gem_track_nhits| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|bb_gem_track_nhits>2| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: bb\_gem\_track\_nhits]{\small Elastic Selection Cuts: bb\_gem\_track\_nhits}
+\label{tab:bb\_gem\_track\_nhits}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|hcalon| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|hcalon==1| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|hcalon==1| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|hcalon==1| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|hcalon==1| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|hcalon==1| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: hcalon]{\small Elastic Selection Cuts: hcalon}
+\label{tab:hcalon}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|xexp| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|xexp<0.8&&xexp>-1.3| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|xexp<0.8&&xexp>-1.3| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|xexp<0.7&&xexp>-1.1| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|xexp<0.8&&xexp>-1.3| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|xexp<0.7&&xexp>-1.1| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|xexp<1.0&&xexp>-1.9| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|xexp<1.5&&xexp>-1.9| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|xexp<1.5&&xexp>-1.9| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|xexp<1.0&&xexp>-1.9| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|xexp<0.8&&xexp>-0.9| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|xexp<0.8&&xexp>-0.8| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|xexp<0.8&&xexp>-0.8| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|xexp<0.7&&xexp>-0.7| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|xexp<0.8&&xexp>-0.8| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: xexp]{\small Elastic Selection Cuts: xexp}
+\label{tab:xexp}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|yexp| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|yexp<0.45&&yexp>-0.25| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|yexp<0.45&&yexp>-0.25| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|yexp<0.45&&yexp>-0.25| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|yexp<0.45&&yexp>-0.25| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|yexp<0.73&&yexp>-0.73| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|yexp<0.65&&yexp>-0.5| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|yexp<0.5&&yexp>-0.5| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|yexp<0.5&&yexp>-0.5| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|yexp<0.5&&yexp>-0.5| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|yexp<0.4&&yexp>-0.4| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|yexp<0.4&&yexp>-0.4| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|yexp<0.4&&yexp>-0.4| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|yexp<0.3&&yexp>-0.4| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|yexp<0.2&&yexp>-0.4| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: yexp]{\small Elastic Selection Cuts: yexp}
+\label{tab:yexp}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|dy| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|dy>-0.36&&dy<0.264| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|dy>-0.36&&dy<0.264| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|dy>-0.35&&dy<0.25| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|dy>-0.3&&dy<0.2| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|dy>-0.3&&dy<0.2| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|dy>-0.3&&dy<0.2| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|dy>-0.3&&dy<0.2| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|dy>-0.3&&dy<0.2| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: dy]{\small Elastic Selection Cuts: dy}
+\label{tab:dy}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|mag| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|mag==0| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|mag==30| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|mag==50| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|mag==30| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|mag==50| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|mag==0| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|mag==50| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|mag==70| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|mag==100| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|mag==50| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|mag==70| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|mag==100| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|mag==70| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|mag==70| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: mag]{\small Elastic Selection Cuts: mag}
+\label{tab:mag}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|tar| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|tar==1| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|tar==1| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|tar==1| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|tar==1| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|tar==1| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|tar==0| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|tar==1| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: tar]{\small Elastic Selection Cuts: tar}
+\label{tab:tar}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|bb_grinch_tdc_clus_size| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|bb_grinch_tdc_clus_size>1| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: bb\_grinch\_tdc\_clus\_size]{\small Elastic Selection Cuts: bb\_grinch\_tdc\_clus\_size}
+\label{tab:bb\_grinch\_tdc\_clus\_size}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|bb_grinch_tdc_clus_trackindex| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|bb_grinch_tdc_clus_trackindex==0| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: bb\_grinch\_tdc\_clus\_trackindex]{\small Elastic Selection Cuts: bb\_grinch\_tdc\_clus\_trackindex}
+\label{tab:bb\_grinch\_tdc\_clus\_trackindex}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|pspot| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb|"(pow(dx_bc + 0.0381| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb|"(pow(dx_bc + 0.7358| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb|"(pow(dx_bc + 1.2125| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb|"(pow(dx_bc + 0.71| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb|"(pow(dx_bc + 1.20| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb|"(pow(dx_bc - 0.0167| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb|"(pow(dx_bc + 0.6197| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb|"(pow(dx_bc + 0.8482| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb|"(pow(dx_bc + 0.9| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb|"(pow(dx_bc + 0.62| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb|"(pow(dx_bc + 0.88| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb|"(pow(dx_bc + 1.25| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb|"(pow(dx_bc + 0.9049| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb|"(pow(dx_bc + 0.91| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: pspot]{\small Elastic Selection Cuts: pspot}
+\label{tab:pspot}
+\end{table}
+
+NEW TABLE 
+
+\begin{table}[ht]
+\centering
+{\footnotesize
+\begin{tabular}{|c|c|c|c|}
+\hline
+\verb|kine| & \verb|mag| & \verb|target| & \verb|nspot| \\ \hline
+\verb|4| & \verb|0| & \verb|lh2| & \verb| 2) / pow(0.263| \\ \hline
+\verb|4| & \verb|30| & \verb|lh2| & \verb| 2) / pow(0.3581| \\ \hline
+\verb|4| & \verb|50| & \verb|lh2| & \verb| 2) / pow(0.3725| \\ \hline
+\verb|4| & \verb|30| & \verb|ld2| & \verb| 2) / pow(0.32| \\ \hline
+\verb|4| & \verb|50| & \verb|ld2| & \verb| 2) / pow(0.25| \\ \hline
+\verb|8| & \verb|0| & \verb|lh2| & \verb| 2) / pow(0.3375| \\ \hline
+\verb|8| & \verb|50| & \verb|lh2| & \verb| 2) / pow(0.3375| \\ \hline
+\verb|8| & \verb|70| & \verb|lh2| & \verb| 2) / pow(0.4426| \\ \hline
+\verb|8| & \verb|100| & \verb|lh2| & \verb| 2) / pow(0.3| \\ \hline
+\verb|8| & \verb|50| & \verb|ld2| & \verb| 2) / pow(0.26| \\ \hline
+\verb|8| & \verb|70| & \verb|ld2| & \verb| 2) / pow(0.12| \\ \hline
+\verb|8| & \verb|100| & \verb|ld2| & \verb| 2) / pow(0.3| \\ \hline
+\verb|9| & \verb|70| & \verb|lh2| & \verb| 2) / pow(0.3423| \\ \hline
+\verb|9| & \verb|70| & \verb|ld2| & \verb| 2) / pow(0.12| \\ \hline
+\end{tabular}
+}
+\captionsetup{width=0.7\textwidth}
+\caption[Elastic Selection Cuts: nspot]{\small Elastic Selection Cuts: nspot}
+\label{tab:nspot}
+\end{table}
+
+NEW TABLE 
+

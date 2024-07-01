@@ -1,37 +1,86 @@
-#include <TH1D.h>
-#include <TCanvas.h>
-#include <vector>
-#include <iostream>
+#include "TROOT.h"
+#include "TFile.h"
+#include "TH2D.h"
+#include "TRandom.h"
+#include "TCanvas.h"
+#include "TLine.h"
+#include "TMarker.h"
 
-void test() {
-  std::vector<double> A = {2.1, 4.5, 6.7, 4.6, 1.1}; // Bin contents
-  std::vector<double> B = {1.2, 2.4, 3.6, 4.8, 6.0}; // Bin centers
+void createGaussianTH2D() {
+    // Define the number of bins and range for the histogram
+    const Int_t nBinsX = 1000;
+    const Int_t nBinsY = 1000;
+    const Double_t xMin = -5.0;
+    const Double_t xMax = 5.0;
+    const Double_t yMin = -5.0;
+    const Double_t yMax = 5.0;
 
-  if (B.size() != A.size()) {
-    std::cerr << "Error: The size of vectors A and B must be the same." << std::endl;
-    return;
-  }
+    // Create a 2D histogram
+    TH2D *h2 = new TH2D("h2", "2D Gaussian Distribution;X;Y", nBinsX, xMin, xMax, nBinsY, yMin, yMax);
 
-  // Calculate bin edges
-  std::vector<double> binEdges;
-  binEdges.push_back(B.front() - (B[1] - B[0]) / 2); // First edge
-  for (size_t i = 0; i < B.size() - 1; ++i) {
-    binEdges.push_back((B[i] + B[i + 1]) / 2); // Middle edges
-  }
-  binEdges.push_back(B.back() + (B.back() - B[B.size() - 2]) / 2); // Last edge
+    // Define the number of entries
+    const Int_t nEntries = 10000;
 
-  // Create a TH1D histogram
-  TH1D* hist = new TH1D("hist", "Histogram with Custom Bin Centers", B.size(), &binEdges[0]);
+    // Create random number generators for Gaussian distribution
+    TRandom *rand = new TRandom();
 
-  // Fill the histogram
-  for (size_t i = 0; i < A.size(); ++i) {
-    hist->SetBinContent(i + 1, A[i]);
-  }
+    // Fill the histogram with Gaussian distributed values
+    for (Int_t i = 0; i < nEntries; ++i) {
+        Double_t x = rand->Gaus(-2.9, 0.01); // mean = 0, sigma = 1
+        Double_t y = rand->Gaus(-2.9, 0.01); // mean = 0, sigma = 1
+        h2->Fill(x, y);
+    }
 
-  // Draw the histogram
-  TCanvas* c = new TCanvas("c", "Canvas", 800, 600);
-  hist->Draw();
+    // Draw the histogram
+    TCanvas *c1 = new TCanvas("c1", "2D Gaussian Distribution", 800, 600);
+    h2->Draw("COLZ");
 
-  // Optionally save the canvas or histogram here
+    // Define the square properties
+    Double_t squareSide = 6.0;
+    Double_t squareHalfSide = squareSide / 2.0;
+    //Double_t squareHalfSide = squareSide;
 
+    // Draw the square (removing the bottom right corner)
+    TLine *line1 = new TLine(-squareHalfSide, -squareHalfSide, squareHalfSide, -squareHalfSide);
+    TLine *line2 = new TLine(squareHalfSide, -squareHalfSide, squareHalfSide, 0);
+    TLine *line3 = new TLine(squareHalfSide, squareHalfSide, -squareHalfSide, squareHalfSide);
+    TLine *line4 = new TLine(-squareHalfSide, squareHalfSide, -squareHalfSide, -squareHalfSide);
+
+    line1->SetLineColor(kRed);
+    line2->SetLineColor(kRed);
+    line3->SetLineColor(kRed);
+    line4->SetLineColor(kRed);
+
+    // line1->SetLineWidth(50);
+    // line2->SetLineWidth(50);
+    // line3->SetLineWidth(50);
+    // line4->SetLineWidth(50);
+
+    line1->SetLineWidth(2);
+    line2->SetLineWidth(2);
+    line3->SetLineWidth(2);
+    line4->SetLineWidth(2);
+
+    line1->Draw();
+    line2->Draw();
+    line3->Draw();
+    line4->Draw();
+
+    // Add a red dot at the center of the Gaussian
+    TMarker *centerMarker = new TMarker(3, 3, 20); // 20 is the marker style (full circle)
+    centerMarker->SetMarkerColor(kRed);
+    centerMarker->SetMarkerSize(2); // Adjust the size as needed
+    centerMarker->Draw();
+
+    // Save the histogram to a ROOT file
+    TFile *outputFile = new TFile("GaussianTH2D_with_Square_and_Center.root", "RECREATE");
+    h2->Write();
+    outputFile->Close();
+
+
+}
+
+int test() {
+    createGaussianTH2D();
+    return 0;
 }

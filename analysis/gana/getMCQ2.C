@@ -1,4 +1,5 @@
 //seeds
+//Gets central Q2 value from MC with wide elastic and fiducial cuts. The Median is used as the central value from the non-symmetric Q2 distribution.
 #include <TFile.h>
 #include <TTree.h>
 #include <TH1D.h>
@@ -13,9 +14,11 @@
 
 std::string gcut = "mc_weight_norm*(W2>0.5&&W2<1.2&&abs(coin)<6&&bb_ps_e>0.2&&hcale>0.05&&fiducial_sig_x>2.0&&fiducial_sig_y>1.0)";
 
+vector<std::string> gcut_vect = {"W^{2}>0.5","W^{2}<1.2","abs(BBCal - HCal coincidence time)<6","BBCal PS>0.2","HCal E>0.05","fiducial cut x safety margin = 2.0#sigma","fiducial cut y safety margin = 1.0#sigma"};
+
 int Q2bins = 500;
-vector<double> Q2llim = {0.0,7.0,10.5,4.5,1.5,1.5};
-vector<double> Q2ulim = {6.0,13.0,16.5,10.5,7.5,7.5};
+vector<double> Q2llim = {0.0,0.0,7.0,10.5,4.5,1.5,1.5,1.5,1.5};
+vector<double> Q2ulim = {6.0,6.0,13.0,16.5,10.5,7.5,7.5,7.5,7.5};
 
 // Function to compute the median directly from the histogram
 double computeMedianFromHistogram(TH1D* hist) {
@@ -58,26 +61,45 @@ void getMCQ2() {
   // File paths and titles
   std::vector<std::string> filePaths = {
     outdir_path +"/parse/parse_mc_sbs4_30p_barebones_alt_effz.root",
+    outdir_path +"/parse/parse_mc_sbs4_50p_barebones_alt_effz.root",
     outdir_path +"/parse/parse_mc_sbs7_85p_barebones_effz.root",
     outdir_path +"/parse/parse_mc_sbs11_100p_barebones_effz.root",
     outdir_path +"/parse/parse_mc_sbs14_70p_barebones_effz.root",
+    outdir_path +"/parse/parse_mc_sbs8_50p_barebones_alt_effz.root",
     outdir_path +"/parse/parse_mc_sbs8_70p_barebones_alt_effz.root",
+    outdir_path +"/parse/parse_mc_sbs8_100p_barebones_alt_effz.root",
     outdir_path +"/parse/parse_mc_sbs9_70p_barebones_alt_effz.root"
   };
 
   std::vector<int> kineidx = {
     4,
+    4,
     7,
     11,
     14,
     8,
+    8,
+    8,
     9
   };
 
+  std::vector<int> fieldidx = {
+    30,
+    50,
+    85,
+    100,
+    70,
+    50,
+    70,
+    100,
+    70
+  };
   // Create a canvas to draw the histograms
-  TCanvas *c = new TCanvas("c", "Q^2 Distribution for Various Kinematics", 1800, 1200);
-  c->Divide(3, 2);
+  TCanvas *c = new TCanvas("c", "Q^2 Distribution for Various Kinematics", 1800, 1500);
+  c->Divide(3, 3);
   c->cd(1);
+
+  std::vector<double> means, medians, modes;
 
   for (size_t i = 0; i < filePaths.size(); ++i) {
 
@@ -124,6 +146,10 @@ void getMCQ2() {
     double median_Q2 = computeMedianFromHistogram(histQ2);
     double mode_Q2 = computeModeFromHistogram(histQ2);
 
+    means.push_back(mean_Q2);
+    medians.push_back(median_Q2);
+    modes.push_back(mode_Q2);
+
     //Style the histogram
     histQ2->SetLineColor(kBlack);
     histQ2->SetLineWidth(2);
@@ -154,4 +180,41 @@ void getMCQ2() {
   c->Update();
 
   c->Write();
+
+  // Create a canvas for the itemized cuts from gcut_vect
+  TCanvas *cCuts = new TCanvas("cCuts", "Itemized Cuts", 1200, 800);
+  cCuts->cd();
+  TLatex latex;
+  latex.SetTextSize(0.04);
+  latex.DrawLatexNDC(0.1, 0.9, "Itemized Cuts:");
+
+  for (size_t j = 0; j < gcut_vect.size(); ++j) {
+    latex.DrawLatexNDC(0.1, 0.9 - 0.07 * (j + 1), gcut_vect[j].c_str());
+  }
+
+  latex.DrawLatexNDC(0.1, 0.9 - 0.07 * (gcut_vect.size() + 1), " ");
+  latex.DrawLatexNDC(0.1, 0.9 - 0.07 * (gcut_vect.size() + 2), "MC weights are applied to each histogram.");
+
+  cCuts->Update();
+  cCuts->Write();
+
+  // Write LaTeX table to console
+  std::cout << "\\begin{table}[ht]" << std::endl;
+  std::cout << "\\centering" << std::endl;
+  std::cout << "\\begin{tabular}{|c|c|c|c|c|c|}" << std::endl;
+  std::cout << "\\hline" << std::endl;
+  std::cout << "\\textbf{Kinematic} & \\textbf{SBS Field} & \\textbf{Mean} & \\textbf{Median} & \\textbf{Mode} & \\textbf{Central (Median)} \\\\" << std::endl;
+  std::cout << "\\hline" << std::endl;
+
+  for (size_t k = 0; k < kineidx.size(); ++k) {
+    std::cout << kineidx[k] << " & " << fieldidx[k] << " & " << means[k] << " & " << medians[k] << " & " << modes[k] << " & \\textbf{" << medians[k] << "} \\\\" << std::endl;
+    std::cout << "\\hline" << std::endl;
+  }
+
+  std::cout << "\\end{tabular}" << std::endl;
+  std::cout << "\\caption{$Q^2$ distribution statistics for different kinematic configurations}" << std::endl;
+  std::cout << "\\label{tab:q2_statistics}" << std::endl;
+  std::cout << "\\end{table}" << std::endl;
+
+
 }
