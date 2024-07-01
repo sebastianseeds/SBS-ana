@@ -56,6 +56,7 @@ Detailed instructions on how to run the analysis scripts and use the framework f
 
 ## Project Structure
 
+```sh
 SBS-ana/
 ├── analysis/          # Analysis scripts and tools
 ├── config/            # Configuration files
@@ -65,5 +66,5 @@ SBS-ana/
 ├── src/               # Source code
 ├── misc/              # Miscillaneous files
 └── README.md          # This file
-
+```
 
