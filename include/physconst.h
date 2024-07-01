@@ -37,6 +37,9 @@ namespace physconst {
   static const Double_t H2_Amass = 1.00784; // u
   static const Double_t D2_Amass = 2.013553212745; // u
 
+  // other
+  static const Double_t alpha = 0.00729927; //unitless, fine structure constant
+
 }
 
 #endif

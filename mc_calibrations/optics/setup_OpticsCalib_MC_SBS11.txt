@@ -1,0 +1,44 @@
+#sseeds 3.16.23
+#setup file for Optics_GMN.C SBS11
+#All parameters as follows:
+#List of paths to data used to calibrate optics followed by endlist
+#List of globalcuts followed by endcut (TODO: how to determine these cuts by kinematic?)
+#Order of optics expansion
+#Number of bins in tracker
+#Arm (0=BB, 1=SBS)
+#Chi squared cut on fits to tracks
+#Tracker pitch angle defined by arm geometry
+#Focal plane minimum and maximum for analysis (4 lines)
+#Target z min and z maximum (5 lines)
+#xtar flag (TODO: no idea what this is) 
+#pexpansion flag (TODO: no idea what this is)
+#cut on xptar
+#cut on yptar
+#cut on ytar
+#distance to sieve
+#
+#Begin config file
+/lustre19/expphy/volatile/halla/sbs/seeds/sim042123/gmn_sbs11_lh2_0p_job_*
+endlist
+Earm.BBGEM.Track.ntracks==1&&Earm.BBGEM.Track.NumHits[0]==5&&abs(Earm.BBGEM.Track.X)<0.55
+endcut
+2
+200
+0
+10.0
+10.0
+-1.0 1.0
+-0.4 0.4
+-0.6 0.6 
+-0.15 0.15
+-0.4 0.4 
+-0.15 0.15 
+-0.15 0.15
+0.4  6.0
+-0.1 0.1
+1
+0
+0.2
+0.1
+0.1
+1.18

@@ -2,6 +2,8 @@
 //04.05.23 Update - Added various fitting alternatives to waveforms and included hodo meantime on tree output
 //04.12.23 Update - Including ToF corrections (where applicable) and best cluster selection
 
+//NOTE: currently configured to function only on HCal expert replays
+
 #include <vector>
 #include <iostream>
 #include "TCut.h"
@@ -31,10 +33,10 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
 
   vector<Int_t> lh2r;
   jmgr->GetVectorFromSubKey<Int_t>( "lh2", "sbs4_runs", lh2r );
-  jmgr->GetVectorFromSubKey<Int_t>( "lh2", "sbs8_runs", lh2r );
   jmgr->GetVectorFromSubKey<Int_t>( "lh2", "sbs9_runs", lh2r );
 
   vector<Int_t> ld2r;
+  jmgr->GetVectorFromSubKey<Int_t>( "ld2", "sbs8_runs", ld2r );
   jmgr->GetVectorFromSubKey<Int_t>( "ld2", "sbs11_runs", ld2r );
 
   //set up default parameters for all analysis
@@ -165,7 +167,7 @@ void hatime_c( Int_t kine=4, Int_t pass=1, Int_t epm=3, bool waveform=false )
       // accessing run info
       Int_t runnum;
       Int_t mag;
-      Int_t ebeam;
+      Double_t ebeam;
       Int_t conf;
       std::string targ;
       std::string rfname;

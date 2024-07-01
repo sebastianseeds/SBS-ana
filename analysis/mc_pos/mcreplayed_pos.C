@@ -1,4 +1,4 @@
-//sseeds 04.18.23 - Script to extract hcal detection efficiency from Juan Carlos Cornejo method detailed by Provakar datta well here: https://sbs.jlab.org/DocDB/0003/000339/001/wSoft_gmnAna_11_18_22.pdf
+//sseeds 04.19.23 - Script to extract hcal position resolution from MC
 
 #include <vector>
 #include <iostream>
@@ -12,8 +12,8 @@
 #include "../../src/jsonmgr.C"
 #include "../../include/gmn.h"
 
-//Uses g4sbs replays of simulated data set containing pgun/ngun, zero field, SBS4 geometry
-void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mean values of hcalE vs nucleonp; 1 gets eff
+//Uses g4sbs replays of LH2 data
+void mcreplayed_pos( Int_t kine=4, Int_t epm=1, bool wide=false )
 { //main  
   
   // Define a clock to check macro processing time
@@ -23,122 +23,148 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
   std::string date = util::getDate();
 
   //general static parameters for this analysis
-  const Double_t pmin = 1.; //nucleon, GeV
-  const Double_t pmax = 9.; //nucleon, GeV
-  const Double_t Emin = 0.; //hcal, GeV
-  const Double_t Emax = 2.; //hcal, GeV
-  const Int_t nbin = 150; //Number of bins for hcal E vs nucleon p fits obtained to ensure 1000 events per bin
-  Double_t p_step = (pmax-pmin)/nbin; //Amount of momentum traversed per bin
-  Double_t oEmean_p[nbin] = {0.}; //hcal proton E mean values obtained from iter 0
-  Double_t oEmean_n[nbin] = {0.}; //hcal neutron E mean values obtained from iter 0
-
-  // Create files to store hcal E fit parameters for iter 1 cuts
-  ofstream E_prot;
-  ofstream E_neut;
-
-  // reading input config file
-  JSONManager *jmgr = new JSONManager("../../config/smchde.json");
-  
-  std::string proton_rfile = jmgr->GetValueFromSubKey_str( "rootfiles", "proton" );
-  std::string neutron_rfile = jmgr->GetValueFromSubKey_str( "rootfiles", "neutron" );
-  std::string prot_param_path = jmgr->GetValueFromSubKey_str( "params", "proton" );
-  std::string neut_param_path = jmgr->GetValueFromSubKey_str( "params", "neutron" );
-  Double_t pp0 = jmgr->GetValueFromSubKey<Double_t>( "Efit_p0", "proton" );
-  Double_t pp1 = jmgr->GetValueFromSubKey<Double_t>( "Efit_p1", "proton" );
-  Double_t np0 = jmgr->GetValueFromSubKey<Double_t>( "Efit_p0", "neutron" );
-  Double_t np1 = jmgr->GetValueFromSubKey<Double_t>( "Efit_p1", "neutron" );
-
-  Int_t nruns = -1; //Always analyze all available runs
-  
-  if( iter==1 ){
-    //Get proton E means
-    ifstream prot_param_file( prot_param_path );
-    if( !prot_param_file ){
-      cerr << endl << "ERROR: No input constant file present -> path to meanE_proton.txt expected." << endl;
-      return 0;
-    }
-  
-    Int_t n1=0;
-    Double_t d1;
-    string line1;
-    
-    while( getline( prot_param_file, line1 ) ){
-      if( line1.at(0) == '#' ) {
-	continue;
-      }
-      stringstream ss( line1 );
-      ss >> d1;     
-      oEmean_p[n1] = d1;      
-      n1++;
-    }
-
-    //Get neutron E means
-    ifstream neut_param_file( neut_param_path );
-    if( !neut_param_file ){
-      cerr << endl << "ERROR: No input constant file present -> path to meanE_proton.txt expected." << endl;
-      return 0;
-    }
-  
-    n1=0;
-    d1=0;
-    string line2;
-    
-    while( getline( neut_param_file, line2 ) ){
-      if( line2.at(0) == '#' ) {
-	continue;
-      }
-      stringstream ss( line2 );
-      ss >> d1;     
-      oEmean_n[n1] = d1;      
-      n1++;
-    }
+  const Double_t detxmin = -3.0; //nucleon, GeV
+  const Double_t detxmax = 3.0; //nucleon, GeV
+  const Double_t detymin = -3.0; //nucleon, GeV
+  const Double_t detymax = 3.0; //nucleon, GeV
+  Double_t dxmin, dxmax, dymin, dymax;
+  if(wide){
+    dxmin = -15;
+    dxmax = 15;
+    dymin = -15;
+    dymax = 15;
+  }else{
+    dxmin = -4; //hcal, GeV
+    dxmax = 4; //hcal, GeV
+    dymin = -1.5; //hcal, GeV
+    dymax = 1.5; //hcal, GeV
   }
 
+  const Int_t nfac = 100; //Number of bins for hcal E vs nucleon p fits obtained to ensure 1000 events per bin
+
+  // reading input config file
+  JSONManager *jmgr = new JSONManager("../../config/smcpos.json");
+  
+  std::string rdir = jmgr->GetValueFromKey_str( "rootdir" );
+
+  //return all sbs magnetic field settings for the kinematic given
+  vector<Int_t> magset;
+  jmgr->GetVectorFromSubKey<Int_t>( "magset", Form("sbs%d",kine), magset );
+
+  Int_t Nmagset = magset.size();
+
   //set up output files
-  TFile *fout = new TFile( Form("outfiles/mcrep_hde_i%d_tfac%f.root",iter,tfac), "RECREATE" );
+  TFile *fout = new TFile( Form("outfiles/mcrep_pos_sbs%d_epm%d.root",kine,epm), "RECREATE" );
   
   //set up diagnostic histograms
-  TH2D *hEdepvP_p = new TH2D("hEdepvP_p","HCal E dep vs proton momentum; p_{proton} (GeV); E_{hcal} (GeV)", nbin, 1, 9, 200, Emin, Emax);
-  TH2D *hEdepvP_n = new TH2D("hEdepvP_n","HCal E dep vs neutron momentum; p_{neutron} (GeV); E_{hcal} (GeV)", nbin, 1, 9, 200, Emin, Emax);
-  TH2D *hEdepvP_p_Ecut = new TH2D("hEdepvP_p_Ecut","HCal E dep vs proton momentum, Mean E / 4 cut; p_{proton} (GeV); E_{hcal} (GeV)", nbin, 1, 9, 200, Emin, Emax);
-  TH2D *hEdepvP_n_Ecut = new TH2D("hEdepvP_n_Ecut","HCal E dep vs neutron momentum, Mean E / 4 cut; p_{neutron} (GeV); E_{hcal} (GeV)", nbin, 1, 9, 200, Emin, Emax);
-  TH1D *hdx_p = new TH1D("hdx_p","dx proton (sd track);x_{HCAL}-x_{expect} (m)", 400, -2, 2);
-  TH1D *hdy_p = new TH1D("hdy_p","dy proton (sd track);y_{HCAL}-y_{expect} (m)", 400, 3.8, 7.8);
-  TH1D *hdx_n = new TH1D("hdx_n","dx neutron (sd track);x_{HCAL}-x_{expect} (m)", 400, -2, 2);
-  TH1D *hdy_n = new TH1D("hdy_n","dy neutron (sd track);y_{HCAL}-y_{expect} (m)", 400, 3.8, 7.8);
-  TH1D *hdx_p_v2 = new TH1D("hdx_p_v2","dx proton (angles);x_{HCAL}-x_{expect} (m)", 400, -2, 2);
-  TH1D *hdy_p_v2 = new TH1D("hdy_p_v2","dy proton (angles);y_{HCAL}-y_{expect} (m)", 400, -2, 2);
-  TH1D *hdx_n_v2 = new TH1D("hdx_n_v2","dx neutron (angles);x_{HCAL}-x_{expect} (m)", 400, -2, 2);
-  TH1D *hdy_n_v2 = new TH1D("hdy_n_v2","dy neutron (angles);y_{HCAL}-y_{expect} (m)", 400, -2, 2);
-  TH1D *hxexp = new TH1D("hxexp","x exp (angles);x_{expect} (m)", 400, -2, 2);
-  TH1D *hyexp = new TH1D("hyexp","y exp (angles);y_{expect} (m)", 400, -2, 2);
+
+  TH1D *hnu[Nmagset];
+
+  TH1D *hHCALx[Nmagset];
+  TH1D *hHCALy[Nmagset];
+
+  TH1D *hMCx[Nmagset];
+  TH1D *hMCy[Nmagset];
+
+  TH1D *hdx_p[Nmagset];
+  TH1D *hdy_p[Nmagset];
+
+  TH1D *hdx_p_v2[Nmagset];
+  TH1D *hdy_p_v2[Nmagset];
+
+  TH2D *hdxdy_p[Nmagset];
+  TH2D *hdxdy_p_v2[Nmagset];
+
+  TH1D *hxexp[Nmagset];
+  TH1D *hyexp[Nmagset];
+
+  for( Int_t m=0; m<Nmagset; m++ ){
+    hnu[m] = new TH1D(Form("hnu_mag%d",magset[m]),Form("HCal elastic KE (nu) mag%d;nu (GeV)",magset[m]), 300,0,10);
+
+    hHCALx[m] = new TH1D(Form("hHCALx_mag%d",magset[m]),Form("HCALx mag%d;x_{HCAL} (m)",magset[m]), nfac*(detxmax-detxmin), detxmin, detxmax);
+    hHCALy[m] = new TH1D(Form("hHCALy_mag%d",magset[m]),Form("HCALy mag%d;y_{HCAL} (m)",magset[m]), nfac*(detymax-detymin), detymin, detymax);
+
+    hMCx[m] = new TH1D(Form("hMCx_mag%d",magset[m]),Form("MCx mag%d;x_{MC} (m)",magset[m]), nfac*(detymax-detymin), detymin, detymax);
+    hMCy[m] = new TH1D(Form("hMCy_mag%d",magset[m]),Form("MCy mag%d;y_{MC} (m)",magset[m]), nfac*(detxmax-detxmin), detxmin, detxmax);
+
+    hdx_p[m] = new TH1D(Form("hdx_p_mag%d",magset[m]),Form("dx proton (sd track) mag%d;x_{HCAL}-x_{expect} (m)",magset[m]), nfac*(dxmax-dxmin), dxmin, dxmax);
+    hdy_p[m] = new TH1D(Form("hdy_p_mag%d",magset[m]),Form("dy proton (sd track) mag%d;y_{HCAL}-y_{expect} (m)",magset[m]), nfac*(dymax-dymin), dymin, dymax);
+
+    hdx_p_v2[m] = new TH1D(Form("hdx_p_v2_mag%d",magset[m]),Form("dx proton (angles) mag%d;x_{HCAL}-x_{expect} (m)",magset[m]), nfac*(dxmax-dxmin), dxmin, dxmax);
+    hdy_p_v2[m] = new TH1D(Form("hdy_p_v2_mag%d",magset[m]),Form("dy proton (angles) mag%d;y_{HCAL}-y_{expect} (m)",magset[m]), nfac*(dymax-dymin), dymin, dymax);
+
+    hdxdy_p[m] = new TH2D(Form("hdxdy_p_mag%d",magset[m]),Form("dxdy proton (sd track) mag%d;y_{HCAL}-y_{expect} (m);x_{HCAL}-x_{expect} (m)",magset[m]), nfac*(dymax-dymin), dymin+6, dymax+6, nfac*(dxmax-dxmin), dxmin, dxmax);
+    hdxdy_p_v2[m] = new TH2D(Form("hdxdy_p_v2_mag%d",magset[m]),Form("dxdy proton (angles) mag%d;y_{HCAL}-y_{expect} (m);x_{HCAL}-x_{expect} (m)",magset[m]), nfac*(dymax-dymin), dymin, dymax, nfac*(dxmax-dxmin), dxmin, dxmax);
+
+    hxexp[m] = new TH1D(Form("hxexp_mag%d",magset[m]),Form("x exp (angles) mag%d;x_{expect} (m)",magset[m]), nfac*(detxmax-detxmin), detxmin, detxmax);
+    hyexp[m] = new TH1D(Form("hyexp_mag%d",magset[m]),Form("y exp (angles) mag%d;y_{expect} (m)",magset[m]), nfac*(detymax-detymin), detymin, detymax);
+
+  }
   
   // re-allocate memory at each run to load different cuts/parameters
   TChain *C = nullptr;
-  std::string nuc;
-  
-  // declare ints to hold number of nucleons that pass/fail energy check on iter 1
-  Int_t P_pass[nbin] = {0};
-  Int_t P_tot[nbin] = {0};
-  Int_t N_pass[nbin] = {0};
-  Int_t N_tot[nbin] = {0};
 
-  //loop over nucleons
-  for (Int_t n=0; n<2; n++) {
-    
-    //std::cout << "Switching to run " << rfname << ".." << std::endl;
+  // create output tree
+  TTree *P = new TTree("P","Analysis Tree"); 
+
+  // output tree vars
+  Double_t dx_out;
+  Double_t dy_out;
+  Double_t dxsd_out;
+  Double_t dysd_out;
+  Double_t W2_out;
+  Double_t Q2_out;
+  Double_t nu_out;
+  Double_t hcale_out;
+  Double_t pse_out;
+  Double_t she_out;
+  Double_t ep_out;
+  Double_t eoverp_out;
+  Double_t hcalatime_out;
+  Double_t hodotmean_out;
+  Double_t thetapq_pout;
+  Double_t thetapq_nout;
+  Int_t run_out;
+  Int_t tar_out; //0: LH2, 1:LD2
+  Int_t mag_out;
+  Int_t failedglobal_out;
+  Int_t failedaccmatch_out;
+  Int_t failedcoin_out;
+
+  // set output tree branches
+  P->Branch( "dx", &dx_out, "dx/D" );
+  P->Branch( "dy", &dy_out, "dy/D" );
+  P->Branch( "dxsd", &dxsd_out, "dxsd/D" );
+  P->Branch( "dysd", &dysd_out, "dysd/D" );
+  P->Branch( "W2", &W2_out, "W2/D" );
+  P->Branch( "Q2", &Q2_out, "Q2/D" );
+  P->Branch( "nu", &nu_out, "nu/D" );
+  P->Branch( "hcale", &hcale_out, "hcale/D" );
+  P->Branch( "pse", &pse_out, "pse/D" );
+  P->Branch( "she", &she_out, "she/D" );
+  P->Branch( "ep", &ep_out, "ep/D" );
+  P->Branch( "eoverp", &eoverp_out, "eoverp/D" );
+  P->Branch( "hcalatime", &hcalatime_out, "hcalatime/D" );
+  P->Branch( "hodotmean", &hodotmean_out, "hodotmean/D" );
+  P->Branch( "thetapq_p", &thetapq_pout, "thetapq_p/D" );
+  P->Branch( "thetapq_n", &thetapq_nout, "thetapq_n/D" );
+  P->Branch( "mag", &mag_out, "mag/I" );
+  P->Branch( "run", &run_out, "run/I" );
+  P->Branch( "tar", &tar_out, "tar/I" );
+  P->Branch( "failedglobal", &failedglobal_out, "failedglobal/I" );
+  P->Branch( "failedaccmatch", &failedaccmatch_out, "failedaccmatch/I" );
+  P->Branch( "failedcoin", &failedcoin_out, "failedcoin/I" );
+
+  //loop over magnetic field settings
+  for (Int_t n=0; n<Nmagset; n++) {
+        
+    string rfile = rdir + Form("replayed_gmn_sbs%d_lh2_%dp_job*",kine,magset[n]);
+  
     C = new TChain("T");
     
-    if( n==0 ){ 
-      nuc = "proton";
-      C->Add(proton_rfile.c_str());
-    }else if( n==1 ){ 
-      nuc = "neutron";
-      C->Add(neutron_rfile.c_str());
-    }else
-      break;
+    C->Add(rfile.c_str());
     
-    // setting up ROOT tree branch addresses
+    //setting up ROOT tree branch addresses
     C->SetBranchStatus("*",0);    
     
     // HCal general
@@ -147,282 +173,238 @@ void mcreplayed_hde( Int_t iter = 1, Double_t tfac = 3. ) //iteration 0 gets mea
     std::vector<void*> hcalvarlink = {&hcalid,&hcale,&hcalx,&hcaly,&hcalr,&hcalc,&hcaltdc,&hcalatime};
     rvars::setbranch(C, "sbs.hcal", hcalvar, hcalvarlink);
     
-    // MC nucleon
-    Double_t mc_p, mc_px, mc_py, mc_pz, mc_vx, mc_vy, mc_vz, mc_nucl, mc_posx, mc_posy;
-    std::vector<std::string> mcvar = {"mc_ep","mc_epx","mc_epy","mc_epz","mc_vx","mc_vy","mc_vz","mc_nucl","sdtrack_posx","sdtrack_posy"};
-    std::vector<void*> mcvarlink = {&mc_p,&mc_px,&mc_py,&mc_pz,&mc_vx,&mc_vy,&mc_vz,&mc_nucl,&mc_posx,&mc_posy};
+    // MC truth e'
+    Double_t mc_p, mc_px, mc_py, mc_pz, mc_vx, mc_vy, mc_vz, mc_nucl;
+    std::vector<std::string> mcvar = {"mc_ep","mc_epx","mc_epy","mc_epz","mc_vx","mc_vy","mc_vz","mc_nucl"};
+    std::vector<void*> mcvarlink = {&mc_p,&mc_px,&mc_py,&mc_pz,&mc_vx,&mc_vy,&mc_vz,&mc_nucl};
     rvars::setbranch(C, "MC", mcvar, mcvarlink);
+
+    // MC sdtrack
+    Double_t mc_posx[econst::maxtrack], mc_posy[econst::maxtrack], mc_tid[econst::maxtrack], mc_pid[econst::maxtrack];
+    Int_t nsdtrack;
+    std::vector<std::string> mcsdvar = {"sdtrack_posx","sdtrack_posx","sdtrack_posy","sdtrack_tid","sdtrack_pid"};
+    std::vector<void*> mcsdvarlink = {&nsdtrack,&mc_posx,&mc_posy,&mc_tid,&mc_pid};
+    rvars::setbranch(C, "MC", mcsdvar, mcsdvarlink,0);
     
-    // set up hcal
-    SBSconfig config(4,0); //Simulation files set up for sbs4 at zero field
+    // bbcal clus var
+    Double_t eSH, xSH, ySH, rblkSH, cblkSH, idblkSH, atimeSH, ePS, rblkPS, cblkPS, idblkPS, atimePS;
+    std::vector<std::string> bbcalclvar = {"sh.e","sh.x","sh.y","sh.rowblk","sh.colblk","sh.idblk","sh.atimeblk","ps.e","ps.rowblk","ps.colblk","ps.idblk","ps.atimeblk"};
+    std::vector<void*> bbcalclvarlink = {&eSH,&xSH,&ySH,&rblkSH,&cblkSH,&idblkSH,&atimeSH,&ePS,&rblkPS,&cblkPS,&idblkPS,&atimePS};
+    rvars::setbranch(C, "bb", bbcalclvar, bbcalclvarlink);
+
+    // track branches
+    Double_t ntrack, p[econst::maxtrack],px[econst::maxtrack],py[econst::maxtrack],pz[econst::maxtrack],xtr[econst::maxtrack],ytr[econst::maxtrack],thtr[econst::maxtrack],phtr[econst::maxtrack];
+    Double_t vx[econst::maxtrack],vy[econst::maxtrack],vz[econst::maxtrack];
+    Double_t xtgt[econst::maxtrack],ytgt[econst::maxtrack],thtgt[econst::maxtrack],phtgt[econst::maxtrack];
+    std::vector<std::string> trvar = {"n","p","px","py","pz","x","y","th","ph","vx","vy","vz","tg_x","tg_y","tg_th","tg_ph"};
+    std::vector<void*> trvarlink = {&ntrack,&p,&px,&py,&pz,&xtr,&ytr,&thtr,&phtr,&vx,&vy,&vz,&xtgt,&ytgt,&thtgt,&phtgt};
+    rvars::setbranch(C,"bb.tr",trvar,trvarlink);
+
+    // set up static params
+    SBSconfig config(4,magset[n]); //Simulation files set up for sbs4 at zero field
     Double_t hcaltheta = config.GetHCALtheta_rad();
     Double_t hcaldist = config.GetHCALdist();
+    Double_t ebeam = config.GetEbeam();
+    Double_t sbsdist = config.GetSBSdist();
+
+    std::string nucleon = "p";
 
     vector<TVector3> hcalaxes; vars::sethcalaxes( hcaltheta, hcalaxes );
     //TVector3 hcalorigin = hcaldist*hcalaxes[2] + econst::hcalvoff*hcalaxes[0];
     TVector3 hcalorigin = hcaldist*hcalaxes[2];
+    Double_t mag = magset[n];
+    Double_t BdL = econst::sbsmaxfield * econst::sbsdipolegap * (mag/100); //scale crudely by magnetic field
 
     // event indices
     long nevent = 0, nevents = C->GetEntries(); 
 
     while (C->GetEntry(nevent++)) {
       
-      std::cout << "Processing " << nuc << " MC data, event " << nevent << "/" << nevents << "\r";
+      if( nevent>nevents-10 ) break;
+      std::cout << "Processing sbs" << kine << " field " << magset[n] << "% MC data, event " << nevent << "/" << nevents << "\r";
       std::cout.flush();
-      
-      Int_t bin = (mc_p-pmin)/p_step;
-      Double_t E_thresh;
 
-      if( bin>150 || bin < 0 )
-	std::cout << "Warning: nucleon momentum bin out of bounds at " << bin << endl;
+      Double_t mcposy=-1000;
+      Double_t mcposx=-1000;
+      
+      for( Int_t i=0; i<nsdtrack; i++ ){
+      	//if( mc_tid[i] == 1 && mc_pid[i]==physconst::IDXp){
+      	if( mc_pid[i]==physconst::IDXp){
+      	  mcposy = mc_posy[i];
+      	  mcposx = mc_posx[i];
+      	  break;
+      	}
+      }
+
+      // mcposy = mc_posy[0];
+      // mcposx = mc_posx[0];
 
       //calculated from sd tracks
-      Double_t dx = -hcalx - mc_posy; //MC convention in hall coordinates, hcal in transport coordinates
-      Double_t dy = hcaly - mc_posx;
+      Double_t dx = -hcalx - mcposy; //MC convention in hall coordinates, hcal in transport coordinates
+      Double_t dy = -hcaly - mcposx;
 
-      //calculated using MC nucleon momenta
-      TVector3 vertex( mc_vx, mc_vy, mc_vz );
-      Double_t thNexp = acos( mc_pz / mc_p );
-      Double_t phNexp = atan2( mc_py, mc_px );
-      TVector3 pNhat = vars::pNhat_track( thNexp, phNexp );
+      hHCALx[n]->Fill(hcalx);
+      hHCALy[n]->Fill(hcaly);
+      hMCx[n]->Fill(mcposx);
+      hMCy[n]->Fill(mcposy);
+
+      //calculated using MC e' momenta using epm1 (MC ep vector is flawless)
+      //TVector3 vertex( mc_vx, mc_vy, mc_vz ); //With MC truth
+      TVector3 vertex( 0., 0., vz[0] ); //With e-arm tracks
+      TLorentzVector pbeam( 0., 0., ebeam, ebeam ); //beam momentum
+      //TLorentzVector pe( mc_px, mc_py, mc_pz, mc_p ); //e' plvect, MC truth
+      TLorentzVector pe( px[0], py[0], pz[0], p[0] ); //e' plvect e-arm tracks
+      TLorentzVector ptarg; vars::setPN(nucleon,ptarg); //target momentum
+      TLorentzVector q = pbeam - pe; //virtual photon mom. or mom. transferred to scatter nucleon (N')
+      TVector3 qv = q.Vect();
+      // TLorentzVector pN = q + ptarg;
+      // TVector3 pNhat = pN.Vect().Unit();
+      // Double_t Q2 = -q.M2();
+      // Double_t W2 = pN.M2();
+      // Double_t nu = q.E();
+      TLorentzVector pN; //N' momentum
+      TVector3 pNhat; //Unit N' 3-vector
+      Double_t Q2, W2, nu, thNexp, pNexp;;
+
+      //simple calculations for e' and N'
+      Double_t etheta = vars::etheta(pe); 
+      Double_t ephi = vars::ephi(pe);
+      Double_t pcent = vars::pcentral(ebeam,etheta,nucleon); //e' p reconstructed by angles
+      Double_t phNexp = ephi + physconst::pi;
+      std::string nucleon = "p"; //For LH2 MC
+
+      /* Can reconstruct e' momentum for downstream calculations differently:
+      v1 - Use four-momentum member functions
+      v2 - Use all available ekine (tree) vars and calculate vectors (should be the same as v1)
+      v3 - Use reconstructed angles as independent qty (usually preferable given GEM precision at most kinematics)
+      v4 - Use reconstructed momentum as independent qty */
+      
+      if( epm==1 ){
+	//v1
+	pN = q + ptarg;
+	pNhat = pN.Vect().Unit();
+	Q2 = -q.M2();
+	W2 = pN.M2();
+	nu = q.E();
+      }else if( epm==2 ){
+	//v2
+	Q2 = -q.M2();
+	W2 = pN.M2();
+	nu = q.E();
+	pNexp = vars::pN_expect( nu, nucleon );
+	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
+	pNhat = vars::pNhat_track( thNexp, phNexp );
+	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
+      }else if( epm==3 ){
+	//v3
+	nu = pbeam.E() - pcent;
+	pNexp = vars::pN_expect( nu, nucleon );
+	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
+	pNhat = vars::pNhat_track( thNexp, phNexp );
+	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
+	Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
+	W2 = vars::W2( pbeam.E(), pe.E(), Q2, nucleon );
+      }else if( epm==4 ){
+	//v4
+	nu = pbeam.E() - pe.E();
+	pNexp = vars::pN_expect( nu, nucleon );
+	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
+	pNhat = vars::pNhat_track( thNexp, phNexp );
+	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
+	Q2 = vars::Q2( pbeam.E(), pe.E(), etheta );
+	W2 = vars::W2( pbeam.E(), pe.E(), Q2, nucleon );
+      }else{
+	Q2 = -q.M2();
+	W2 = pN.M2();
+	nu = q.E();
+	pNexp = vars::pN_expect( nu, nucleon );
+	thNexp = acos( (pbeam.E()-pcent*cos(etheta)) / pNexp );
+	pNhat = vars::pNhat_track( thNexp, phNexp );
+	pN.SetPxPyPzE( pNexp*pNhat.X(), pNexp*pNhat.Y(), pNexp*pNhat.Z(), nu+ptarg.E() );
+	std::cout << "Warning: epm version incorrect. Defaulting to version 2." << endl;
+      }
 
       vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
-      hxexp->Fill(xyhcalexp[0]);
-      hyexp->Fill(xyhcalexp[1]);
+      TVector3 hcalpos = hcalorigin + hcalx*hcalaxes[0] + hcaly*hcalaxes[1];
+      // Double_t dx = hcalx - xyhcalexp[0];
+      // Double_t dy = hcaly - xyhcalexp[1];
+      TVector3 neutdir = (hcalpos - vertex).Unit();
+      Double_t protdeflect = tan( 0.3 * BdL / q.Mag() ) * (hcaldist - (sbsdist + econst::sbsdipolegap/2.0) );
+      TVector3 protdir = ( hcalpos + protdeflect * hcalaxes[0] - vertex ).Unit();
+      Double_t thetapq_p = acos( protdir.Dot( pNhat ) );
+      Double_t thetapq_n = acos( neutdir.Dot( pNhat ) );
+      // Double_t thNexp = acos( mc_pz / mc_p );
+      // Double_t phNexp = atan2( mc_py, mc_px );
+      // TVector3 pNhat = vars::pNhat_track( thNexp, phNexp );
+      Double_t eoverp = (ePS + eSH) / p[0];
+      hnu[n]->Fill(nu);
+
+      //vector<Double_t> xyhcalexp; vars::getxyhcalexpect( vertex, pNhat, hcalorigin, hcalaxes, xyhcalexp );
+      hxexp[n]->Fill(xyhcalexp[0]);
+      hyexp[n]->Fill(xyhcalexp[1]);
 
       Double_t dx_v2 = hcalx - xyhcalexp[0];
       Double_t dy_v2 = hcaly - xyhcalexp[1];
 
-      if( n==0 ){
-	P_tot[bin]++;
-	E_thresh = oEmean_p[bin]/tfac;
-	if( hcale > E_thresh ){
-	  P_pass[bin]++;
-	  hEdepvP_p_Ecut->Fill(mc_p,hcale);
-	}
-	hEdepvP_p->Fill(mc_p,hcale);
-	hdx_p->Fill(dx);
-	hdy_p->Fill(dy);
-	hdx_p_v2->Fill(dx_v2);
-	hdy_p_v2->Fill(dy_v2);
-      }
-      if( n==1 ){
-	N_tot[bin]++;
-	E_thresh = oEmean_n[bin]/tfac;
-	if( hcale > E_thresh ){
-	  N_pass[bin]++;
-	  hEdepvP_n_Ecut->Fill(mc_p,hcale);
-	}
-	hEdepvP_n->Fill(mc_p,hcale);
-	hdx_n->Fill(dx);
-	hdy_n->Fill(dy);
-	hdx_n_v2->Fill(dx_v2);
-	hdy_n_v2->Fill(dy_v2);
-      }
+      hdx_p[n]->Fill(dx);
+      hdy_p[n]->Fill(dy);
+      hdx_p_v2[n]->Fill(dx_v2);
+      hdy_p_v2[n]->Fill(dy_v2);
+
+      hdxdy_p[n]->Fill(dy,dx);
+      hdxdy_p_v2[n]->Fill(dy_v2,dx_v2);
+
+      //Fill physics output tree     
+      dx_out = dx;
+      dy_out = dy;
+      dxsd_out = dx_v2;
+      dysd_out = dy_v2;
+      W2_out = W2;
+      Q2_out = Q2;
+      nu_out = nu;
+      hcale_out = hcale;
+      pse_out = ePS;
+      she_out = eSH;
+      ep_out = p[0];
+      eoverp_out = eoverp;
+      hcalatime_out = 0;
+      hodotmean_out = 0;
+      thetapq_pout = thetapq_p;
+      thetapq_nout = thetapq_n;
+      mag_out = mag;
+      run_out = 0;
+      tar_out = 0;
+      failedglobal_out = 0;
+      failedaccmatch_out = 0;
+      failedcoin_out = 0;
+
+      P->Fill();
 
     } //end event loop
 
     // reset chain for the next run config
-    C->Reset();
+    C->Reset();    
 
-  } //end run loop
-
-  //Reporting
-  gStyle->SetOptFit();
-  gStyle->SetEndErrorSize(0);
-  TCanvas *c1 = new TCanvas("c1","HCal E vs Nucleon P",1600,1200);
-  c1->SetGrid();
-
-  //Iter 0 arrays
-  Double_t binp[nbin] = {0.};
-
-  Double_t Emean_p[nbin] = {0.};
-  Double_t Esig_p[nbin] = {0.};
-  Double_t Emean_n[nbin] = {0.};
-  Double_t Esig_n[nbin] = {0.};
-  Double_t binerr_p[nbin] = {0.};
-  Double_t binerr_n[nbin] = {0.};
-
-  //Iter 1 arrays
-  Double_t hde_proton[nbin] = {0.};
-  Double_t hde_neutron[nbin] = {0.};
-
-  auto mg = new TMultiGraph();
-
-  if( iter==0 ){ 
-    
-    //loop over nucleons for slices, n==0 proton, n==1 neutron
-    for(Int_t n=0; n<2; n++){
-      
-      Double_t p0;
-      Double_t p1;
-      TH2D *hEdepvP_nuc;
-      
-      if( n==0 ){ //if proton
-	p0=pp0;
-	p1=pp1;
-	hEdepvP_nuc = (TH2D*)(hEdepvP_p->Clone("hEdepvP_nuc"));
-      }else if( n==1 ){ //if neutron
-	p0=np0;
-	p1=np1;
-	hEdepvP_nuc = (TH2D*)(hEdepvP_n->Clone("hEdepvP_nuc"));
-      }else
-	break;
-      
-      Double_t setpar[3];
-      Double_t fitl;
-      Double_t fith;
-      TH1D *pbinslice[nbin];
-
-      for(Int_t b=0; b<nbin; b++){
-
-	//Get expected mean from fit to hcale vs nucleon p
-	Double_t p = b*p_step+pmin;
-	Double_t fitp1exp = p0-0.1 + p1*p;
-	Double_t fitp2exp = 0.002*p+0.327; //very rough approx
-	//cout << endl << p << " " << fitp1exp << " " << fitp2exp << endl;
-
-	pbinslice[b] = hEdepvP_nuc->ProjectionY(Form("pbinslice_%d",b+1),b+1,b+1); //Trying hapDiff_ID from haDiff_ID
-
-	Int_t sliceN = pbinslice[b]->GetEntries();
-	//Double_t arimean = pbinslice[b]->GetMean();
-	setpar[0] = 800;
-	setpar[1] = fitp1exp;
-	setpar[2] = fitp2exp;
-	if( b<30 ){
-	  fitl = fitp1exp - 1*fitp2exp;
-	  if( fitl<0 )
-	    fitl=0;
-	  fith = fitp1exp + 1*fitp2exp;
-	}else{
-	  fitl = fitp1exp - 3*fitp2exp;
-	  if( fitl<0 )
-	    fitl=0;
-	  fith = fitp1exp + 3*fitp2exp;
-	}
-	TF1 *gausfit = new TF1("gausfit",fits::g_gfit,fitl,fith,3);
-	gausfit->SetLineWidth(4);
-	gausfit->SetParameter(0,setpar[0]);
-	gausfit->SetParameter(1,setpar[1]);
-	gausfit->SetParLimits(1,fitl,fith);
-	gausfit->SetParameter(2,setpar[2]);
-	gausfit->SetParLimits(2,Emin,Emax);
-
-	pbinslice[b]->Fit("gausfit","RBM");
-	pbinslice[b]->Draw();
-	
-	binp[b] = p;
-	if( n==0 ){
-	  Emean_p[b] = gausfit->GetParameter(1);
-	  Esig_p[b] = gausfit->GetParameter(2);
-	  pbinslice[b]->SetTitle(Form("Loop:%d Np:%f Nuc:%d Mean:%f Sigma:%f MeanExp:%f SigExp:%f",b,p,n,Emean_p[b],Esig_p[b],fitp1exp,fitp2exp));    
-
-	}else if( n==1 ){
-	  Emean_n[b] = gausfit->GetParameter(1);
-	  Esig_n[b] = gausfit->GetParameter(2);
-	  pbinslice[b]->SetTitle(Form("Loop:%d Np:%f Nuc:%d Mean:%f Sigma:%f MeanExp:%f SigExp:%f",b,p,n,Emean_p[b],Esig_p[b],fitp1exp,fitp2exp));    
-
-	}
-	
-      } //end loop over bins
-
-    } //end loop over nucleons
-
-    //Draw graphs
-    auto grp = new TGraphErrors(nbin,binp,Emean_p,binerr_p,Esig_p);
-    grp->SetTitle("Proton");
-    grp->SetMarkerColor(kRed);
-    grp->SetMarkerStyle(33);
-    grp->SetMarkerSize(2);
-    grp->SetLineColor(kRed);
-    grp->SetLineWidth(2);
-    mg->Add(grp);
-
-    auto grn = new TGraphErrors(nbin,binp,Emean_n,binerr_n,Esig_n);
-    grn->SetTitle("Neutron");
-    grn->SetMarkerColor(kBlue);
-    grn->SetMarkerStyle(34);
-    grn->SetMarkerSize(2);
-    grn->SetLineColor(kBlue);
-    grn->SetLineWidth(2);
-    mg->Add(grn);
-
-    mg->SetTitle("HCal E vs Nucleon p");
-    mg->GetXaxis()->SetTitle("Nucleon p (GeV)");
-    mg->GetYaxis()->SetTitle("E_{hcal}");
-    mg->Draw("AP");
-
-    //c1->Modified();
-
-    c1->BuildLegend();
-
-    c1->Write();
-
-    E_prot.open( prot_param_path );
-    E_prot << "#HCal E mean via gaussian fit to proton data obtained " << date.c_str() << endl;
-    E_prot << "#" << endl;
-
-    for( Int_t b=0; b<nbin; b++ ){   
-      E_prot << Emean_p[b] << endl;
-    }
-    E_prot.close();
-
-    E_neut.open( neut_param_path );
-    E_neut << "#HCal E mean via gaussian fit to neutron data obtained " << date.c_str() << endl;
-    E_neut << "#" << endl;
-
-    for( Int_t b=0; b<nbin; b++ ){   
-      E_neut << Emean_n[b] << endl;
-    }
-    E_neut.close();
-  }
-
+  } //end magset loop
   
+  //Make canvas for (expected-residuals)/expected
+  TCanvas *c[Nmagset];
 
-  if( iter==1 ){
+  for( Int_t m=0; m<Nmagset; m++ ){
 
-    for(Int_t b=0; b<nbin; b++){
-      Double_t p = b*p_step+pmin;
-      binp[b] = p;
-      
-      hde_proton[b] = (double)P_pass[b] / (double)P_tot[b] *100.;
-      hde_neutron[b] = (double)N_pass[b] / (double)N_tot[b] *100.;
-	 
-    }
+    c[m] = new TCanvas(Form("c_m%d",magset[m]),Form("dxdy sbs%d mag%d",kine,magset[m]),1200,500);
+    gStyle->SetPalette(53);
+    c[m]->Divide(2,1);
+
+    c[m]->cd(1);
+
+    hdxdy_p[m]->Draw("colz");
     
-    //Draw graphs
-    //auto grp = new TGraphErrors(nbin,binp,hde_proton,binerr_p,binerr_p);
-    auto grp = new TGraph(nbin,binp,hde_proton);
-    grp->SetTitle("Proton");
-    grp->SetMarkerColor(kRed);
-    grp->SetMarkerStyle(20);
-    grp->SetMarkerSize(1);
-    grp->SetLineColor(kRed);
-    grp->SetLineWidth(0);
-    mg->Add(grp);
+    c[m]->cd(2);
+    
+    hdxdy_p_v2[m]->Draw("colz");
 
-    //auto grn = new TGraphErrors(nbin,binp,hde_neutron,binerr_n,binerr_n);
-    auto grn = new TGraph(nbin,binp,hde_neutron);
-    grn->SetTitle("Neutron");
-    grn->SetMarkerColor(kBlue);
-    grn->SetMarkerStyle(21);
-    grn->SetMarkerSize(1);
-    grn->SetLineColor(kBlue);
-    grn->SetLineWidth(0);
-    mg->Add(grn);
-
-    mg->SetTitle(Form("HCAL Efficiency (E_{T}=1/%0.0f E_{Peak}) (4x4 cluster)",tfac));
-    mg->GetXaxis()->SetTitle("Nucleon Momentum (GeV/c)");
-    mg->GetYaxis()->SetTitle("Efficiency (%)");
-    mg->Draw("AP");
-
-    mg->GetYaxis()->SetRangeUser(80.,105.);
-
-    c1->Modified();
-
-    c1->BuildLegend();
-
-    c1->Write();
+    c[m]->Write();
 
   }
 

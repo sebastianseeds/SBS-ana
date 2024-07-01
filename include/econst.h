@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <map>
 #include "TMath.h"
 #include "TString.h"
 
@@ -23,26 +24,58 @@ namespace econst {
   static const Int_t hcalchan = 288;
   static const Int_t hcalcol = 12;
   static const Int_t hcalrow = 24;
-  static const Double_t hcaladc_binw = 4.;           //ns, width of each ADC bin
-  static const Double_t hcalblk_w = 0.1524;       //m, width of a HCAL block
-  static const Double_t hcalblk_h = 0.1524;       //m, height of a HCAL block
-  static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist.
-  static const Double_t hcalblk_div_v = 0.15875;  //m, vertical center-to-center dist.
-  static const Double_t hcalblk_div_hyp = 0.15875;  //m, division corner-to-cornter dist.
+  static const Double_t hcal_hrange = 1.85928;    //m, total range in horizontal direction of HCal (end-to-end)
+  static const Double_t hcal_vrange = 3.81;       //m, total range in vertical direction of HCal (end-to-end)
+  static const Double_t hcaladc_binw = 4.;        //ns, width of each ADC bin
+  static const Double_t hcalblk_w_p0 = 0.15;      //m, width of a HCAL block, use for pass0
+  static const Double_t hcalblk_h_p0 = 0.15;      //m, height of a HCAL block, use for pass0
+  static const Double_t hcalblk_w = 0.1524;       //m, width of a HCAL block, corrected
+  static const Double_t hcalblk_h = 0.1524;       //m, height of a HCAL block, corrected
+
+  static const Double_t hcalblk_div_hyp = 0.22183;//m, division corner-to-corner dist.
   static const Double_t hcalblk_gap_h = 0.00254;  //m, horiz. gap bet. two blocks
   static const Double_t hcalblk_gap_v = 0.00635;  //m, vert. gap bet. two blocks
+
+  ////PASS2////
+  static const Double_t hcalblk_div_h = 0.15494;  //m, horizontal center-to-center dist. (Y)
+  static const Double_t hcalblk_div_v = 0.15875;  //m, vertical center-to-center dist. (X)
+
+  const std::map<int, double> hcal_effz = {       //m, effective hcal z offset to eliminate dx:hcalx correlation. From PDatta communication with APuckett 4.29.24
+    {4, 11.65},
+    {7, 14.925},
+    {11, 15.77},
+    {14, 15.13},
+    {8, 11.77},
+    {9, 11.7}
+  };
+  /////////////
+
   // Positions (mc)
-  static const Double_t hcalposXi_mc = -2.3531;   //m, distance from beam center to top of HCal
-  static const Double_t hcalposXf_mc = 1.45309;   //m, distance from beam center to bottom of HCal
-  static const Double_t hcalposYi_mc = -0.931545; //m, distance from beam center to opposite-beam side of HCal
-  static const Double_t hcalposYf_mc = 0.931545;  //m, distance from beam center to beam side of HCal
-  // Positions (data)
-  static const Double_t hcalposXi = -2.268095;    //m, distance from beam center to top of HCal
-  static const Double_t hcalposXf = 1.538095;     //m, distance from beam center to bottom of HCal
-  static const Double_t hcalposYi = -0.931545;    //m, distance from beam center to opposite-beam side of HCal
-  static const Double_t hcalposYf = 0.931545;     //m, distance from beam center to beam side of HCal
+
+  ////PASS2////
+  static const Double_t hcalposXi_mc = -2.655;    //m, distance from beam center to top of HCal w/75cm offset
+  static const Double_t hcalposXf_mc = 1.155;     //m, distance from beam center to bottom of HCal w/75cm offset
+  static const Double_t hcalposYi_mc = -0.92964;  //m, distance from beam center to opposite-beam side of HCal
+  static const Double_t hcalposYf_mc = 0.92964;   //m, distance from beam center to beam side of HCal
+  /////////////
+
+  // Positions (data fit to sbs8)
+  static const Double_t hcalposXi_mc_p1 = -2.27;    //m, distance from beam center to top of HCal w/75cm offset
+  static const Double_t hcalposXf_mc_p1 = 1.54;     //m, distance from beam center to bottom of HCal w/75cm offset
+  // Pass0/1 (no block spacing)
+  static const Double_t hcalposXi_p0 = -2.16014;  //m, distance from beam center to top of HCal w/75cm offset
+  static const Double_t hcalposXf_p0 = 1.43826;   //m, distance from beam center to bottom of HCal w/75cm offset
+  static const Double_t hcalposYi_p0 = -0.9;      //m, distance from beam center to opposite-beam side of HCal
+  static const Double_t hcalposYf_p0 = 0.9;       //m, distance from beam center to beam side of HCal
+  // Positions (data fits)
+  static const Double_t hcalposXi = -2.268095;    //m, distance from beam center to top of HCal (obsolete)
+  static const Double_t hcalposXf = 1.538095;     //m, distance from beam center to bottom of HCal (obsolete)
+  static const Double_t hcalposYi = -0.931545;    //m, distance from beam center to opposite-beam side of HCal (obsolete)
+  static const Double_t hcalposYf = 0.931545;     //m, distance from beam center to beam side of HCal (obsolete)
   // Global
   static const Double_t hcalvoff = -0.2897;       //m, height of the center of hcal above beam (m)
+  //static const Double_t hcalvoff = -0.3735;       //m, height of the center of hcal above beam (m) (sbs8)
+  //static const Double_t hcalvoff = 0.0;         //m, height of the center of hcal above beam (m) after pass2 corr
 
   // BBCAL
   static const Int_t shchan = 189;
@@ -54,18 +87,20 @@ namespace econst {
 
   //// Experimental constants
   static const Int_t nkine = 6;
+  static const Int_t kIdx[6] = {4,7,11,14,8,9};
+
   // target
   static const Double_t l_tgt = 0.15;  //m 
-  static const Double_t celldiameter = 1.6*2.54/100; //m, right now this is a guess
+  static const Double_t celldiameter = 1.6*2.54; //cm, right now this is a guess
   // LH2
   static const Double_t lh2tarrho = 0.0723;     //g/cc, target density
   static const Double_t lh2cthick = 0.02;       //cm, target cell thickness
   static const Double_t lh2uwallthick = 0.0145; //cm, upstream wall thickness
   static const Double_t lh2dwallthick = 0.015;  //cm, downstream wall thickness
-  static const Double_t lh2dEdx = 0.00574; //According to NIST ESTAR, the collisional stopping power of hydrogen is about 5.74 MeV*cm2/g at 2 GeV energy
+  static const Double_t lh2dEdx = 0.00574; //According to NIST ESTAR, the collisional stopping power of hydrogen is about 5.74 MeV*cm2/g at 2 GeV energy. On the other hand, target group -> 0.00480
   // LD2
   static const Double_t ld2tarrho = 0.169;      //g/cc, target density
-  static const Double_t ld2dEdx = 0.0114;      //guess for now
+  static const Double_t ld2dEdx = 0.00581;      //According to https://open.library.ubc.ca/media/stream/pdf/831/1.0085416/1, pick up a factor of 1.012. On the other hand, target group -> 0.00240
   static const Double_t ld2uwallthick = 0.0145; //cm, assume same as hydrogen for now
   static const Double_t ld2dwallthick = 0.015;  //cm, assume same as hydrogen for now
   // magnet
@@ -84,6 +119,7 @@ namespace econst {
   Double_t     sbsdist(Int_t config);      //m
   Double_t     hcaltheta(Int_t config);    //deg
   Double_t     hcaldist(Int_t config);     //m
+  Double_t     hcaleffdist(Int_t config);  //m
 }
 
 // a class for SBS config
@@ -102,6 +138,7 @@ class SBSconfig {
   Double_t     GetHCALtheta()     const { return fHCALtheta; }
   Double_t     GetHCALtheta_rad() const { return fHCALtheta_rad; }
   Double_t     GetHCALdist()      const { return fHCALdist; }
+  Double_t     GetHCALeffdist()   const { return fHCALeffdist; }
 
   // constructor
   SBSconfig(Int_t conf, Int_t sbsmag) {
@@ -116,6 +153,7 @@ class SBSconfig {
     fSBSdist       = econst::sbsdist(conf);
     fHCALtheta     = econst::hcaltheta(conf);
     fHCALtheta_rad = econst::hcaltheta(conf)*TMath::DegToRad();
+    fHCALeffdist   = econst::hcaleffdist(conf);
     fHCALdist      = econst::hcaldist(conf);
   }
 
@@ -131,6 +169,7 @@ class SBSconfig {
       	 << Form(" Super BigBite distance: %0.2f (m)," , sbsconf.fSBSdist)             << std::endl
 	 << Form(" HCAL angle: %0.1f (deg),"           , sbsconf.fHCALtheta)           << std::endl
     	 << Form(" HCAL distance: %0.1f (m)"           , sbsconf.fHCALdist)            << std::endl
+    	 << Form(" HCAL effective distance: %0.1f (m)" , sbsconf.fHCALeffdist)         << std::endl
 	 << " -------------------------- "                        << std::endl         << std::endl;
     return out;
   }
@@ -148,6 +187,7 @@ class SBSconfig {
   Double_t     fHCALtheta;           // HCAL angle (deg)
   Double_t     fHCALtheta_rad;       // HCAL angle (rad)
   Double_t     fHCALdist;            // HCAL distance from target (m)
+  Double_t     fHCALeffdist;         // HCAL effective distance from target (m)
 };
 
 #endif

@@ -1,0 +1,13 @@
+bb.preconflag = 1
+# NOTE on new momentum reconstruction formalism: 1st-order momentum is calculated from
+#   p*thetabend = A_pth1*(1.0 + (B_pth1+C_pth1*bb.magdist)*thtgt)
+# and momentum expansion coefficients are for delta = p(first order) * (1+delta)
+# In most of the acceptance we don't need any corrections beyond the first-order model
+
+bb.A_pth1 =     0.275471044
+bb.B_pth1 =     0.942509009
+bb.C_pth1 = 0.0
+
+#NOTE: angle and vertex reconstruction coefficients are from simu_sbs4.dat
+
+bb.optics_parameters = 

@@ -1,0 +1,45 @@
+/volatile/halla/sbs/seeds/sim042123/replayed_gmn_sbs11_lh2_0p_job_1.root
+/volatile/halla/sbs/seeds/sim042123/replayed_gmn_sbs11_lh2_0p_job_2.root
+/volatile/halla/sbs/seeds/sim042123/replayed_gmn_sbs11_lh2_0p_job_3.root
+/volatile/halla/sbs/seeds/sim042123/replayed_gmn_sbs11_lh2_0p_job_4.root
+/volatile/halla/sbs/seeds/sim042123/replayed_gmn_sbs11_lh2_0p_job_5.root
+endlist
+bb.tr.n==1&&bb.ps.e>0.2&&abs(bb.tr.vz)<.08&&sbs.hcal.e>0.025&&abs(bb.etot_over_p-0.92)<0.2&&bb.ps.e+bb.sh.e>1.7
+endcut
+order 1
+useAlShield 0
+dEdx 0.00574
+dEdx_Al 0.0021
+ebeam 9.8594
+bbtheta 42. 
+sbstheta 13.3
+hcaldist 14.5
+Ltgt 15.0
+rho_tgt 0.072
+celldiameter 4.064
+usehcalcut 1
+dx0 -1.08
+dy0 -0.13
+dxsigma 0.077
+dysigma 0.083
+GEMpitch 10.0
+#fix_pth0 1
+#fix_pthx 1
+fix_pth0 0
+fix_pthx 0
+#pth0 0.274932
+#pthx 0.101809
+bbdist 1.55
+A_pth0 0.27676
+B_pth0 1.1976
+C_pth0 0.4764
+Wmin 0.6
+Wmax 1.2
+dpel_min -0.05
+dpel_max 0.05
+useAlShield 0
+oldcoeffs simu_sbs11.dat
+fit_thtgt_min -0.15
+fit_thtgt_max 0.12
+hcalcoordsys 0
+endconfig

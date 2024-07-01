@@ -1,0 +1,110 @@
+{
+    "rootfile_dir_lh2_p1" : {
+	"sbs4"        : "/work/halla/sbs/sbs-gmn/pass0/SBS4/LH2/rootfiles",
+	"sbs7"        : "/work/halla/sbs/sbs-gmn/pass0/SBS7/LH2/rootfiles",
+	"sbs11"       : "/work/halla/sbs/sbs-gmn/pass1/SBS11/LH2/rootfiles",
+	"sbs14"       : "/work/halla/sbs/sbs-gmn/pass1/SBS14/LH2/rootfiles",
+	"sbs8"        : "/work/halla/sbs/sbs-gmn/pass1/SBS8/LH2/rootfiles",
+	"sbs9"        : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LH2/rootfiles"
+    },
+
+    "rootfile_dir_ld2_p1" : {
+	"sbs4"        : "/work/halla/sbs/sbs-gmn/pass0/SBS4/LD2/rootfiles",
+	"sbs7"        : "/work/halla/sbs/sbs-gmn/pass0/SBS7/LD2/rootfiles",
+	"sbs11"       : "/work/halla/sbs/sbs-gmn/pass1/SBS11/LD2/rootfiles",
+	"sbs14"       : "/work/halla/sbs/sbs-gmn/pass1/SBS14/LD2/rootfiles",
+	"sbs8"        : "/work/halla/sbs/sbs-gmn/pass1/SBS8/LD2/rootfiles",
+	"sbs9"        : "/work/halla/sbs/sbs-gmn/pass1/SBS9/LD2/rootfiles"
+    },
+
+    "rootfile_dir_lh2_p2" : {
+	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS4/LH2/rootfiles",
+	"sbs7"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS7/LH2/rootfiles",
+	"sbs11"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LH2/rootfiles",
+	"sbs14"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS14/LH2/rootfiles",
+	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS8/LH2/rootfiles",
+	"sbs9"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS9/LH2/rootfiles"
+    },
+
+    "rootfile_dir_ld2_p2" : {
+	"sbs4"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS4/LD2/rootfiles",
+	"sbs7"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS7/LD2/rootfiles",
+	"sbs11"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS11/LD2/rootfiles",
+	"sbs14"       : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take4/SBS14/LD2/rootfiles",
+	"sbs8"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS8/LD2/rootfiles",
+	"sbs9"        : "/lustre19/expphy/volatile/halla/sbs/sbs-gmn/GMN_REPLAYS/pass2_take3/SBS9/LD2/rootfiles"
+    },
+
+    "hcal_offset_p1"     : {
+	"sbs4"        : -0.2800,
+	"sbs7"        : -0.2798,
+	"sbs11"       : -0.3347,
+	"sbs14"       : -0.3565,
+	"sbs8"        : -0.3599,
+	"sbs9"        : -0.3657
+    },
+
+    "hcal_offset_p2"     : {
+	"sbs4"        : 0.0,
+	"sbs7"        : 0.0,
+	"sbs11"       : 0.0,
+	"sbs14"       : 0.0,
+	"sbs8"        : 0.0,
+	"sbs9"        : 0.0
+    },
+
+    "minE_p1"             : {
+	"sbs4"        : 0.05,
+	"sbs7"        : 0.05,
+	"sbs11"       : 0.05,
+	"sbs14"       : 0.05,
+	"sbs8"        : 0.05,
+	"sbs9"        : 0.05
+    },
+
+    "minE_p2"             : {
+	"sbs4"        : 0.03,
+	"sbs7"        : 0.03,
+	"sbs11"       : 0.03,
+	"sbs14"       : 0.03,
+	"sbs8"        : 0.03,
+	"sbs9"        : 0.03
+    },
+
+    "coin_profile_p1" : {
+	"sbs4" : [ 2446, 51.69, 8.96 ],
+	"sbs7" : [ 124.8, 65.52, 1.70 ],
+	"sbs11" : [ 47.7, 60.28, 1.89 ],
+	"sbs14" : [ 694, 59.30, 1.52 ],
+	"sbs8" : [ 21682, 47.33, 1.61 ],
+	"sbs9" : [ 5620, 52.00, 1.57 ]
+    },
+
+    "coin_profile_p2" : {
+	"sbs4" : [ 2446, 0.22, 1.45 ],
+	"sbs7" : [ 124.8, 0.54, 1.70 ],
+	"sbs11" : [ 47.7, 0.54, 1.89 ],
+	"sbs14" : [ 694, 0.54, 1.52 ],
+	"sbs8" : [ 21682, 0.38, 1.61 ],
+	"sbs9" : [ 5620, 0.54, 1.57 ]
+    },
+
+    "tof_profile_p2" : {
+	"sbs4" : [ -20.8086, 6.464510, -0.71342 ],
+	"sbs7" : [ -3.84358, 0.617647, -0.03516 ],
+	"sbs11" : [ -0.51868, 0.016076, 0.001009 ],
+	"sbs14" : [ -9.30317, 1.818670, -0.12324 ],
+	"sbs8" : [ -13.4154, 3.449660, -0.30995 ],
+	"sbs9" : [ -22.3211, 6.673740, -0.68472 ]
+    },
+
+    "tw_profile_p2" : {
+	"sbs4" : [ 0.78, 0.5 ],
+	"sbs7" : [ 0.63, 0.5 ],
+	"sbs11" : [ 0.5, 0.5 ],
+	"sbs14" : [ 0.48, 0.5 ],
+	"sbs8" : [ 0.46, 0.5 ],
+	"sbs9" : [ 0.55, 0.5 ]
+    }
+
+}

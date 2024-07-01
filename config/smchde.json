@@ -1,7 +1,7 @@
 {
     "rootfiles"     : {
-	"proton"         : "/lustre19/expphy/volatile/halla/sbs/seeds/hcal/mc_hde/proton/replayed_gmn_sbs4_parp_0p_job*",
-	"neutron"        : "/lustre19/expphy/volatile/halla/sbs/seeds/hcal/mc_hde/neutron/replayed_gmn_sbs4_parn_0p_job*"
+	"proton"         : "/lustre19/expphy/volatile/halla/sbs/ewertz/Simulation/HCal_Eff/replayed_ew_gmn_SBS9_LD2_mag0_100uA_pGun_Px_2M_job_*.root",
+	"neutron"        : "/lustre19/expphy/volatile/halla/sbs/ewertz/Simulation/HCal_Eff/replayed_ew_gmn_SBS9_LD2_mag0_100uA_nGun_Px_2M_job_*.root"
     }, 
 
     "params"     : {
@@ -18,10 +18,80 @@
 	"proton"         : 0.114,
 	"neutron"        : 0.116
     },
-    
-    "threshold_fac" : {
-	"proton"         : 4,
-	"neutron"        : 4
-    }
+
+    "pN"               : [ 2.36, 2.4, 3.18, 3.22, 2.36, 3.17, 3.20, 3.17, 3.17, 3.17, 3.20 ],
+
+    "hde"              : [ 96.388, 92.937, 96.923, 94.754, 92.8, 94.1, 91.6, 93.6626, 94.5885, 94.4370, 93.1 ],
+
+    "hdeerr"           : [ 0.460, 1.961, 0.287, 1.264, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 ],
+
+    "hdeerr_b"         : [ 0.037, 0.059, 0.018, 0.023, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 ],    
+
+    "hde8_pN"          : [ 3.17, 3.17, 3.17 ], 
+    "hde8"             : [ 0.938, 0.951, 0.945 ], 
+    "hde8_err"         : [ 0.001, 0.002, 0.001 ], 
+
+    "pN_cent"     : {
+	"sbs4"        : 2.38,
+	"sbs7"        : 6.13,
+	"sbs11"       : 8.11,
+	"sbs14"       : 4.83,
+	"sbs8"        : 3.2,
+	"sbs9"        : 3.2
+    },
+
+    "HDE_sb"     : {
+	"sbs4"        : 95.748,
+	"sbs7"        : 1.4,
+	"sbs11"       : 1.4,
+	"sbs14"       : 1.4,
+	"sbs8"        : 1.4,
+	"sbs9"        : 1.4
+    },
+
+    "HDE_sb_err"     : {
+	"sbs4"        : 0.427,
+	"sbs7"        : 400,
+	"sbs11"       : 400,
+	"sbs14"       : 400,
+	"sbs8"        : 400,
+	"sbs9"        : 400
+    },
+
+    "HDE_anticut"     : {
+	"sbs4"        : 92.892,
+	"sbs7"        : 1.4,
+	"sbs11"       : 1.4,
+	"sbs14"       : 1.4,
+	"sbs8"        : 1.4,
+	"sbs9"        : 1.4
+    },
+
+    "HDE_anticut_err"     : {
+	"sbs4"        : 1.484,
+	"sbs7"        : 400,
+	"sbs11"       : 400,
+	"sbs14"       : 400,
+	"sbs8"        : 400,
+	"sbs9"        : 400
+    },
+
+    "outfile_0"          : "/lustre19/expphy/volatile/halla/sbs/seeds/hde_analysis/hdemc_i0.root",
+
+    "outfile_1"          : "/lustre19/expphy/volatile/halla/sbs/seeds/hde_analysis/hdemc_i1.root",
+
+    "pmin"               : 1.0,
+
+    "pmax"               : 9.0,
+
+    "Emin"               : 0.0,
+
+    "Emax"               : 2.0,
+
+    "fit_fac"            : 0.06,
+
+    "tfac"               : 2.63,
+
+    "nbin"               : 150
 
 }

@@ -41,6 +41,8 @@ namespace vars{
   Double_t Q2( Double_t ebeam, Double_t eeprime, Double_t etheta );                // GeV, GeV, rad
   Double_t W2( Double_t ebeam, Double_t eeprime, Double_t Q2, std::string Ntype ); // GeV, GeV, GeV2
   Double_t W( Double_t ebeam, Double_t eeprime, Double_t Q2, std::string Ntype );  // GeV, GeV, GeV2
+  Double_t tau( Double_t Q2, std::string Ntype );                                  // GeV2
+  Double_t epsilon( Double_t tau, Double_t etheta ); 
 
   // beam luminosity
   Double_t luminosity( Double_t ibeam, std::string targetType );               // A

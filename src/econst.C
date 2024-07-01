@@ -166,6 +166,30 @@ namespace econst {
     }
   }
 
+  //Effective distance from target to the hadron calorimeter in m to eliminate dx:hcalx correlation
+  Double_t hcaleffdist(Int_t config){
+    if(config==1)
+      return 13.5;
+    else if(config==4)
+      return 11.65;
+    else if(config==7)
+      return 14.925;
+    else if(config==11)
+      return 15.77;
+    else if(config==14)
+      return 15.13;
+    else if(config==8)
+      return 11.77;
+    else if(config==9)
+      return 11.7;
+    else if(config==4363)
+      return 17.0;
+    else{
+      std::cerr << "Error: enter a valid SBS kinematic." << std::endl;
+      return -1;
+    }
+  }
+
   //Distance from target to the hadron calorimeter in m
   Double_t hcaldist(Int_t config){
     if(config==1)
