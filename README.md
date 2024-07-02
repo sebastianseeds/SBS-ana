@@ -10,6 +10,7 @@ Platform and framework for analyzing data from the SBS spectrometer located at J
 - [Usage](#usage)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
+- [Contact Information](#contact-information)
 - [License](#license)
 
 ## Introduction
@@ -44,15 +45,15 @@ SBS-ana is a comprehensive platform designed for the analysis of data collected 
     ```
 
 2. Install necessary dependencies:
-    ```sh
-    All necessary steps for installation can be found in the JLab internal DocDB here https://sbs.jlab.org/cgi-bin/DocDB/private/ShowDocument?docid=423
-    ```
+
+All necessary steps for installation can be found in the [JLab internal DocDB] (https://sbs.jlab.org/cgi-bin/DocDB/private/ShowDocument?docid=423)
+
 
 ## Usage
 
 ### Running Analysis
 
-Each analysis script contains several arguments aimed at a limited analysis purpose. Scripts will contain a preamble comment describing the script's purpose and a comment before MAIN which explans each argument.
+Each analysis script contains several arguments aimed at a limited analysis purpose. Scripts will contain a preamble comment describing the script's purpose and a comment before MAIN which explains each argument.
 
 The Project Structure section gives a brief explanation of each script.
 
@@ -246,3 +247,18 @@ SBS-ana/
 │ └── vars.C # Functions performing kinematic variable calculation
 └── README.md # This file
 ```
+## Contributing
+
+If you would like to contribute to this analysis, please contact me.
+
+## Contact Information
+
+This project is maintained by Sebastian, a PhD candidate at UConn and working at Jefferson Lab (JLab). For any questions or inquiries about this project, you can reach me at:
+
+- Email: sebastian.seeds@uconn.edu
+
+---
+
+## License
+
+This project is part of my PhD research at Jefferson Lab (JLab). Usage of this code is primarily intended for academic and research purposes. If you have any questions regarding the use of this code, please contact me.
