@@ -49,7 +49,7 @@ SBS-ana is a comprehensive platform designed for the analysis of data collected 
 
 2. Install necessary dependencies:
 
-    All necessary steps for installation can be found in the [JLab internal DocDB](https://sbs.jlab.org/cgi-bin/DocDB/private/ShowDocument?docid=423)
+    All necessary steps for installation can be found in the [instruction](https://sbs.jlab.org/cgi-bin/DocDB/private/ShowDocument?docid=423) on the internal JLab document database.
 
 ## Usage
 
