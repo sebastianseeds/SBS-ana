@@ -32,8 +32,11 @@ SBS-ana is a comprehensive platform designed for the analysis of data collected 
 - C compiler
 - Cern ROOT framework
 - G4SBS (a Geant4-based event generator and particle tracking simulation software)
-- 
-- Jupyter Notebook
+- simc_gfortran (MarkKJones fork, BigBite branch)
+- SBS-offline (data reconstruction for SBS)
+- SBS-replay (database and reconstruction configuration files)
+- Analyzer (Hall A decoding and general reconstruction software)
+- Jupyter Notebooks (JLab)
 - Additional dependencies listed in the `config` directory
 
 ### Steps
@@ -46,8 +49,7 @@ SBS-ana is a comprehensive platform designed for the analysis of data collected 
 
 2. Install necessary dependencies:
 
-All necessary steps for installation can be found in the [JLab internal DocDB] (https://sbs.jlab.org/cgi-bin/DocDB/private/ShowDocument?docid=423)
-
+    All necessary steps for installation can be found in the [JLab internal DocDB] (https://sbs.jlab	.org/cgi-bin/DocDB/private/ShowDocument?docid=423)
 
 ## Usage
 
